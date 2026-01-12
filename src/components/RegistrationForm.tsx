@@ -6,12 +6,12 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
-import { saveApplication, ApplicationData } from "@/lib/applicationStorage";
+import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useRecaptcha } from "@/hooks/useRecaptcha";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -28,7 +28,13 @@ const formSchema = z.object({
     const year = parseInt(val);
     return year <= CUTOFF_YEAR && year >= 1930;
   }, `Registration is currently open only for batches of ${CUTOFF_YEAR} and earlier.`),
-  address: z.string().min(10, "Please enter your complete address").max(500),
+  addressLine1: z.string().min(5, "Please enter your street address").max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(2, "Please enter your city").max(100),
+  district: z.string().min(2, "Please enter your district").max(100),
+  state: z.string().min(2, "Please enter your state").max(100),
+  postalCode: z.string().min(5, "Please enter a valid postal code").max(10),
+  country: z.string().default("India"),
   stayType: z.enum(["on-campus", "outside"]),
   tshirtSize: z.enum(["S", "M", "L", "XL"]),
   gender: z.enum(["M", "F"]),
@@ -36,12 +42,23 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+export interface RegistrationData {
+  applicationId: string;
+  name: string;
+  email: string;
+  stayType: string;
+  registrationFee: number;
+  paymentStatus: string;
+  createdAt: string;
+}
+
 type ViewState = "form" | "success" | "payment";
 
 const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
-  const [currentApplication, setCurrentApplication] = useState<ApplicationData | null>(null);
+  const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
+  const { executeRecaptcha } = useRecaptcha();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -51,7 +68,13 @@ const RegistrationForm = () => {
       phone: "",
       occupation: "",
       yearOfPassing: "",
-      address: "",
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      district: "",
+      state: "",
+      postalCode: "",
+      country: "India",
       stayType: "on-campus",
       tshirtSize: "M",
       gender: "M",
@@ -61,37 +84,72 @@ const RegistrationForm = () => {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    const application = saveApplication({
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      occupation: data.occupation,
-      yearOfPassing: data.yearOfPassing,
-      address: data.address,
-      stayType: data.stayType,
-      tshirtSize: data.tshirtSize,
-      gender: data.gender,
-      paymentStatus: "pending",
-    });
-    
-    setCurrentApplication(application);
-    setViewState("success");
-    
-    toast.success("Registration submitted!", {
-      description: `Application ID: ${application.applicationId}`,
-    });
-    
-    setIsSubmitting(false);
+    try {
+      // Execute reCAPTCHA
+      const captchaToken = await executeRecaptcha("register");
+      
+      const registrationFee = data.stayType === "on-campus" ? 15000 : 7500;
+
+      // Call edge function with captcha token
+      const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
+        body: {
+          captchaToken,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          occupation: data.occupation,
+          yearOfPassing: parseInt(data.yearOfPassing),
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2 || undefined,
+          city: data.city,
+          district: data.district,
+          state: data.state,
+          postalCode: data.postalCode,
+          country: data.country,
+          stayType: data.stayType,
+          tshirtSize: data.tshirtSize,
+          gender: data.gender,
+          registrationFee,
+        },
+      });
+
+      if (error) {
+        console.error("Registration error:", error);
+        toast.error("Registration failed", {
+          description: error.message || "Please try again later.",
+        });
+        return;
+      }
+
+      if (result.error) {
+        toast.error("Registration failed", {
+          description: result.error,
+        });
+        return;
+      }
+
+      setCurrentApplication(result.registration);
+      setViewState("success");
+      
+      toast.success("Registration submitted!", {
+        description: `Application ID: ${result.applicationId}`,
+      });
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      toast.error("Registration failed", {
+        description: error.message || "Please try again later.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleApplicationFound = (application: ApplicationData) => {
+  const handleApplicationFound = (application: RegistrationData) => {
     setCurrentApplication(application);
     setViewState("payment");
   };
 
-  const handlePaymentComplete = (updatedApplication: ApplicationData) => {
+  const handlePaymentComplete = (updatedApplication: RegistrationData) => {
     setCurrentApplication(updatedApplication);
   };
 
@@ -248,27 +306,121 @@ const RegistrationForm = () => {
                     )}
                   />
 
-                  {/* Address */}
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-2 text-foreground">
-                          <MapPin className="w-4 h-4 text-primary" />
-                          Full Address
-                        </FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Enter your complete address" 
-                            {...field} 
-                            className="bg-background min-h-[100px]" 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Address Section */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-foreground flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      Address Details
+                    </h3>
+                    
+                    <FormField
+                      control={form.control}
+                      name="addressLine1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-foreground">Street Address</FormLabel>
+                          <FormControl>
+                            <Input placeholder="House/Flat No., Street Name" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="addressLine2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-foreground">Address Line 2 (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Landmark, Area" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Building className="w-4 h-4 text-primary" />
+                              City
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="City" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="district"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground">District</FormLabel>
+                            <FormControl>
+                              <Input placeholder="District" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="state"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Home className="w-4 h-4 text-primary" />
+                              State
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="State" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="postalCode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground">Postal Code</FormLabel>
+                            <FormControl>
+                              <Input placeholder="PIN Code" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="country"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground">Country</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Country" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
 
                   {/* Stay Type */}
                   <FormField
@@ -366,6 +518,19 @@ const RegistrationForm = () => {
                         </FormItem>
                       )}
                     />
+                  </div>
+
+                  {/* reCAPTCHA Notice */}
+                  <div className="text-xs text-muted-foreground text-center">
+                    This site is protected by reCAPTCHA and the Google{" "}
+                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                      Privacy Policy
+                    </a>{" "}
+                    and{" "}
+                    <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                      Terms of Service
+                    </a>{" "}
+                    apply.
                   </div>
 
                   {/* Submit */}

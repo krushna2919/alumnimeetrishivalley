@@ -8,7 +8,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Calendar, ArrowLeft, CheckCircle, Copy } from "lucide-react";
-import { ApplicationData, updatePaymentDetails } from "@/lib/applicationStorage";
+import { supabase } from "@/integrations/supabase/client";
+import { RegistrationData } from "./RegistrationForm";
 
 const paymentSchema = z.object({
   paymentReference: z.string().min(5, "Payment reference must be at least 5 characters").max(50),
@@ -18,9 +19,9 @@ const paymentSchema = z.object({
 type PaymentFormData = z.infer<typeof paymentSchema>;
 
 interface PaymentDetailsFormProps {
-  application: ApplicationData;
+  application: RegistrationData;
   onBack: () => void;
-  onComplete: (updatedApplication: ApplicationData) => void;
+  onComplete: (updatedApplication: RegistrationData) => void;
 }
 
 const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsFormProps) => {
@@ -29,28 +30,42 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      paymentReference: application.paymentReference || "",
-      paymentDate: application.paymentDate || "",
+      paymentReference: "",
+      paymentDate: "",
     },
   });
 
   const onSubmit = async (data: PaymentFormData) => {
     setIsSubmitting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const { error } = await supabase
+        .from("registrations")
+        .update({
+          payment_reference: data.paymentReference,
+          payment_date: data.paymentDate,
+          payment_status: "submitted" as const,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("application_id", application.applicationId);
 
-    const updated = updatePaymentDetails(
-      application.applicationId,
-      data.paymentReference,
-      data.paymentDate
-    );
+      if (error) {
+        console.error("Payment update error:", error);
+        toast.error("Failed to update payment details");
+        setIsSubmitting(false);
+        return;
+      }
 
-    if (updated) {
       toast.success("Payment details updated successfully!", {
         description: "Your registration is now complete.",
       });
-      onComplete(updated);
-    } else {
+      
+      onComplete({
+        ...application,
+        paymentStatus: "submitted",
+      });
+    } catch (err) {
+      console.error("Payment update error:", err);
       toast.error("Failed to update payment details");
     }
 
@@ -110,10 +125,6 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
             </p>
           </div>
           <div>
-            <span className="text-muted-foreground">Year of Passing:</span>
-            <p className="font-medium text-foreground">{application.yearOfPassing}</p>
-          </div>
-          <div>
             <span className="text-muted-foreground">Payment Status:</span>
             <p className={`font-medium ${application.paymentStatus === "submitted" ? "text-green-600" : "text-amber-600"}`}>
               {application.paymentStatus === "submitted" ? "✓ Submitted" : "⏳ Pending"}
@@ -130,7 +141,7 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
             <div>
               <h4 className="font-semibold text-green-800 dark:text-green-200">Payment Already Submitted</h4>
               <p className="text-green-700 dark:text-green-300 text-sm">
-                Reference: {application.paymentReference} | Date: {application.paymentDate}
+                Your payment details have been submitted successfully.
               </p>
             </div>
           </div>
