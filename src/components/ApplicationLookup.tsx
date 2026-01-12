@@ -3,10 +3,11 @@ import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getApplicationById, ApplicationData } from "@/lib/applicationStorage";
+import { supabase } from "@/integrations/supabase/client";
+import { RegistrationData } from "./RegistrationForm";
 
 interface ApplicationLookupProps {
-  onApplicationFound: (application: ApplicationData) => void;
+  onApplicationFound: (application: RegistrationData) => void;
 }
 
 const ApplicationLookup = ({ onApplicationFound }: ApplicationLookupProps) => {
@@ -23,15 +24,31 @@ const ApplicationLookup = ({ onApplicationFound }: ApplicationLookupProps) => {
     setIsSearching(true);
     setError("");
 
-    // Small delay for UX
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      const { data: application, error: fetchError } = await supabase
+        .from("registrations")
+        .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at")
+        .eq("application_id", applicationId.trim().toUpperCase())
+        .single();
 
-    const application = getApplicationById(applicationId.trim().toUpperCase());
+      if (fetchError || !application) {
+        setError("Application not found. Please check your Application ID.");
+        setIsSearching(false);
+        return;
+      }
 
-    if (application) {
-      onApplicationFound(application);
-    } else {
-      setError("Application not found. Please check your Application ID.");
+      onApplicationFound({
+        applicationId: application.application_id,
+        name: application.name,
+        email: application.email,
+        stayType: application.stay_type,
+        registrationFee: application.registration_fee,
+        paymentStatus: application.payment_status,
+        createdAt: application.created_at,
+      });
+    } catch (err) {
+      console.error("Lookup error:", err);
+      setError("An error occurred. Please try again.");
     }
 
     setIsSearching(false);

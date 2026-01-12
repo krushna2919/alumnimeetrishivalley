@@ -2,10 +2,10 @@ import { motion } from "framer-motion";
 import { CheckCircle, Copy, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ApplicationData } from "@/lib/applicationStorage";
+import { RegistrationData } from "./RegistrationForm";
 
 interface RegistrationSuccessProps {
-  application: ApplicationData;
+  application: RegistrationData;
   onUpdatePayment: () => void;
   onNewRegistration: () => void;
 }
