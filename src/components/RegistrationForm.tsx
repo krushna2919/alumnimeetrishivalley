@@ -11,9 +11,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar } from "lucide-react";
+import { saveApplication, ApplicationData } from "@/lib/applicationStorage";
+import ApplicationLookup from "./ApplicationLookup";
+import PaymentDetailsForm from "./PaymentDetailsForm";
+import RegistrationSuccess from "./RegistrationSuccess";
 
 const currentYear = new Date().getFullYear();
-const CUTOFF_YEAR = 1980; // Only batches up to 1980 can register currently
+const CUTOFF_YEAR = 1980;
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
@@ -23,7 +27,7 @@ const formSchema = z.object({
   yearOfPassing: z.string().refine((val) => {
     const year = parseInt(val);
     return year <= CUTOFF_YEAR && year >= 1930;
-  }, `Registration is currently open only for batches of ${CUTOFF_YEAR} and earlier. Please wait for registration to open for your batch.`),
+  }, `Registration is currently open only for batches of ${CUTOFF_YEAR} and earlier.`),
   address: z.string().min(10, "Please enter your complete address").max(500),
   stayType: z.enum(["on-campus", "outside"]),
   tshirtSize: z.enum(["S", "M", "L", "XL"]),
@@ -32,8 +36,12 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+type ViewState = "form" | "success" | "payment";
+
 const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewState, setViewState] = useState<ViewState>("form");
+  const [currentApplication, setCurrentApplication] = useState<ApplicationData | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -53,21 +61,56 @@ const RegistrationForm = () => {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     
-    // Simulate submission
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     
-    console.log("Registration Data:", data);
-    toast.success("Registration submitted successfully!", {
-      description: "Please proceed with the payment and email confirmation.",
+    const application = saveApplication({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      occupation: data.occupation,
+      yearOfPassing: data.yearOfPassing,
+      address: data.address,
+      stayType: data.stayType,
+      tshirtSize: data.tshirtSize,
+      gender: data.gender,
+      paymentStatus: "pending",
+    });
+    
+    setCurrentApplication(application);
+    setViewState("success");
+    
+    toast.success("Registration submitted!", {
+      description: `Application ID: ${application.applicationId}`,
     });
     
     setIsSubmitting(false);
   };
 
+  const handleApplicationFound = (application: ApplicationData) => {
+    setCurrentApplication(application);
+    setViewState("payment");
+  };
+
+  const handlePaymentComplete = (updatedApplication: ApplicationData) => {
+    setCurrentApplication(updatedApplication);
+  };
+
+  const handleNewRegistration = () => {
+    form.reset();
+    setCurrentApplication(null);
+    setViewState("form");
+  };
+
+  const handleUpdatePayment = () => {
+    setViewState("payment");
+  };
+
+  const handleBackToForm = () => {
+    setViewState("form");
+  };
+
   const stayType = form.watch("stayType");
   const registrationFee = stayType === "on-campus" ? "₹15,000" : "₹7,500";
-
-  // Generate year options from 1930 to current year
   const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => currentYear - i);
 
   return (
@@ -99,247 +142,269 @@ const RegistrationForm = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="gradient-card rounded-2xl shadow-card p-8 md:p-12 border border-border"
         >
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {/* Personal Information */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2 text-foreground">
-                        <User className="w-4 h-4 text-primary" />
-                        Full Name
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your full name" {...field} className="bg-background" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          {viewState === "form" && (
+            <>
+              <ApplicationLookup onApplicationFound={handleApplicationFound} />
+              
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                  {/* Personal Information */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2 text-foreground">
+                            <User className="w-4 h-4 text-primary" />
+                            Full Name
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter your full name" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2 text-foreground">
-                        <Mail className="w-4 h-4 text-primary" />
-                        Email Address
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="your.email@example.com" {...field} className="bg-background" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2 text-foreground">
+                            <Mail className="w-4 h-4 text-primary" />
+                            Email Address
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="your.email@example.com" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2 text-foreground">
-                        <Phone className="w-4 h-4 text-primary" />
-                        Mobile / WhatsApp
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="+91 XXXXX XXXXX" {...field} className="bg-background" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2 text-foreground">
+                            <Phone className="w-4 h-4 text-primary" />
+                            Mobile / WhatsApp
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="+91 XXXXX XXXXX" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="occupation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2 text-foreground">
-                        <Briefcase className="w-4 h-4 text-primary" />
-                        Occupation
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="Your current profession" {...field} className="bg-background" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Year of Passing */}
-              <FormField
-                control={form.control}
-                name="yearOfPassing"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-foreground">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      Year of Passing (ISC/ICSE)
-                    </FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue placeholder="Select your passing year" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-60">
-                        {yearOptions.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Address */}
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2 text-foreground">
-                      <MapPin className="w-4 h-4 text-primary" />
-                      Full Address
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Enter your complete address" 
-                        {...field} 
-                        className="bg-background min-h-[100px]" 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Stay Type */}
-              <FormField
-                control={form.control}
-                name="stayType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground text-lg font-semibold">Registration Type</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        className="grid md:grid-cols-2 gap-4 mt-3"
-                      >
-                        <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                          field.value === "on-campus" 
-                            ? "border-primary bg-primary/5" 
-                            : "border-border hover:border-primary/50"
-                        }`}>
-                          <RadioGroupItem value="on-campus" className="mt-1" />
-                          <div>
-                            <p className="font-semibold text-foreground">On Campus Stay</p>
-                            <p className="text-2xl font-bold text-primary mt-1">₹15,000</p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              Includes accommodation, all meals & full event access
-                            </p>
-                          </div>
-                        </label>
-                        
-                        <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                          field.value === "outside" 
-                            ? "border-primary bg-primary/5" 
-                            : "border-border hover:border-primary/50"
-                        }`}>
-                          <RadioGroupItem value="outside" className="mt-1" />
-                          <div>
-                            <p className="font-semibold text-foreground">Staying Outside</p>
-                            <p className="text-2xl font-bold text-primary mt-1">₹7,500</p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              Full event access, lunch & dinner included (no breakfast)
-                            </p>
-                          </div>
-                        </label>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* T-Shirt & Gender */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="tshirtSize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">T-Shirt Size</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select size" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="S">S (Chest: 36")</SelectItem>
-                          <SelectItem value="M">M (Chest: 38-40")</SelectItem>
-                          <SelectItem value="L">L (Chest: 42")</SelectItem>
-                          <SelectItem value="XL">XL (Chest: 44")</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Gender</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background">
-                            <SelectValue placeholder="Select gender" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="M">Male</SelectItem>
-                          <SelectItem value="F">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Submit */}
-              <div className="pt-6 border-t border-border">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="text-center md:text-left">
-                    <p className="text-muted-foreground">Registration Fee</p>
-                    <p className="text-3xl font-bold text-primary">{registrationFee}</p>
+                    <FormField
+                      control={form.control}
+                      name="occupation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2 text-foreground">
+                            <Briefcase className="w-4 h-4 text-primary" />
+                            Occupation
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your current profession" {...field} className="bg-background" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <Button 
-                    type="submit" 
-                    size="lg"
-                    disabled={isSubmitting}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all"
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit Registration"}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </Form>
+
+                  {/* Year of Passing */}
+                  <FormField
+                    control={form.control}
+                    name="yearOfPassing"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2 text-foreground">
+                          <Calendar className="w-4 h-4 text-primary" />
+                          Year of Passing (ISC/ICSE)
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="bg-background">
+                              <SelectValue placeholder="Select your passing year" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-60">
+                            {yearOptions.map((year) => (
+                              <SelectItem key={year} value={year.toString()}>
+                                {year}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Address */}
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2 text-foreground">
+                          <MapPin className="w-4 h-4 text-primary" />
+                          Full Address
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter your complete address" 
+                            {...field} 
+                            className="bg-background min-h-[100px]" 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Stay Type */}
+                  <FormField
+                    control={form.control}
+                    name="stayType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground text-lg font-semibold">Registration Type</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="grid md:grid-cols-2 gap-4 mt-3"
+                          >
+                            <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                              field.value === "on-campus" 
+                                ? "border-primary bg-primary/5" 
+                                : "border-border hover:border-primary/50"
+                            }`}>
+                              <RadioGroupItem value="on-campus" className="mt-1" />
+                              <div>
+                                <p className="font-semibold text-foreground">On Campus Stay</p>
+                                <p className="text-2xl font-bold text-primary mt-1">₹15,000</p>
+                                <p className="text-sm text-muted-foreground mt-2">
+                                  Includes accommodation, all meals & full event access
+                                </p>
+                              </div>
+                            </label>
+                            
+                            <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                              field.value === "outside" 
+                                ? "border-primary bg-primary/5" 
+                                : "border-border hover:border-primary/50"
+                            }`}>
+                              <RadioGroupItem value="outside" className="mt-1" />
+                              <div>
+                                <p className="font-semibold text-foreground">Staying Outside</p>
+                                <p className="text-2xl font-bold text-primary mt-1">₹7,500</p>
+                                <p className="text-sm text-muted-foreground mt-2">
+                                  Full event access, lunch & dinner included (no breakfast)
+                                </p>
+                              </div>
+                            </label>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* T-Shirt & Gender */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="tshirtSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-foreground">T-Shirt Size</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-background">
+                                <SelectValue placeholder="Select size" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="S">S (Chest: 36")</SelectItem>
+                              <SelectItem value="M">M (Chest: 38-40")</SelectItem>
+                              <SelectItem value="L">L (Chest: 42")</SelectItem>
+                              <SelectItem value="XL">XL (Chest: 44")</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="gender"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-foreground">Gender</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="bg-background">
+                                <SelectValue placeholder="Select gender" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="M">Male</SelectItem>
+                              <SelectItem value="F">Female</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Submit */}
+                  <div className="pt-6 border-t border-border">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                      <div className="text-center md:text-left">
+                        <p className="text-muted-foreground">Registration Fee</p>
+                        <p className="text-3xl font-bold text-primary">{registrationFee}</p>
+                      </div>
+                      <Button 
+                        type="submit" 
+                        size="lg"
+                        disabled={isSubmitting}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all"
+                      >
+                        {isSubmitting ? "Submitting..." : "Submit Registration"}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+              </Form>
+            </>
+          )}
+
+          {viewState === "success" && currentApplication && (
+            <RegistrationSuccess
+              application={currentApplication}
+              onUpdatePayment={handleUpdatePayment}
+              onNewRegistration={handleNewRegistration}
+            />
+          )}
+
+          {viewState === "payment" && currentApplication && (
+            <PaymentDetailsForm
+              application={currentApplication}
+              onBack={handleBackToForm}
+              onComplete={handlePaymentComplete}
+            />
+          )}
         </motion.div>
       </div>
     </section>
