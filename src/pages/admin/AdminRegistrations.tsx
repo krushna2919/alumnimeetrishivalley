@@ -36,7 +36,8 @@ import {
   Eye, 
   CheckCircle, 
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
@@ -108,6 +109,40 @@ const AdminRegistrations = () => {
     setFilteredRegistrations(filtered);
   };
 
+  const sendNotificationEmail = async (
+    registration: Registration, 
+    type: 'approved' | 'rejected',
+    rejectionReason?: string
+  ) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-registration-email', {
+        body: {
+          to: registration.email,
+          name: registration.name,
+          applicationId: registration.application_id,
+          type,
+          rejectionReason,
+        },
+      });
+
+      if (error) {
+        console.error('Error sending email:', error);
+        toast({
+          title: 'Email Warning',
+          description: 'Registration updated but email notification failed to send.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      console.log('Email sent:', data);
+      return true;
+    } catch (err) {
+      console.error('Email error:', err);
+      return false;
+    }
+  };
+
   const handleApprove = async (registration: Registration) => {
     setIsProcessing(true);
     try {
@@ -121,9 +156,14 @@ const AdminRegistrations = () => {
 
       if (error) throw error;
 
+      // Send notification email
+      const emailSent = await sendNotificationEmail(registration, 'approved');
+
       toast({
         title: 'Registration Approved',
-        description: `${registration.name}'s registration has been approved.`,
+        description: emailSent 
+          ? `${registration.name}'s registration has been approved and notification sent.`
+          : `${registration.name}'s registration has been approved.`,
       });
 
       fetchRegistrations();
@@ -155,9 +195,14 @@ const AdminRegistrations = () => {
 
       if (error) throw error;
 
+      // Send notification email
+      const emailSent = await sendNotificationEmail(selectedRegistration, 'rejected', rejectionReason);
+
       toast({
         title: 'Registration Rejected',
-        description: `${selectedRegistration.name}'s registration has been rejected.`,
+        description: emailSent
+          ? `${selectedRegistration.name}'s registration has been rejected and notification sent.`
+          : `${selectedRegistration.name}'s registration has been rejected.`,
       });
 
       fetchRegistrations();
