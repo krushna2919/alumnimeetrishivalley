@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home } from "lucide-react";
+import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRecaptcha } from "@/hooks/useRecaptcha";
+import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -59,6 +60,7 @@ const RegistrationForm = () => {
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const { executeRecaptcha } = useRecaptcha();
+  const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -80,6 +82,26 @@ const RegistrationForm = () => {
       gender: "M",
     },
   });
+
+  // Watch postal code for auto-population
+  const postalCode = form.watch("postalCode");
+
+  // Auto-populate city, district, state from postal code
+  useEffect(() => {
+    const fetchLocationData = async () => {
+      if (postalCode && postalCode.length === 6) {
+        const locationData = await lookupPostalCode(postalCode);
+        if (locationData) {
+          form.setValue("city", locationData.city, { shouldValidate: true });
+          form.setValue("district", locationData.district, { shouldValidate: true });
+          form.setValue("state", locationData.state, { shouldValidate: true });
+          toast.success("Location auto-filled from PIN code");
+        }
+      }
+    };
+
+    fetchLocationData();
+  }, [postalCode, lookupPostalCode, form]);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -341,7 +363,51 @@ const RegistrationForm = () => {
                       )}
                     />
 
+                    {/* PIN Code first - for auto-population */}
                     <div className="grid md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="postalCode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground flex items-center gap-2">
+                              PIN Code
+                              {isLookingUpPostalCode && (
+                                <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                              )}
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter 6-digit PIN code" 
+                                {...field} 
+                                className="bg-background"
+                                maxLength={6}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                            <p className="text-xs text-muted-foreground">
+                              City, district & state will auto-fill
+                            </p>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="country"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground">Country</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Country" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
                         name="city"
@@ -349,10 +415,10 @@ const RegistrationForm = () => {
                           <FormItem>
                             <FormLabel className="flex items-center gap-2 text-foreground">
                               <Building className="w-4 h-4 text-primary" />
-                              City
+                              City / Post Office
                             </FormLabel>
                             <FormControl>
-                              <Input placeholder="City" {...field} className="bg-background" />
+                              <Input placeholder="Auto-filled from PIN" {...field} className="bg-background" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -366,15 +432,13 @@ const RegistrationForm = () => {
                           <FormItem>
                             <FormLabel className="text-foreground">District</FormLabel>
                             <FormControl>
-                              <Input placeholder="District" {...field} className="bg-background" />
+                              <Input placeholder="Auto-filled from PIN" {...field} className="bg-background" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    </div>
 
-                    <div className="grid md:grid-cols-3 gap-4">
                       <FormField
                         control={form.control}
                         name="state"
@@ -385,35 +449,7 @@ const RegistrationForm = () => {
                               State
                             </FormLabel>
                             <FormControl>
-                              <Input placeholder="State" {...field} className="bg-background" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="postalCode"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-foreground">Postal Code</FormLabel>
-                            <FormControl>
-                              <Input placeholder="PIN Code" {...field} className="bg-background" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="country"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-foreground">Country</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Country" {...field} className="bg-background" />
+                              <Input placeholder="Auto-filled from PIN" {...field} className="bg-background" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
