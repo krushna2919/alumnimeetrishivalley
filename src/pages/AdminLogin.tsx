@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Shield } from 'lucide-react';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -18,6 +19,7 @@ const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
   const { signIn, isAdmin, user, isLoading } = useAuth();
@@ -49,30 +51,55 @@ const AdminLogin = () => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        toast({
-          title: 'Login Failed',
-          description: error.message === 'Invalid login credentials' 
-            ? 'Invalid email or password. Please try again.'
-            : error.message,
-          variant: 'destructive',
+      if (isSignUp) {
+        // Sign up flow
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/admin/login`,
+          },
         });
-        return;
-      }
 
-      // Success - navigation handled by auth state change
-      toast({
-        title: 'Login Successful',
-        description: 'Checking admin permissions...',
-      });
-      
-      // Small delay to allow role check
-      setTimeout(() => {
-        navigate('/admin');
-      }, 500);
-      
+        if (error) {
+          toast({
+            title: 'Sign Up Failed',
+            description: error.message,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        toast({
+          title: 'Account Created',
+          description: 'Your account has been created. Please contact a superadmin to grant you admin access, or check your email if confirmation is required.',
+        });
+        setIsSignUp(false);
+      } else {
+        // Sign in flow
+        const { error } = await signIn(email, password);
+        
+        if (error) {
+          toast({
+            title: 'Login Failed',
+            description: error.message === 'Invalid login credentials' 
+              ? 'Invalid email or password. Please try again.'
+              : error.message,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        toast({
+          title: 'Login Successful',
+          description: 'Checking admin permissions...',
+        });
+        
+        // Small delay to allow role check
+        setTimeout(() => {
+          navigate('/admin');
+        }, 500);
+      }
     } catch (err) {
       toast({
         title: 'Error',
@@ -100,9 +127,13 @@ const AdminLogin = () => {
             <Shield className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <CardTitle className="font-serif text-2xl">Admin Login</CardTitle>
+            <CardTitle className="font-serif text-2xl">
+              {isSignUp ? 'Create Account' : 'Admin Login'}
+            </CardTitle>
             <CardDescription className="mt-2">
-              Sign in to access the administration dashboard
+              {isSignUp 
+                ? 'Create an account to request admin access'
+                : 'Sign in to access the administration dashboard'}
             </CardDescription>
           </div>
         </CardHeader>
@@ -148,13 +179,25 @@ const AdminLogin = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {isSignUp ? 'Creating Account...' : 'Signing in...'}
                 </>
               ) : (
-                'Sign In'
+                isSignUp ? 'Create Account' : 'Sign In'
               )}
             </Button>
           </form>
+
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-primary hover:underline"
+            >
+              {isSignUp 
+                ? 'Already have an account? Sign in'
+                : "Don't have an account? Create one"}
+            </button>
+          </div>
 
           <div className="mt-6 text-center">
             <a 
