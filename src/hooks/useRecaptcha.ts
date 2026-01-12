@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 
 // Your reCAPTCHA v3 Site Key - replace with your actual key
-const RECAPTCHA_SITE_KEY = "YOUR_RECAPTCHA_SITE_KEY";
+const RECAPTCHA_SITE_KEY = "6LchWkgsAAAAAIWpNxur7VomXXyOQVuy9eoDUD3d";
 
 declare global {
   interface Window {
