@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Building2, CreditCard, Mail, AlertCircle } from "lucide-react";
-
+import paymentQR from "@/assets/payment-qr.png";
 const PaymentInfo = () => {
   return (
     <section className="py-20 bg-secondary text-secondary-foreground">
@@ -80,9 +80,18 @@ const PaymentInfo = () => {
                 </div>
                 <h3 className="font-serif text-2xl font-semibold">UPI / QR Code</h3>
               </div>
-              <p className="text-secondary-foreground/70">
-                You can also pay via UPI by scanning the QR code that will be provided during registration confirmation.
+              <p className="text-secondary-foreground/70 mb-6">
+                Scan the QR code below to pay via UPI
               </p>
+              <div className="flex justify-center">
+                <div className="bg-white p-4 rounded-xl shadow-md">
+                  <img 
+                    src={paymentQR} 
+                    alt="Payment QR Code" 
+                    className="w-48 h-48 object-contain"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="bg-accent/20 backdrop-blur-sm rounded-2xl p-8 border border-accent/30">
