@@ -197,6 +197,16 @@ export type Database = {
     }
     Functions: {
       generate_application_id: { Args: never; Returns: string }
+      get_open_batch_configuration: {
+        Args: never
+        Returns: {
+          is_registration_open: boolean
+          registration_end_date: string
+          registration_start_date: string
+          year_from: number
+          year_to: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
