@@ -23,8 +23,13 @@ function loadRecaptcha(siteKey: string): Promise<void> {
   if (recaptchaLoadPromise) return recaptchaLoadPromise;
 
   recaptchaLoadPromise = new Promise<void>((resolve, reject) => {
+    const sources = [
+      `https://www.google.com/recaptcha/api.js?render=${siteKey}`,
+      `https://www.recaptcha.net/recaptcha/api.js?render=${siteKey}`,
+    ];
+
     const existing = document.querySelector<HTMLScriptElement>(
-      'script[src^="https://www.google.com/recaptcha/api.js"]'
+      'script[src^="https://www.google.com/recaptcha/api.js"], script[src^="https://www.recaptcha.net/recaptcha/api.js"]'
     );
 
     const onReadyCheck = () => {
@@ -36,7 +41,7 @@ function loadRecaptcha(siteKey: string): Promise<void> {
     const timeout = window.setTimeout(() => {
       reject(
         new Error(
-          "reCAPTCHA failed to load. Please disable ad-blockers for this site or ensure this domain is allowed in your reCAPTCHA settings, then refresh and try again."
+          "reCAPTCHA failed to load. It may be blocked by an ad-blocker/firewall, or the script domain is inaccessible from your network."
         )
       );
     }, 10000);
@@ -49,26 +54,53 @@ function loadRecaptcha(siteKey: string): Promise<void> {
       }
     };
 
-    const handleError = () => {
-      window.clearTimeout(timeout);
-      reject(
-        new Error(
-          "reCAPTCHA script failed to download (blocked or network error). Please disable ad-blockers for this site and try again."
-        )
+    const tryInject = (srcIndex: number) => {
+      const script = document.createElement("script");
+      script.src = sources[srcIndex];
+      script.async = true;
+      script.defer = true;
+
+      script.addEventListener(
+        "load",
+        () => {
+          handleLoad();
+        },
+        { once: true }
       );
+
+      script.addEventListener(
+        "error",
+        () => {
+          if (srcIndex < sources.length - 1) {
+            // Fallback to recaptcha.net if google.com is blocked
+            tryInject(srcIndex + 1);
+            return;
+          }
+          window.clearTimeout(timeout);
+          reject(
+            new Error(
+              "reCAPTCHA script failed to download (blocked or network error). Please disable ad-blockers/firewall rules for this site and try again."
+            )
+          );
+        },
+        { once: true }
+      );
+
+      document.head.appendChild(script);
     };
 
     if (existing) {
       existing.addEventListener("load", handleLoad, { once: true });
-      existing.addEventListener("error", handleError, { once: true });
+      existing.addEventListener(
+        "error",
+        () => {
+          // Existing script failed; try fallback source.
+          tryInject(1);
+        },
+        { once: true }
+      );
     } else {
-      const script = document.createElement("script");
-      script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
-      script.async = true;
-      script.defer = true;
-      script.addEventListener("load", handleLoad, { once: true });
-      script.addEventListener("error", handleError, { once: true });
-      document.head.appendChild(script);
+      tryInject(0);
     }
 
     // One more microtask tick to catch immediate availability
