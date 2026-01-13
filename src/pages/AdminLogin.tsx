@@ -19,7 +19,6 @@ const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   
   const { signIn, isAdmin, user, isLoading } = useAuth();
@@ -51,55 +50,26 @@ const AdminLogin = () => {
     setIsSubmitting(true);
 
     try {
-      if (isSignUp) {
-        // Sign up flow
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/admin/login`,
-          },
-        });
-
-        if (error) {
-          toast({
-            title: 'Sign Up Failed',
-            description: error.message,
-            variant: 'destructive',
-          });
-          return;
-        }
-
+      const { error } = await signIn(email, password);
+      
+      if (error) {
         toast({
-          title: 'Account Created',
-          description: 'Your account has been created. Please contact a superadmin to grant you admin access, or check your email if confirmation is required.',
+          title: 'Login Failed',
+          description: 'Invalid email or password. Please try again.',
+          variant: 'destructive',
         });
-        setIsSignUp(false);
-      } else {
-        // Sign in flow
-        const { error } = await signIn(email, password);
-        
-        if (error) {
-          toast({
-            title: 'Login Failed',
-            description: error.message === 'Invalid login credentials' 
-              ? 'Invalid email or password. Please try again.'
-              : error.message,
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        toast({
-          title: 'Login Successful',
-          description: 'Checking admin permissions...',
-        });
-        
-        // Small delay to allow role check
-        setTimeout(() => {
-          navigate('/admin');
-        }, 500);
+        return;
       }
+
+      toast({
+        title: 'Login Successful',
+        description: 'Checking admin permissions...',
+      });
+      
+      // Small delay to allow role check
+      setTimeout(() => {
+        navigate('/admin');
+      }, 500);
     } catch (err) {
       toast({
         title: 'Error',
@@ -128,12 +98,10 @@ const AdminLogin = () => {
           </div>
           <div>
             <CardTitle className="font-serif text-2xl">
-              {isSignUp ? 'Create Account' : 'Admin Login'}
+              Admin Login
             </CardTitle>
             <CardDescription className="mt-2">
-              {isSignUp 
-                ? 'Create an account to request admin access'
-                : 'Sign in to access the administration dashboard'}
+              Sign in to access the administration dashboard
             </CardDescription>
           </div>
         </CardHeader>
@@ -179,25 +147,13 @@ const AdminLogin = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isSignUp ? 'Creating Account...' : 'Signing in...'}
+                  Signing in...
                 </>
               ) : (
-                isSignUp ? 'Create Account' : 'Sign In'
+                'Sign In'
               )}
             </Button>
           </form>
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isSignUp 
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Create one"}
-            </button>
-          </div>
 
           <div className="mt-6 text-center">
             <a 

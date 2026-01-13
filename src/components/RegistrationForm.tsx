@@ -138,9 +138,9 @@ const RegistrationForm = () => {
       });
 
       if (error) {
-        console.error("Registration error:", error);
+        console.error("Registration error code:", error.name);
         toast.error("Registration failed", {
-          description: error.message || "Please try again later.",
+          description: "Unable to complete registration. Please try again later.",
         });
         return;
       }
@@ -166,10 +166,10 @@ const RegistrationForm = () => {
       toast.success(`${totalRegistered} registration${totalRegistered > 1 ? 's' : ''} submitted!`, {
         description: `Primary Application ID: ${result.applicationId}`,
       });
-    } catch (error: any) {
-      console.error("Registration error:", error);
+    } catch (error: unknown) {
+      console.error("Registration failed");
       toast.error("Registration failed", {
-        description: error.message || "Please try again later.",
+        description: "Unable to complete registration. Please try again later.",
       });
     } finally {
       setIsSubmitting(false);
