@@ -135,33 +135,42 @@ Deno.serve(async (req) => {
         });
       };
 
-      try {
-        const emailResult = await send(primaryFrom);
-        console.log('[invite-admin-user] resend send result', JSON.stringify(emailResult));
-        return { attempted: true, sent: true, error: null as string | null };
-      } catch (err: any) {
-        const msg = err?.message || String(err);
-        console.error('[invite-admin-user] resend send error (primary from)', msg);
+      const logResult = (label: string, result: any) => {
+        try {
+          console.log(`[invite-admin-user] resend ${label}`, JSON.stringify(result));
+        } catch {
+          console.log(`[invite-admin-user] resend ${label}`, result);
+        }
+      };
 
-        // Domain not verified → retry with fallback sender so invites still deliver.
-        if (msg.toLowerCase().includes('domain is not verified')) {
-          try {
-            const emailResult2 = await send(fallbackFrom);
-            console.log('[invite-admin-user] resend send result (fallback from)', JSON.stringify(emailResult2));
-            return {
-              attempted: true,
-              sent: true,
-              error: 'Primary sender domain not verified; sent via fallback sender.',
-            };
-          } catch (err2: any) {
-            const msg2 = err2?.message || String(err2);
-            console.error('[invite-admin-user] resend send error (fallback from)', msg2);
-            return { attempted: true, sent: false, error: msg2 };
-          }
+      // Resend SDK returns { data, error } and does NOT always throw.
+      // So we must check result.error explicitly.
+      const result1 = await send(primaryFrom);
+      logResult('send result (primary from)', result1);
+
+      const primaryErrorMsg: string | null = (result1 as any)?.error?.message ?? null;
+      if (!primaryErrorMsg) {
+        return { attempted: true, sent: true, error: null as string | null };
+      }
+
+      // Domain not verified → retry with fallback sender so invites still deliver.
+      if (primaryErrorMsg.toLowerCase().includes('domain is not verified')) {
+        const result2 = await send(fallbackFrom);
+        logResult('send result (fallback from)', result2);
+
+        const fallbackErrorMsg: string | null = (result2 as any)?.error?.message ?? null;
+        if (!fallbackErrorMsg) {
+          return {
+            attempted: true,
+            sent: true,
+            error: 'Primary sender domain not verified; sent via fallback sender.',
+          };
         }
 
-        return { attempted: true, sent: false, error: msg };
+        return { attempted: true, sent: false, error: fallbackErrorMsg };
       }
+
+      return { attempted: true, sent: false, error: primaryErrorMsg };
     };
 
     const generateResetLink = async () => {
@@ -191,14 +200,14 @@ Deno.serve(async (req) => {
     // Check if user already exists
     const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     if (listError) {
-      console.error('[invite-admin-user] listUsers error', listError.message);
+      console.error('[invite-admin-user] listUsers error', listError?.message);
       return new Response(
         JSON.stringify({ error: 'Failed to lookup existing users' }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const existingUser = existingUsers?.users?.find(u => u.email === email);
+    const existingUser = existingUsers?.users?.find((u) => u.email === email) ?? null;
 
     let userId: string;
     let isNewUser = false;
@@ -209,7 +218,7 @@ Deno.serve(async (req) => {
       error: null,
     };
 
-    if (existingUser) {
+    if (existingUser != null) {
       userId = existingUser.id;
 
       // Ensure a profile row exists (used by Admin Users UI to display email)
@@ -217,12 +226,12 @@ Deno.serve(async (req) => {
         .from('profiles')
         .upsert({ id: userId, email }, { onConflict: 'id' });
       if (profileUpsertError) {
-        console.error('[invite-admin-user] profile upsert error (existing user):', profileUpsertError.message);
+        console.error('[invite-admin-user] profile upsert error (existing user):', profileUpsertError?.message);
       }
 
       // Optional: still send (or re-send) password setup email for existing users
       const { actionLink } = await generateResetLink();
-      if (actionLink) {
+      if (typeof actionLink === 'string' && actionLink.length > 0) {
         actionLinkForResponse = actionLink;
         emailStatus = await trySendInviteEmail(actionLink);
       }
@@ -256,14 +265,23 @@ Deno.serve(async (req) => {
       });
 
       if (createError) {
-        console.error("[invite-admin-user] createUser error:", createError.message);
+        console.error("[invite-admin-user] createUser error:", createError?.message);
         return new Response(
           JSON.stringify({ error: "Failed to create user account" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      userId = newUser.user.id;
+      const createdUserId = newUser?.user?.id;
+      if (!createdUserId) {
+        console.error('[invite-admin-user] createUser returned no user id');
+        return new Response(
+          JSON.stringify({ error: 'Failed to create user account' }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      userId = createdUserId;
       isNewUser = true;
 
       // Create (or update) profile for the new user
@@ -278,12 +296,12 @@ Deno.serve(async (req) => {
         );
 
       if (profileError) {
-        console.error("[invite-admin-user] profile upsert error:", profileError.message);
+        console.error("[invite-admin-user] profile upsert error:", profileError?.message);
         // Don't fail the request, profile can be created later
       }
 
       const { actionLink } = await generateResetLink();
-      if (actionLink) {
+      if (typeof actionLink === 'string' && actionLink.length > 0) {
         actionLinkForResponse = actionLink;
         emailStatus = await trySendInviteEmail(actionLink);
       }
@@ -298,7 +316,7 @@ Deno.serve(async (req) => {
       });
 
     if (roleInsertError) {
-      console.error("[invite-admin-user] role insert error:", roleInsertError.message);
+      console.error("[invite-admin-user] role insert error:", roleInsertError?.message);
       return new Response(
         JSON.stringify({ error: "Failed to assign role" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
