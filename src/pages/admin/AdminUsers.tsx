@@ -148,6 +148,7 @@ const AdminUsers = () => {
           email: newUserEmail.trim(),
           role: newUserRole,
           siteUrl: window.location.origin,
+          sendInviteEmail: true,
         },
       });
 
