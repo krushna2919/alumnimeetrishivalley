@@ -9,18 +9,16 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, UserPlus, Users } from "lucide-react";
+import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTurnstile } from "@/hooks/useTurnstile";
 import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
-import AdditionalRegistrant, { AdditionalRegistrantData } from "./AdditionalRegistrant";
 
 const currentYear = new Date().getFullYear();
 const CUTOFF_YEAR = 1980;
-const MAX_ADDITIONAL_REGISTRANTS = 4; // Total 5 people max (1 primary + 4 additional)
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
@@ -53,23 +51,14 @@ export interface RegistrationData {
   registrationFee: number;
   paymentStatus: string;
   createdAt: string;
-  totalRegistrants?: number;
 }
 
 type ViewState = "form" | "success" | "payment";
-
-const createEmptyRegistrant = (): AdditionalRegistrantData => ({
-  name: "",
-  gender: "M",
-  tshirtSize: "M",
-  stayType: "on-campus",
-});
 
 const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
-  const [additionalRegistrants, setAdditionalRegistrants] = useState<AdditionalRegistrantData[]>([]);
   const { getToken, resetTurnstile } = useTurnstile("turnstile-container");
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
 
@@ -114,45 +103,7 @@ const RegistrationForm = () => {
     fetchLocationData();
   }, [postalCode, lookupPostalCode, form]);
 
-  const addRegistrant = () => {
-    if (additionalRegistrants.length < MAX_ADDITIONAL_REGISTRANTS) {
-      setAdditionalRegistrants([...additionalRegistrants, createEmptyRegistrant()]);
-    }
-  };
-
-  const removeRegistrant = (index: number) => {
-    setAdditionalRegistrants(additionalRegistrants.filter((_, i) => i !== index));
-  };
-
-  const updateRegistrant = (index: number, data: AdditionalRegistrantData) => {
-    const updated = [...additionalRegistrants];
-    updated[index] = data;
-    setAdditionalRegistrants(updated);
-  };
-
-  const calculateTotalFee = (primaryStayType: string): number => {
-    const primaryFee = primaryStayType === "on-campus" ? 15000 : 7500;
-    const additionalFees = additionalRegistrants.reduce((sum, r) => {
-      return sum + (r.stayType === "on-campus" ? 15000 : 7500);
-    }, 0);
-    return primaryFee + additionalFees;
-  };
-
-  const validateAdditionalRegistrants = (): boolean => {
-    for (let i = 0; i < additionalRegistrants.length; i++) {
-      if (!additionalRegistrants[i].name || additionalRegistrants[i].name.trim().length < 2) {
-        toast.error(`Please enter a valid name for Person ${i + 2}`);
-        return false;
-      }
-    }
-    return true;
-  };
-
   const onSubmit = async (data: FormData) => {
-    if (!validateAdditionalRegistrants()) {
-      return;
-    }
-
     setIsSubmitting(true);
     
     try {
@@ -167,7 +118,7 @@ const RegistrationForm = () => {
         return;
       }
       
-      const totalFee = calculateTotalFee(data.stayType);
+      const registrationFee = data.stayType === "on-campus" ? 15000 : 7500;
 
       // Call edge function with captcha token
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
@@ -188,13 +139,7 @@ const RegistrationForm = () => {
           stayType: data.stayType,
           tshirtSize: data.tshirtSize,
           gender: data.gender,
-          registrationFee: totalFee,
-          additionalRegistrants: additionalRegistrants.map(r => ({
-            name: r.name.trim(),
-            gender: r.gender,
-            tshirtSize: r.tshirtSize,
-            stayType: r.stayType,
-          })),
+          registrationFee,
         },
       });
 
@@ -213,17 +158,12 @@ const RegistrationForm = () => {
         return;
       }
 
-      setCurrentApplication({
-        ...result.registration,
-        totalRegistrants: 1 + additionalRegistrants.length,
-      });
+      setCurrentApplication(result.registration);
       setViewState("success");
       resetTurnstile(); // Reset for next registration
-      setAdditionalRegistrants([]); // Clear additional registrants
       
-      const totalPeople = 1 + additionalRegistrants.length;
       toast.success("Registration submitted!", {
-        description: `${totalPeople} ${totalPeople === 1 ? 'person' : 'people'} registered. Application ID: ${result.applicationId}`,
+        description: `Application ID: ${result.applicationId}`,
       });
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -247,7 +187,6 @@ const RegistrationForm = () => {
   const handleNewRegistration = () => {
     form.reset();
     setCurrentApplication(null);
-    setAdditionalRegistrants([]);
     setViewState("form");
   };
 
@@ -260,10 +199,8 @@ const RegistrationForm = () => {
   };
 
   const stayType = form.watch("stayType");
-  const totalFee = calculateTotalFee(stayType);
-  const formattedTotalFee = `₹${totalFee.toLocaleString("en-IN")}`;
+  const registrationFee = stayType === "on-campus" ? "₹15,000" : "₹7,500";
   const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => currentYear - i);
-  const totalPeople = 1 + additionalRegistrants.length;
 
   return (
     <section id="register" className="py-20 gradient-warm">
@@ -300,12 +237,6 @@ const RegistrationForm = () => {
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                  {/* Primary Registrant Header */}
-                  <div className="flex items-center gap-2 pb-2 border-b border-border">
-                    <Users className="w-5 h-5 text-primary" />
-                    <h3 className="text-lg font-semibold text-foreground">Primary Registrant (Person 1)</h3>
-                  </div>
-
                   {/* Personal Information */}
                   <div className="grid md:grid-cols-2 gap-6">
                     <FormField
@@ -634,71 +565,6 @@ const RegistrationForm = () => {
                     />
                   </div>
 
-                  {/* Additional Registrants Section */}
-                  <div className="space-y-4 pt-6 border-t border-border">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                          <UserPlus className="w-5 h-5 text-primary" />
-                          Additional Registrants
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          You can register up to {MAX_ADDITIONAL_REGISTRANTS + 1} people in total (including yourself)
-                        </p>
-                      </div>
-                      {additionalRegistrants.length < MAX_ADDITIONAL_REGISTRANTS && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={addRegistrant}
-                          className="flex items-center gap-2"
-                        >
-                          <UserPlus className="w-4 h-4" />
-                          Add Person
-                        </Button>
-                      )}
-                    </div>
-
-                    {additionalRegistrants.length === 0 && (
-                      <div className="text-center py-8 border-2 border-dashed border-border rounded-xl">
-                        <UserPlus className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-muted-foreground">No additional registrants added</p>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={addRegistrant}
-                          className="mt-2"
-                        >
-                          Click to add family/friends
-                        </Button>
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      {additionalRegistrants.map((registrant, index) => (
-                        <AdditionalRegistrant
-                          key={index}
-                          index={index}
-                          data={registrant}
-                          onChange={(data) => updateRegistrant(index, data)}
-                          onRemove={() => removeRegistrant(index)}
-                        />
-                      ))}
-                    </div>
-
-                    {additionalRegistrants.length > 0 && additionalRegistrants.length < MAX_ADDITIONAL_REGISTRANTS && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={addRegistrant}
-                        className="w-full flex items-center gap-2"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        Add Another Person ({MAX_ADDITIONAL_REGISTRANTS - additionalRegistrants.length} more allowed)
-                      </Button>
-                    )}
-                  </div>
-
                   {/* Turnstile Captcha */}
                   <div className="flex flex-col items-center gap-3">
                     <div id="turnstile-container" className="flex justify-center"></div>
@@ -711,10 +577,8 @@ const RegistrationForm = () => {
                   <div className="pt-6 border-t border-border">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                       <div className="text-center md:text-left">
-                        <p className="text-muted-foreground">
-                          Total Registration Fee ({totalPeople} {totalPeople === 1 ? 'person' : 'people'})
-                        </p>
-                        <p className="text-3xl font-bold text-primary">{formattedTotalFee}</p>
+                        <p className="text-muted-foreground">Registration Fee</p>
+                        <p className="text-3xl font-bold text-primary">{registrationFee}</p>
                       </div>
                       <Button 
                         type="submit" 
