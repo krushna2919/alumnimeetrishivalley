@@ -6,6 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface AdditionalRegistrant {
+  name: string;
+  gender: string;
+  tshirtSize: string;
+  stayType: string;
+}
+
 interface RegistrationRequest {
   captchaToken: string;
   name: string;
@@ -24,6 +31,7 @@ interface RegistrationRequest {
   tshirtSize: string;
   gender: string;
   registrationFee: number;
+  additionalRegistrants?: AdditionalRegistrant[];
 }
 
 async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
@@ -62,6 +70,38 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const data: RegistrationRequest = await req.json();
     console.log("Registration request received for:", data.email);
+    console.log("Additional registrants count:", data.additionalRegistrants?.length || 0);
+
+    // Validate additional registrants count
+    const additionalRegistrants = data.additionalRegistrants || [];
+    if (additionalRegistrants.length > 4) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Maximum 5 people can be registered at once (1 primary + 4 additional).",
+          code: "MAX_REGISTRANTS_EXCEEDED"
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Validate additional registrant names
+    for (let i = 0; i < additionalRegistrants.length; i++) {
+      if (!additionalRegistrants[i].name || additionalRegistrants[i].name.trim().length < 2) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Please enter a valid name for additional registrant ${i + 1}.`,
+            code: "INVALID_REGISTRANT_NAME"
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+    }
 
     // Verify Turnstile token
     const captchaResult = await verifyTurnstile(data.captchaToken);
@@ -98,7 +138,10 @@ serve(async (req: Request): Promise<Response> => {
     const applicationId = appIdData;
     console.log("Generated application ID:", applicationId);
 
-    // Insert registration
+    // Calculate individual fees
+    const primaryFee = data.stayType === "on-campus" ? 15000 : 7500;
+
+    // Insert primary registration
     const { data: registration, error: insertError } = await supabase
       .from("registrations")
       .insert({
@@ -118,7 +161,7 @@ serve(async (req: Request): Promise<Response> => {
         stay_type: data.stayType,
         tshirt_size: data.tshirtSize,
         gender: data.gender,
-        registration_fee: data.registrationFee,
+        registration_fee: data.registrationFee, // Total fee for all registrants
         payment_status: "pending",
         registration_status: "pending",
       })
@@ -126,7 +169,7 @@ serve(async (req: Request): Promise<Response> => {
       .single();
 
     if (insertError) {
-      console.error("Error inserting registration:", insertError);
+      console.error("Error inserting primary registration:", insertError);
       
       // Check for duplicate email
       if (insertError.code === "23505") {
@@ -145,12 +188,53 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("Failed to save registration");
     }
 
-    console.log("Registration saved successfully:", applicationId);
+    console.log("Primary registration saved successfully:", applicationId);
+
+    // Insert additional registrants with linked application IDs
+    if (additionalRegistrants.length > 0) {
+      const additionalInserts = additionalRegistrants.map((registrant, index) => {
+        const additionalFee = registrant.stayType === "on-campus" ? 15000 : 7500;
+        return {
+          application_id: `${applicationId}-${index + 2}`, // e.g., ALM-XXX-2, ALM-XXX-3
+          name: registrant.name.trim(),
+          email: data.email, // Same email as primary
+          phone: data.phone, // Same phone as primary
+          occupation: "Guest of " + data.name, // Indicate relationship
+          year_of_passing: data.yearOfPassing, // Same batch
+          address_line1: data.addressLine1,
+          address_line2: data.addressLine2 || null,
+          city: data.city,
+          district: data.district,
+          state: data.state,
+          postal_code: data.postalCode,
+          country: data.country || "India",
+          stay_type: registrant.stayType,
+          tshirt_size: registrant.tshirtSize,
+          gender: registrant.gender,
+          registration_fee: additionalFee,
+          payment_status: "pending",
+          registration_status: "pending",
+        };
+      });
+
+      const { error: additionalError } = await supabase
+        .from("registrations")
+        .insert(additionalInserts);
+
+      if (additionalError) {
+        console.error("Error inserting additional registrations:", additionalError);
+        // Don't fail the whole registration, just log the error
+        // The primary registration is already saved
+      } else {
+        console.log(`${additionalRegistrants.length} additional registrations saved`);
+      }
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         applicationId: registration.application_id,
+        totalRegistrants: 1 + additionalRegistrants.length,
         registration: {
           applicationId: registration.application_id,
           name: registration.name,
