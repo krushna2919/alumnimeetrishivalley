@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
         
         try {
           const emailResult = await resend.emails.send({
-            from: "Admin <onboarding@resend.dev>",
+            from: "Alumni Meet <alumnimeet@rishivalley.org>",
             to: [email],
             subject: "You've been invited as an Admin",
             html: `
