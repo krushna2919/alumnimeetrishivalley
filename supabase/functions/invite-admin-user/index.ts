@@ -156,8 +156,11 @@ Deno.serve(async (req) => {
         console.error("Error generating reset link:", resetError.message);
       } else if (resetData?.properties?.action_link) {
         // Send welcome email with password setup link
+        console.log("Generated reset link for user:", email);
+        console.log("Reset link:", resetData.properties.action_link);
+        
         try {
-          await resend.emails.send({
+          const emailResult = await resend.emails.send({
             from: "Admin <onboarding@resend.dev>",
             to: [email],
             subject: "You've been invited as an Admin",
@@ -177,10 +180,15 @@ Deno.serve(async (req) => {
               </div>
             `,
           });
-          console.log("Welcome email sent successfully to:", email);
-        } catch (emailError) {
-          console.error("Error sending welcome email:", emailError);
+          console.log("Welcome email sent successfully to:", email, "Result:", JSON.stringify(emailResult));
+        } catch (emailError: any) {
+          console.error("Error sending welcome email:", emailError?.message || emailError);
+          // Note: With Resend sandbox (onboarding@resend.dev), emails can only be sent 
+          // to the email address associated with the Resend account.
+          // For production, use a verified domain.
         }
+      } else {
+        console.error("No action link generated in resetData");
       }
     }
 
