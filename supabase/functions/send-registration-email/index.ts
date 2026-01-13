@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -25,8 +26,108 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error("No authorization header provided");
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized: No authorization header" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Create Supabase client with the user's auth token
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error("Authentication failed:", authError?.message);
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized: Invalid token" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Authenticated user: ${user.id}`);
+
+    // Verify the user has admin or superadmin role
+    const { data: isAdmin, error: roleError } = await supabaseClient.rpc('is_admin_or_superadmin', { 
+      _user_id: user.id 
+    });
+
+    if (roleError) {
+      console.error("Role check error:", roleError.message);
+      return new Response(
+        JSON.stringify({ success: false, error: "Error checking user role" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!isAdmin) {
+      console.error(`User ${user.id} is not an admin`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Forbidden: Admin access required" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Admin access verified for user: ${user.id}`);
+
     const { to, name, applicationId, type, rejectionReason }: EmailRequest = await req.json();
     
+    // Validate required fields
+    if (!to || !name || !applicationId || !type) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing required fields: to, name, applicationId, type" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid email format" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate type
+    if (type !== 'approved' && type !== 'rejected') {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid type: must be 'approved' or 'rejected'" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Verify the application exists and the email matches
+    const { data: registration, error: regError } = await supabaseClient
+      .from('registrations')
+      .select('email, application_id')
+      .eq('application_id', applicationId)
+      .single();
+
+    if (regError || !registration) {
+      console.error("Registration lookup error:", regError?.message);
+      return new Response(
+        JSON.stringify({ success: false, error: "Application not found" }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (registration.email !== to) {
+      console.error(`Email mismatch: expected ${registration.email}, got ${to}`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Email does not match registration" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     console.log(`Sending ${type} email to ${to} for application ${applicationId}`);
 
     let subject: string;
