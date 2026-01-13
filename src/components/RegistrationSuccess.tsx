@@ -1,22 +1,40 @@
 import { motion } from "framer-motion";
-import { CheckCircle, Copy, AlertCircle } from "lucide-react";
+import { CheckCircle, Copy, AlertCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { RegistrationData } from "./RegistrationForm";
+import { RegistrationData } from "./registration/types";
+
+interface AdditionalRegistration {
+  applicationId: string;
+  name: string;
+  email: string;
+  stayType: string;
+  registrationFee: number;
+}
 
 interface RegistrationSuccessProps {
   application: RegistrationData;
+  additionalRegistrations?: AdditionalRegistration[];
+  totalFee?: number;
   onUpdatePayment: () => void;
   onNewRegistration: () => void;
 }
 
-const RegistrationSuccess = ({ application, onUpdatePayment, onNewRegistration }: RegistrationSuccessProps) => {
+const RegistrationSuccess = ({ 
+  application, 
+  additionalRegistrations = [], 
+  totalFee,
+  onUpdatePayment, 
+  onNewRegistration 
+}: RegistrationSuccessProps) => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Application ID copied to clipboard!");
   };
 
-  const registrationFee = application.stayType === "on-campus" ? "₹15,000" : "₹7,500";
+  const displayFee = totalFee ? `₹${totalFee.toLocaleString()}` : 
+    (application.stayType === "on-campus" ? "₹15,000" : "₹7,500");
+  const totalPeople = 1 + additionalRegistrations.length;
 
   return (
     <motion.div
@@ -29,16 +47,18 @@ const RegistrationSuccess = ({ application, onUpdatePayment, onNewRegistration }
       </div>
 
       <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
-        Registration Submitted Successfully!
+        {totalPeople > 1 ? `${totalPeople} Registrations Submitted!` : "Registration Submitted Successfully!"}
       </h3>
       
       <p className="text-muted-foreground mb-6">
-        Your registration has been recorded. Please save your Application ID below.
+        {totalPeople > 1 
+          ? "All registrations have been recorded. Please save the Application IDs below."
+          : "Your registration has been recorded. Please save your Application ID below."}
       </p>
 
-      {/* Application ID Card */}
-      <div className="bg-primary/10 rounded-xl p-6 border-2 border-primary/30 mb-6 inline-block">
-        <p className="text-sm text-muted-foreground mb-2">Your Application ID</p>
+      {/* Primary Application ID Card */}
+      <div className="bg-primary/10 rounded-xl p-6 border-2 border-primary/30 mb-4 inline-block">
+        <p className="text-sm text-muted-foreground mb-2">Primary Application ID</p>
         <div className="flex items-center justify-center gap-3">
           <span className="font-mono text-2xl font-bold text-primary">
             {application.applicationId}
@@ -52,29 +72,48 @@ const RegistrationSuccess = ({ application, onUpdatePayment, onNewRegistration }
             <Copy className="w-4 h-4" />
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">{application.name}</p>
       </div>
+
+      {/* Additional Registrations */}
+      {additionalRegistrations.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Additional Registrations</p>
+          </div>
+          <div className="grid gap-2 max-w-md mx-auto">
+            {additionalRegistrations.map((reg) => (
+              <div key={reg.applicationId} className="bg-secondary/50 rounded-lg p-3 flex items-center justify-between">
+                <div className="text-left">
+                  <p className="text-sm font-medium text-foreground">{reg.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{reg.applicationId}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(reg.applicationId)}
+                  className="hover:bg-primary/20"
+                >
+                  <Copy className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="bg-secondary/50 rounded-xl p-6 text-left max-w-md mx-auto mb-6">
         <h4 className="font-semibold text-foreground mb-3">Registration Summary</h4>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Name:</span>
-            <span className="font-medium text-foreground">{application.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Email:</span>
-            <span className="font-medium text-foreground">{application.email}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Registration Type:</span>
-            <span className="font-medium text-foreground">
-              {application.stayType === "on-campus" ? "On Campus" : "Outside"}
-            </span>
+            <span className="text-muted-foreground">Total Registrants:</span>
+            <span className="font-medium text-foreground">{totalPeople}</span>
           </div>
           <div className="flex justify-between border-t border-border pt-2 mt-2">
-            <span className="text-muted-foreground">Amount Due:</span>
-            <span className="font-bold text-primary">{registrationFee}</span>
+            <span className="text-muted-foreground">Total Amount Due:</span>
+            <span className="font-bold text-primary">{displayFee}</span>
           </div>
         </div>
       </div>
@@ -104,7 +143,7 @@ const RegistrationSuccess = ({ application, onUpdatePayment, onNewRegistration }
           variant="outline"
           onClick={onNewRegistration}
         >
-          Register Another Person
+          New Registration
         </Button>
       </div>
     </motion.div>

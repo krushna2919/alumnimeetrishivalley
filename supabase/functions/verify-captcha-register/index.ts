@@ -6,8 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface AttendeeInfo {
+  name: string;
+  email: string;
+  phone: string;
+  occupation: string;
+  yearOfPassing: number;
+  stayType: string;
+  tshirtSize: string;
+  gender: string;
+  registrationFee: number;
+}
+
 interface RegistrationRequest {
   captchaToken: string;
+  // Main registrant info
   name: string;
   email: string;
   phone: string;
@@ -24,6 +37,8 @@ interface RegistrationRequest {
   tshirtSize: string;
   gender: string;
   registrationFee: number;
+  // Additional attendees
+  additionalAttendees?: AttendeeInfo[];
 }
 
 async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
@@ -62,6 +77,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const data: RegistrationRequest = await req.json();
     console.log("Registration request received for:", data.email);
+    console.log("Additional attendees count:", data.additionalAttendees?.length || 0);
 
     // Verify Turnstile token
     const captchaResult = await verifyTurnstile(data.captchaToken);
@@ -87,7 +103,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Generate application ID using the database function
+    // Generate application ID for main registrant using the database function
     const { data: appIdData, error: appIdError } = await supabase.rpc("generate_application_id");
     
     if (appIdError) {
@@ -98,7 +114,7 @@ serve(async (req: Request): Promise<Response> => {
     const applicationId = appIdData;
     console.log("Generated application ID:", applicationId);
 
-    // Insert registration
+    // Insert main registrant
     const { data: registration, error: insertError } = await supabase
       .from("registrations")
       .insert({
@@ -145,7 +161,71 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("Failed to save registration");
     }
 
-    console.log("Registration saved successfully:", applicationId);
+    console.log("Main registration saved successfully:", applicationId);
+
+    // Process additional attendees if any
+    const additionalRegistrations: any[] = [];
+    if (data.additionalAttendees && data.additionalAttendees.length > 0) {
+      console.log("Processing additional attendees...");
+      
+      for (const attendee of data.additionalAttendees) {
+        // Generate unique application ID for each attendee
+        const { data: attendeeAppId, error: attendeeAppIdError } = await supabase.rpc("generate_application_id");
+        
+        if (attendeeAppIdError) {
+          console.error("Error generating application ID for attendee:", attendeeAppIdError);
+          continue; // Skip this attendee but continue with others
+        }
+
+        // Use main registrant's address for additional attendees
+        const { data: attendeeReg, error: attendeeError } = await supabase
+          .from("registrations")
+          .insert({
+            application_id: attendeeAppId,
+            name: attendee.name,
+            email: attendee.email,
+            phone: attendee.phone,
+            occupation: attendee.occupation,
+            year_of_passing: attendee.yearOfPassing,
+            address_line1: data.addressLine1,
+            address_line2: data.addressLine2 || null,
+            city: data.city,
+            district: data.district,
+            state: data.state,
+            postal_code: data.postalCode,
+            country: data.country || "India",
+            stay_type: attendee.stayType,
+            tshirt_size: attendee.tshirtSize,
+            gender: attendee.gender,
+            registration_fee: attendee.registrationFee,
+            payment_status: "pending",
+            registration_status: "pending",
+          })
+          .select()
+          .single();
+
+        if (attendeeError) {
+          console.error("Error inserting attendee:", attendee.email, attendeeError);
+          // Check for duplicate and report
+          if (attendeeError.code === "23505") {
+            console.warn("Duplicate email for attendee:", attendee.email);
+          }
+        } else {
+          console.log("Attendee registered:", attendeeAppId);
+          additionalRegistrations.push({
+            applicationId: attendeeReg.application_id,
+            name: attendeeReg.name,
+            email: attendeeReg.email,
+            stayType: attendeeReg.stay_type,
+            registrationFee: attendeeReg.registration_fee,
+          });
+        }
+      }
+    }
+
+    // Calculate total fee
+    const totalFee = data.registrationFee + 
+      (data.additionalAttendees?.reduce((sum, a) => sum + a.registrationFee, 0) || 0);
 
     return new Response(
       JSON.stringify({
@@ -160,6 +240,9 @@ serve(async (req: Request): Promise<Response> => {
           paymentStatus: registration.payment_status,
           createdAt: registration.created_at,
         },
+        additionalRegistrations,
+        totalFee,
+        totalRegistrants: 1 + additionalRegistrations.length,
       }),
       {
         status: 200,

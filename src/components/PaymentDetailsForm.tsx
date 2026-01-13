@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Calendar, ArrowLeft, CheckCircle, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { RegistrationData } from "./RegistrationForm";
+import { RegistrationData } from "./registration/types";
 
 const paymentSchema = z.object({
   paymentReference: z.string().min(5, "Payment reference must be at least 5 characters").max(50),
