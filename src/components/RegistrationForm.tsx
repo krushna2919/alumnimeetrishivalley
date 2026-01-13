@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,75 +15,56 @@ import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
+import AdditionalAttendeesSection from "./registration/AdditionalAttendeesSection";
+import { 
+  registrantSchema, 
+  RegistrantData, 
+  AttendeeData, 
+  defaultRegistrant, 
+  calculateFee, 
+  calculateTotalFee,
+  RegistrationData,
+  CUTOFF_YEAR,
+  MAX_ATTENDEES
+} from "./registration/types";
 
 const currentYear = new Date().getFullYear();
-const CUTOFF_YEAR = 1980;
-
-const formSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().email("Please enter a valid email address"),
-  phone: z.string().min(10, "Please enter a valid phone number").max(15),
-  occupation: z.string().min(2, "Please enter your occupation").max(100),
-  yearOfPassing: z.string().refine((val) => {
-    const year = parseInt(val);
-    return year <= CUTOFF_YEAR && year >= 1930;
-  }, `Registration is currently open only for batches of ${CUTOFF_YEAR} and earlier.`),
-  addressLine1: z.string().min(5, "Please enter your street address").max(200),
-  addressLine2: z.string().max(200).optional(),
-  city: z.string().min(2, "Please enter your city").max(100),
-  district: z.string().min(2, "Please enter your district").max(100),
-  state: z.string().min(2, "Please enter your state").max(100),
-  postalCode: z.string().min(5, "Please enter a valid postal code").max(10),
-  country: z.string().default("India"),
-  stayType: z.enum(["on-campus", "outside"]),
-  tshirtSize: z.enum(["S", "M", "L", "XL"]),
-  gender: z.enum(["M", "F"]),
-});
-
-type FormData = z.infer<typeof formSchema>;
-
-export interface RegistrationData {
-  applicationId: string;
-  name: string;
-  email: string;
-  stayType: string;
-  registrationFee: number;
-  paymentStatus: string;
-  createdAt: string;
-}
 
 type ViewState = "form" | "success" | "payment";
+
+interface RegistrationResult extends RegistrationData {
+  additionalRegistrations?: Array<{
+    applicationId: string;
+    name: string;
+    email: string;
+    stayType: string;
+    registrationFee: number;
+  }>;
+  totalFee?: number;
+  totalRegistrants?: number;
+}
 
 const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
+  const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
+  const [additionalAttendees, setAdditionalAttendees] = useState<AttendeeData[]>([]);
   const { getToken, resetTurnstile } = useTurnstile("turnstile-container");
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      occupation: "",
-      yearOfPassing: "",
-      addressLine1: "",
-      addressLine2: "",
-      city: "",
-      district: "",
-      state: "",
-      postalCode: "",
-      country: "India",
-      stayType: "on-campus",
-      tshirtSize: "M",
-      gender: "M",
-    },
+  const form = useForm<RegistrantData>({
+    resolver: zodResolver(registrantSchema),
+    defaultValues: defaultRegistrant,
   });
 
   // Watch postal code for auto-population
   const postalCode = form.watch("postalCode");
+  const stayType = form.watch("stayType");
+
+  // Calculate fees
+  const registrantFee = calculateFee(stayType);
+  const totalFee = calculateTotalFee(form.getValues(), additionalAttendees);
 
   // Auto-populate city, district, state from postal code
   useEffect(() => {
@@ -103,7 +83,7 @@ const RegistrationForm = () => {
     fetchLocationData();
   }, [postalCode, lookupPostalCode, form]);
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
     
     try {
@@ -118,7 +98,20 @@ const RegistrationForm = () => {
         return;
       }
       
-      const registrationFee = data.stayType === "on-campus" ? 15000 : 7500;
+      const registrationFee = calculateFee(data.stayType);
+
+      // Prepare additional attendees data
+      const additionalAttendeesData = additionalAttendees.map(attendee => ({
+        name: attendee.name,
+        email: attendee.email,
+        phone: attendee.phone,
+        occupation: attendee.occupation,
+        yearOfPassing: parseInt(attendee.yearOfPassing),
+        stayType: attendee.stayType,
+        tshirtSize: attendee.tshirtSize,
+        gender: attendee.gender,
+        registrationFee: calculateFee(attendee.stayType),
+      }));
 
       // Call edge function with captcha token
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
@@ -140,6 +133,7 @@ const RegistrationForm = () => {
           tshirtSize: data.tshirtSize,
           gender: data.gender,
           registrationFee,
+          additionalAttendees: additionalAttendeesData.length > 0 ? additionalAttendeesData : undefined,
         },
       });
 
@@ -159,11 +153,18 @@ const RegistrationForm = () => {
       }
 
       setCurrentApplication(result.registration);
+      setRegistrationResult({
+        ...result.registration,
+        additionalRegistrations: result.additionalRegistrations,
+        totalFee: result.totalFee,
+        totalRegistrants: result.totalRegistrants,
+      });
       setViewState("success");
-      resetTurnstile(); // Reset for next registration
+      resetTurnstile();
       
-      toast.success("Registration submitted!", {
-        description: `Application ID: ${result.applicationId}`,
+      const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
+      toast.success(`${totalRegistered} registration${totalRegistered > 1 ? 's' : ''} submitted!`, {
+        description: `Primary Application ID: ${result.applicationId}`,
       });
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -187,6 +188,8 @@ const RegistrationForm = () => {
   const handleNewRegistration = () => {
     form.reset();
     setCurrentApplication(null);
+    setRegistrationResult(null);
+    setAdditionalAttendees([]);
     setViewState("form");
   };
 
@@ -198,8 +201,6 @@ const RegistrationForm = () => {
     setViewState("form");
   };
 
-  const stayType = form.watch("stayType");
-  const registrationFee = stayType === "on-campus" ? "₹15,000" : "₹7,500";
   const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => currentYear - i);
 
   return (
@@ -219,8 +220,13 @@ const RegistrationForm = () => {
             Register before 31st August 2026. Accommodation is on a first-come, first-serve basis
             with preference to alumni from older batches.
           </p>
-          <div className="mt-4 inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-            <strong>Note:</strong> Currently accepting registrations for batches of {CUTOFF_YEAR} and earlier only.
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
+              <strong>Note:</strong> Currently accepting batches of {CUTOFF_YEAR} and earlier only.
+            </span>
+            <span className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-lg border border-primary/30">
+              <strong>New:</strong> Register up to {MAX_ATTENDEES} people at once!
+            </span>
           </div>
         </motion.div>
 
@@ -237,105 +243,115 @@ const RegistrationForm = () => {
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                  {/* Personal Information */}
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-foreground">
-                            <User className="w-4 h-4 text-primary" />
-                            Full Name
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter your full name" {...field} className="bg-background" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {/* Main Registrant Section */}
+                  <div className="pb-6 border-b border-border">
+                    <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
+                      <User className="w-5 h-5 text-primary" />
+                      Primary Registrant (You)
+                    </h3>
+                    
+                    {/* Personal Information */}
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <User className="w-4 h-4 text-primary" />
+                              Full Name
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter your full name" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-foreground">
-                            <Mail className="w-4 h-4 text-primary" />
-                            Email Address
-                          </FormLabel>
-                          <FormControl>
-                            <Input type="email" placeholder="your.email@example.com" {...field} className="bg-background" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Mail className="w-4 h-4 text-primary" />
+                              Email Address
+                            </FormLabel>
+                            <FormControl>
+                              <Input type="email" placeholder="your.email@example.com" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-foreground">
-                            <Phone className="w-4 h-4 text-primary" />
-                            Mobile / WhatsApp
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="+91 XXXXX XXXXX" {...field} className="bg-background" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Phone className="w-4 h-4 text-primary" />
+                              Mobile / WhatsApp
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="+91 XXXXX XXXXX" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="occupation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-foreground">
-                            <Briefcase className="w-4 h-4 text-primary" />
-                            Occupation
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your current profession" {...field} className="bg-background" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="occupation"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Briefcase className="w-4 h-4 text-primary" />
+                              Occupation
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="Your current profession" {...field} className="bg-background" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Year of Passing */}
+                    <div className="mt-6">
+                      <FormField
+                        control={form.control}
+                        name="yearOfPassing"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2 text-foreground">
+                              <Calendar className="w-4 h-4 text-primary" />
+                              Year of Passing (ISC/ICSE)
+                            </FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="bg-background">
+                                  <SelectValue placeholder="Select your passing year" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-60">
+                                {yearOptions.map((year) => (
+                                  <SelectItem key={year} value={year.toString()}>
+                                    {year}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
-
-                  {/* Year of Passing */}
-                  <FormField
-                    control={form.control}
-                    name="yearOfPassing"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-2 text-foreground">
-                          <Calendar className="w-4 h-4 text-primary" />
-                          Year of Passing (ISC/ICSE)
-                        </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-background">
-                              <SelectValue placeholder="Select your passing year" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-60">
-                            {yearOptions.map((year) => (
-                              <SelectItem key={year} value={year.toString()}>
-                                {year}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
                   {/* Address Section */}
                   <div className="space-y-4">
@@ -473,7 +489,7 @@ const RegistrationForm = () => {
                     name="stayType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground text-lg font-semibold">Registration Type</FormLabel>
+                        <FormLabel className="text-foreground text-lg font-semibold">Your Registration Type</FormLabel>
                         <FormControl>
                           <RadioGroup
                             onValueChange={field.onChange}
@@ -565,6 +581,14 @@ const RegistrationForm = () => {
                     />
                   </div>
 
+                  {/* Additional Attendees Section */}
+                  <div className="pt-6 border-t border-border">
+                    <AdditionalAttendeesSection
+                      attendees={additionalAttendees}
+                      onAttendeesChange={setAdditionalAttendees}
+                    />
+                  </div>
+
                   {/* Turnstile Captcha */}
                   <div className="flex flex-col items-center gap-3">
                     <div id="turnstile-container" className="flex justify-center"></div>
@@ -577,8 +601,22 @@ const RegistrationForm = () => {
                   <div className="pt-6 border-t border-border">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                       <div className="text-center md:text-left">
-                        <p className="text-muted-foreground">Registration Fee</p>
-                        <p className="text-3xl font-bold text-primary">{registrationFee}</p>
+                        <p className="text-muted-foreground">
+                          Total Registration Fee 
+                          {additionalAttendees.length > 0 && (
+                            <span className="text-sm ml-1">
+                              ({1 + additionalAttendees.length} people)
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-3xl font-bold text-primary">
+                          ₹{totalFee.toLocaleString()}
+                        </p>
+                        {additionalAttendees.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            You: ₹{registrantFee.toLocaleString()} + {additionalAttendees.length} attendee(s)
+                          </p>
+                        )}
                       </div>
                       <Button 
                         type="submit" 
@@ -586,7 +624,7 @@ const RegistrationForm = () => {
                         disabled={isSubmitting}
                         className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all"
                       >
-                        {isSubmitting ? "Submitting..." : "Submit Registration"}
+                        {isSubmitting ? "Submitting..." : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
                       </Button>
                     </div>
                   </div>
@@ -598,6 +636,8 @@ const RegistrationForm = () => {
           {viewState === "success" && currentApplication && (
             <RegistrationSuccess
               application={currentApplication}
+              additionalRegistrations={registrationResult?.additionalRegistrations}
+              totalFee={registrationResult?.totalFee}
               onUpdatePayment={handleUpdatePayment}
               onNewRegistration={handleNewRegistration}
             />

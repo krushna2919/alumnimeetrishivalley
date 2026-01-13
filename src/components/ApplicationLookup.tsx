@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { RegistrationData } from "./RegistrationForm";
+import { RegistrationData } from "./registration/types";
 
 interface ApplicationLookupProps {
   onApplicationFound: (application: RegistrationData) => void;
