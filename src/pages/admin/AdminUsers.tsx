@@ -151,30 +151,37 @@ const AdminUsers = () => {
         },
       });
 
+      console.log('[AdminUsers] invite-admin-user response:', response);
+
       if (response.error) {
-        throw new Error(response.error.message || 'Failed to add user');
-      }
-
-      const data = response.data;
-
-      if (data.error) {
         toast.error('Failed to add user', {
-          description: data.error
+          description: response.error.message || 'Edge function invocation failed',
         });
         return;
       }
 
-      toast.success(data.isNewUser ? 'User created successfully' : 'Role assigned successfully', {
-        description: data.isNewUser 
-          ? `Password setup email sent to ${newUserEmail}.`
-          : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`
+      const data = response.data as any;
+
+      if (data?.error) {
+        toast.error('Failed to add user', {
+          description: String(data.error),
+        });
+        return;
+      }
+
+      toast.success(data?.isNewUser ? 'User created successfully' : 'Role assigned successfully', {
+        description: data?.isNewUser
+          ? `Password setup email attempted for ${newUserEmail}.`
+          : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`,
       });
 
       setNewUserEmail('');
       await fetchUserRoles();
-    } catch (err) {
-      console.error('Error adding user role');
-      toast.error('Failed to add user');
+    } catch (err: any) {
+      console.error('Error adding user role', err);
+      toast.error('Failed to add user', {
+        description: err?.message || 'Unknown error',
+      });
     } finally {
       setIsAdding(false);
     }
