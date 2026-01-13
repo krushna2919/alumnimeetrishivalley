@@ -1,7 +1,9 @@
 import { useEffect, useCallback, useRef } from "react";
 
-// Replace with your Turnstile Site Key from Cloudflare Dashboard
-const TURNSTILE_SITE_KEY = "0x4AAAAAAA0000000000000000"; // TODO: Replace with actual site key
+// Cloudflare Turnstile Site Key
+// Using test key for development - replace with your actual key for production
+// Test keys: https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+const TURNSTILE_SITE_KEY = "1x00000000000000000000AA"; // Visible test key - always passes
 
 declare global {
   interface Window {
