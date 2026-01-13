@@ -191,12 +191,12 @@ const AdminLogin = () => {
         return;
       }
 
-      // Insert pending admin role request
+      // Insert pending reviewer role request (reviewer can only view/approve registrations)
       const { error: roleError } = await supabase
         .from('user_roles')
         .insert({
           user_id: signUpData.user.id,
-          role: 'admin',
+          role: 'reviewer' as any, // New enum value
           is_approved: false
         });
 
@@ -371,13 +371,13 @@ const AdminLogin = () => {
                   ) : (
                     <>
                       <UserPlus className="mr-2 h-4 w-4" />
-                      Request Admin Access
+                      Request Reviewer Access
                     </>
                   )}
                 </Button>
                 
                 <p className="text-xs text-muted-foreground text-center">
-                  Your registration will require approval from a superadmin before you can access the dashboard.
+                  Reviewer access allows you to view and approve registrations only. Your registration will require approval from a superadmin.
                 </p>
               </form>
             </TabsContent>

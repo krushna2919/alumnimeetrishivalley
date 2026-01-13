@@ -255,14 +255,16 @@ const AdminUsers = () => {
     }
   };
 
-  const getRoleBadgeVariant = (role: AppRole) => {
+  const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'superadmin':
         return 'destructive';
       case 'admin':
         return 'default';
-      default:
+      case 'reviewer':
         return 'secondary';
+      default:
+        return 'outline';
     }
   };
 
@@ -334,6 +336,7 @@ const AdminUsers = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="reviewer">Reviewer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="superadmin">Superadmin</SelectItem>
                   </SelectContent>

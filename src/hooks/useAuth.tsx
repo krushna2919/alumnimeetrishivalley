@@ -2,6 +2,8 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+type UserRole = 'superadmin' | 'admin' | 'reviewer' | null;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -9,6 +11,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isApproved: boolean;
   isPendingApproval: boolean;
+  userRole: UserRole;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -22,6 +25,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [isPendingApproval, setIsPendingApproval] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -39,6 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsAdmin(false);
           setIsApproved(false);
           setIsPendingApproval(false);
+          setUserRole(null);
         }
       }
     );
@@ -58,64 +63,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdminRole = async (userId: string) => {
     try {
-      // First check if user has an admin/superadmin role
-      const { data: roleData, error: roleError } = await supabase.rpc('is_admin_or_superadmin', {
-        _user_id: userId
-      });
+      // Check for all roles: admin, superadmin, reviewer
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('is_approved, role')
+        .eq('user_id', userId);
       
-      if (roleError) {
-        console.error('Error checking admin role:', roleError);
+      if (rolesError) {
+        console.error('Error checking roles:', rolesError);
         setIsAdmin(false);
         setIsApproved(false);
         setIsPendingApproval(false);
+        setUserRole(null);
         return;
       }
+
+      // Find the highest priority approved role (cast role to string for new enum value)
+      const approvedSuperadmin = userRoles?.find(r => (r.role as string) === 'superadmin' && r.is_approved);
+      const approvedAdmin = userRoles?.find(r => (r.role as string) === 'admin' && r.is_approved);
+      const approvedReviewer = userRoles?.find(r => (r.role as string) === 'reviewer' && r.is_approved);
       
-      const hasAdminRole = roleData === true;
-      setIsAdmin(hasAdminRole);
+      // Find any pending role
+      const pendingRole = userRoles?.find(r => !r.is_approved);
       
-      if (hasAdminRole) {
-        // Check if the role is approved
-        const { data: userRoles, error: approvalError } = await supabase
-          .from('user_roles')
-          .select('is_approved, role')
-          .eq('user_id', userId)
-          .in('role', ['admin', 'superadmin']);
-        
-        if (approvalError) {
-          console.error('Error checking approval status:', approvalError);
-          setIsApproved(false);
-          setIsPendingApproval(false);
-          return;
-        }
-        
-        // Check if any role is approved
-        const approvedRole = userRoles?.find(r => r.is_approved === true);
-        const pendingRole = userRoles?.find(r => r.is_approved === false);
-        
-        setIsApproved(!!approvedRole);
-        setIsPendingApproval(!approvedRole && !!pendingRole);
-      } else {
-        // Check if user has a pending admin request
-        const { data: pendingRoles, error: pendingError } = await supabase
-          .from('user_roles')
-          .select('is_approved')
-          .eq('user_id', userId)
-          .eq('role', 'admin')
-          .eq('is_approved', false);
-        
-        if (!pendingError && pendingRoles && pendingRoles.length > 0) {
-          setIsPendingApproval(true);
-        } else {
-          setIsPendingApproval(false);
-        }
+      // Determine the active role (priority: superadmin > admin > reviewer)
+      if (approvedSuperadmin) {
+        setUserRole('superadmin');
+        setIsAdmin(true);
+        setIsApproved(true);
+        setIsPendingApproval(false);
+      } else if (approvedAdmin) {
+        setUserRole('admin');
+        setIsAdmin(true);
+        setIsApproved(true);
+        setIsPendingApproval(false);
+      } else if (approvedReviewer) {
+        setUserRole('reviewer');
+        setIsAdmin(true); // Reviewer can access admin panel
+        setIsApproved(true);
+        setIsPendingApproval(false);
+      } else if (pendingRole) {
+        setUserRole(null);
+        setIsAdmin(false);
         setIsApproved(false);
+        setIsPendingApproval(true);
+      } else {
+        setUserRole(null);
+        setIsAdmin(false);
+        setIsApproved(false);
+        setIsPendingApproval(false);
       }
     } catch (err) {
       console.error('Error checking admin role:', err);
       setIsAdmin(false);
       setIsApproved(false);
       setIsPendingApproval(false);
+      setUserRole(null);
     }
   };
 
@@ -132,10 +135,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(false);
     setIsApproved(false);
     setIsPendingApproval(false);
+    setUserRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isApproved, isPendingApproval, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isApproved, isPendingApproval, userRole, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
