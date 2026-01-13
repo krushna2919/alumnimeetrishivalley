@@ -19,18 +19,28 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/registrations', label: 'Registrations', icon: Users },
-  { href: '/admin/users', label: 'User Management', icon: UserCog },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
-];
+const getNavItems = (userRole: string | null) => {
+  const items = [
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/admin/registrations', label: 'Registrations', icon: Users },
+  ];
+  
+  // Only admin and superadmin can access User Management and Settings
+  if (userRole === 'admin' || userRole === 'superadmin') {
+    items.push({ href: '/admin/users', label: 'User Management', icon: UserCog });
+    items.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
+  }
+  
+  return items;
+};
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { user, isAdmin, isApproved, isLoading, signOut } = useAuth();
+  const { user, isAdmin, isApproved, isLoading, signOut, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  const navItems = getNavItems(userRole);
 
   useEffect(() => {
     if (!isLoading && (!user || !isAdmin || !isApproved)) {
@@ -121,7 +131,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               <p className="text-sm font-medium text-foreground truncate">
                 {user.email}
               </p>
-              <p className="text-xs text-muted-foreground">Administrator</p>
+              <p className="text-xs text-muted-foreground capitalize">
+                {userRole || 'User'}
+              </p>
             </div>
             <Button 
               variant="ghost" 
