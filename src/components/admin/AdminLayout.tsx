@@ -9,7 +9,8 @@ import {
   LogOut, 
   Loader2,
   Menu,
-  X
+  X,
+  UserCog
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ interface AdminLayoutProps {
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/registrations', label: 'Registrations', icon: Users },
+  { href: '/admin/users', label: 'User Management', icon: UserCog },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
