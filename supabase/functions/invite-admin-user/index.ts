@@ -1,9 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
+import { Resend } from "https://esm.sh/resend@2.0.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -57,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { email, role, password } = await req.json();
+    const { email, role, password, siteUrl } = await req.json();
 
     if (!email || !role) {
       return new Response(
@@ -88,6 +90,7 @@ Deno.serve(async (req) => {
     const existingUser = existingUsers?.users?.find(u => u.email === email);
 
     let userId: string;
+    let isNewUser = false;
 
     if (existingUser) {
       userId = existingUser.id;
@@ -125,6 +128,7 @@ Deno.serve(async (req) => {
       }
 
       userId = newUser.user.id;
+      isNewUser = true;
 
       // Create profile for the new user
       const { error: profileError } = await supabaseAdmin
@@ -137,6 +141,46 @@ Deno.serve(async (req) => {
       if (profileError) {
         console.error("Error creating profile:", profileError.message);
         // Don't fail the request, profile can be created later
+      }
+
+      // Generate password reset link for the new user
+      const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo: siteUrl ? `${siteUrl}/admin` : undefined,
+        }
+      });
+
+      if (resetError) {
+        console.error("Error generating reset link:", resetError.message);
+      } else if (resetData?.properties?.action_link) {
+        // Send welcome email with password setup link
+        try {
+          await resend.emails.send({
+            from: "Admin <onboarding@resend.dev>",
+            to: [email],
+            subject: "You've been invited as an Admin",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #333;">Welcome!</h1>
+                <p>You have been invited to join as an <strong>${role}</strong>.</p>
+                <p>Please click the button below to set your password and access the admin dashboard:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${resetData.properties.action_link}" 
+                     style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Set Your Password
+                  </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
+                <p style="color: #666; font-size: 14px;">If you didn't expect this invitation, you can safely ignore this email.</p>
+              </div>
+            `,
+          });
+          console.log("Welcome email sent successfully to:", email);
+        } catch (emailError) {
+          console.error("Error sending welcome email:", emailError);
+        }
       }
     }
 
@@ -159,10 +203,10 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: existingUser 
-          ? `Role ${role} assigned to existing user` 
-          : `New user created and assigned ${role} role`,
-        isNewUser: !existingUser
+        message: isNewUser 
+          ? `New user created and assigned ${role} role. Password setup email sent.` 
+          : `Role ${role} assigned to existing user`,
+        isNewUser: isNewUser
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

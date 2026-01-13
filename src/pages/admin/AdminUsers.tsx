@@ -147,6 +147,7 @@ const AdminUsers = () => {
         body: {
           email: newUserEmail.trim(),
           role: newUserRole,
+          siteUrl: window.location.origin,
         },
       });
 
@@ -165,7 +166,7 @@ const AdminUsers = () => {
 
       toast.success(data.isNewUser ? 'User created successfully' : 'Role assigned successfully', {
         description: data.isNewUser 
-          ? `New account created for ${newUserEmail}. They can reset their password to log in.`
+          ? `Password setup email sent to ${newUserEmail}.`
           : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`
       });
 
