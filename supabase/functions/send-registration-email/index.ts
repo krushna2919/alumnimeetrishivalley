@@ -9,6 +9,16 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// HTML escape function to prevent XSS in email content
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface EmailRequest {
   to: string;
   name: string;
@@ -105,6 +115,9 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Validate and sanitize rejection reason
+    const safeRejectionReason = rejectionReason ? escapeHtml(rejectionReason.slice(0, 500)) : null;
+
     // Verify the application exists and the email matches
     const { data: registration, error: regError } = await supabaseClient
       .from('registrations')
@@ -191,7 +204,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #b85c38;">
               <p style="margin: 0;"><strong>Application ID:</strong> ${applicationId}</p>
-              ${rejectionReason ? `<p style="margin: 10px 0 0 0;"><strong>Reason:</strong> ${rejectionReason}</p>` : ''}
+              ${safeRejectionReason ? `<p style="margin: 10px 0 0 0;"><strong>Reason:</strong> ${safeRejectionReason}</p>` : ''}
             </div>
             
             <p>If you believe this is an error or have any questions, please contact the organizing committee.</p>
@@ -232,10 +245,10 @@ const handler = async (req: Request): Promise<Response> => {
         ...corsHeaders,
       },
     });
-  } catch (error: any) {
-    console.error("Error sending email:", error);
+  } catch (error: unknown) {
+    console.error("Error sending email");
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: "Failed to send email" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
