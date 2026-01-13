@@ -1,0 +1,392 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import AdminLayout from '@/components/admin/AdminLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Loader2, UserPlus, Trash2, ShieldAlert } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type AppRole = Database['public']['Enums']['app_role'];
+
+interface UserRole {
+  id: string;
+  user_id: string;
+  role: AppRole;
+  created_at: string;
+  email?: string;
+}
+
+const AdminUsers = () => {
+  const { user } = useAuth();
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<AppRole>('admin');
+  const [isAdding, setIsAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkSuperadminAndFetchRoles();
+  }, [user]);
+
+  const checkSuperadminAndFetchRoles = async () => {
+    if (!user) return;
+
+    try {
+      // Check if current user is superadmin
+      const { data: isSuperadminData, error: roleError } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'superadmin'
+      });
+
+      if (roleError) throw roleError;
+      setIsSuperadmin(isSuperadminData === true);
+
+      if (isSuperadminData) {
+        await fetchUserRoles();
+      }
+    } catch (err) {
+      console.error('Error checking superadmin status');
+      toast.error('Failed to verify permissions');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchUserRoles = async () => {
+    try {
+      // Fetch user roles with profile info
+      const { data: roles, error } = await supabase
+        .from('user_roles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch emails from profiles
+      const userIds = roles?.map(r => r.user_id) || [];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', userIds);
+
+      const rolesWithEmail = roles?.map(role => ({
+        ...role,
+        email: profiles?.find(p => p.id === role.user_id)?.email || 'Unknown'
+      })) || [];
+
+      setUserRoles(rolesWithEmail);
+    } catch (err) {
+      console.error('Error fetching user roles');
+      toast.error('Failed to load user roles');
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!newUserEmail.trim()) {
+      toast.error('Please enter an email address');
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      // Find user by email in profiles
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('email', newUserEmail.trim())
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      if (!profile) {
+        toast.error('User not found', {
+          description: 'The user must first create an account by logging in.'
+        });
+        return;
+      }
+
+      // Check if role already exists
+      const { data: existingRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('role', newUserRole)
+        .maybeSingle();
+
+      if (existingRole) {
+        toast.error('Role already assigned', {
+          description: `This user already has the ${newUserRole} role.`
+        });
+        return;
+      }
+
+      // Add new role
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: profile.id,
+          role: newUserRole
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success('Role assigned successfully', {
+        description: `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`
+      });
+
+      setNewUserEmail('');
+      await fetchUserRoles();
+    } catch (err) {
+      console.error('Error adding user role');
+      toast.error('Failed to assign role');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDeleteRole = async (roleId: string) => {
+    setDeletingId(roleId);
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('id', roleId);
+
+      if (error) throw error;
+
+      toast.success('Role removed successfully');
+      await fetchUserRoles();
+    } catch (err) {
+      console.error('Error deleting role');
+      toast.error('Failed to remove role');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const getRoleBadgeVariant = (role: AppRole) => {
+    switch (role) {
+      case 'superadmin':
+        return 'destructive';
+      case 'admin':
+        return 'default';
+      default:
+        return 'secondary';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!isSuperadmin) {
+    return (
+      <AdminLayout>
+        <Card className="max-w-md mx-auto mt-8">
+          <CardHeader className="text-center">
+            <ShieldAlert className="h-12 w-12 mx-auto text-destructive mb-2" />
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>
+              Only superadmins can manage user roles.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-serif font-semibold text-foreground">
+            User Management
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage admin and superadmin access
+          </p>
+        </div>
+
+        {/* Add New User Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Grant Admin Access
+            </CardTitle>
+            <CardDescription>
+              Add a new admin or superadmin. The user must have an existing account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="email">User Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                />
+              </div>
+              <div className="w-full sm:w-40 space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as AppRole)}>
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">Superadmin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleAddUser} disabled={isAdding}>
+                  {isAdding ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Add User
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Current Users Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Admins</CardTitle>
+            <CardDescription>
+              Users with admin or superadmin access
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {userRoles.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No admin users found.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Added</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userRoles.map((role) => (
+                    <TableRow key={role.id}>
+                      <TableCell className="font-medium">{role.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={getRoleBadgeVariant(role.role)}>
+                          {role.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(role.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              disabled={deletingId === role.id}
+                            >
+                              {deletingId === role.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove Role</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to remove the {role.role} role from {role.email}? 
+                                They will lose access to admin features.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteRole(role.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default AdminUsers;
