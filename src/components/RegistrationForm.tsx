@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useRecaptcha } from "@/hooks/useRecaptcha";
+import { useTurnstile } from "@/hooks/useTurnstile";
 import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
@@ -59,7 +59,7 @@ const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
-  const { executeRecaptcha } = useRecaptcha();
+  const { getToken, resetTurnstile } = useTurnstile("turnstile-container");
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
 
   const form = useForm<FormData>({
@@ -107,8 +107,16 @@ const RegistrationForm = () => {
     setIsSubmitting(true);
     
     try {
-      // Execute reCAPTCHA
-      const captchaToken = await executeRecaptcha("register");
+      // Get Turnstile token
+      const captchaToken = getToken();
+      
+      if (!captchaToken) {
+        toast.error("Please complete the verification", {
+          description: "Click the checkbox to verify you're human.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
       
       const registrationFee = data.stayType === "on-campus" ? 15000 : 7500;
 
@@ -152,6 +160,7 @@ const RegistrationForm = () => {
 
       setCurrentApplication(result.registration);
       setViewState("success");
+      resetTurnstile(); // Reset for next registration
       
       toast.success("Registration submitted!", {
         description: `Application ID: ${result.applicationId}`,
@@ -556,17 +565,12 @@ const RegistrationForm = () => {
                     />
                   </div>
 
-                  {/* reCAPTCHA Notice */}
-                  <div className="text-xs text-muted-foreground text-center">
-                    This site is protected by reCAPTCHA and the Google{" "}
-                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                      Privacy Policy
-                    </a>{" "}
-                    and{" "}
-                    <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                      Terms of Service
-                    </a>{" "}
-                    apply.
+                  {/* Turnstile Captcha */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div id="turnstile-container" className="flex justify-center"></div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Protected by Cloudflare Turnstile
+                    </p>
                   </div>
 
                   {/* Submit */}

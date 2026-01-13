@@ -26,29 +26,31 @@ interface RegistrationRequest {
   registrationFee: number;
 }
 
-async function verifyCaptcha(token: string): Promise<{ success: boolean; score?: number }> {
-  const secretKey = Deno.env.get("RECAPTCHA_SECRET_KEY");
+async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
+  const secretKey = Deno.env.get("TURNSTILE_SECRET_KEY");
   
   if (!secretKey) {
-    console.error("RECAPTCHA_SECRET_KEY not configured");
-    throw new Error("reCAPTCHA not configured");
+    console.error("TURNSTILE_SECRET_KEY not configured");
+    throw new Error("Turnstile not configured");
   }
 
-  const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+  const formData = new FormData();
+  formData.append("secret", secretKey);
+  formData.append("response", token);
+
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `secret=${secretKey}&response=${token}`,
+    body: formData,
   });
 
   const result = await response.json();
-  console.log("reCAPTCHA verification result:", { success: result.success, score: result.score });
+  console.log("Turnstile verification result:", { success: result.success });
   
-  return {
-    success: result.success && (result.score === undefined || result.score >= 0.5),
-    score: result.score,
-  };
+  if (!result.success) {
+    console.error("Turnstile error codes:", result["error-codes"]);
+  }
+
+  return { success: result.success };
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -61,14 +63,14 @@ serve(async (req: Request): Promise<Response> => {
     const data: RegistrationRequest = await req.json();
     console.log("Registration request received for:", data.email);
 
-    // Verify reCAPTCHA token
-    const captchaResult = await verifyCaptcha(data.captchaToken);
+    // Verify Turnstile token
+    const captchaResult = await verifyTurnstile(data.captchaToken);
     
     if (!captchaResult.success) {
-      console.warn("reCAPTCHA verification failed for:", data.email);
+      console.warn("Turnstile verification failed for:", data.email);
       return new Response(
         JSON.stringify({ 
-          error: "CAPTCHA verification failed. Please try again.",
+          error: "CAPTCHA verification failed. Please complete the verification and try again.",
           code: "CAPTCHA_FAILED"
         }),
         {
@@ -78,7 +80,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("reCAPTCHA verified successfully. Score:", captchaResult.score);
+    console.log("Turnstile verified successfully");
 
     // Create Supabase client with service role for inserting
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
