@@ -110,7 +110,7 @@ const AdminUsers = () => {
 
       const rolesWithEmail = roles?.map(role => ({
         ...role,
-        email: profiles?.find(p => p.id === role.user_id)?.email || 'Unknown'
+        email: profiles?.find(p => p.id === role.user_id)?.email || role.user_id
       })) || [];
 
       setUserRoles(rolesWithEmail);
@@ -170,10 +170,21 @@ const AdminUsers = () => {
         return;
       }
 
+      const emailStatus = data?.emailStatus as { attempted?: boolean; sent?: boolean; error?: string | null } | undefined;
+      const actionLink = data?.actionLink as string | null | undefined;
+
+      if (emailStatus?.attempted && !emailStatus?.sent) {
+        toast.error('Invite email failed to send', {
+          description: emailStatus?.error || 'Unknown email error',
+        });
+      }
+
       toast.success(data?.isNewUser ? 'User created successfully' : 'Role assigned successfully', {
-        description: data?.isNewUser
-          ? `Password setup email attempted for ${newUserEmail}.`
-          : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`,
+        description: actionLink
+          ? `Password link generated. If email didn't arrive, copy this link: ${actionLink}`
+          : (data?.isNewUser
+              ? `Password setup email attempted for ${newUserEmail}.`
+              : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`),
       });
 
       setNewUserEmail('');

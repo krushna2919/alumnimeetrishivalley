@@ -180,6 +180,14 @@ Deno.serve(async (req) => {
     if (existingUser) {
       userId = existingUser.id;
 
+      // Ensure a profile row exists (used by Admin Users UI to display email)
+      const { error: profileUpsertError } = await supabaseAdmin
+        .from('profiles')
+        .upsert({ id: userId, email }, { onConflict: 'id' });
+      if (profileUpsertError) {
+        console.error('[invite-admin-user] profile upsert error (existing user):', profileUpsertError.message);
+      }
+
       // Optional: still send (or re-send) password setup email for existing users
       const { actionLink } = await generateResetLink();
       if (actionLink) {
@@ -226,16 +234,19 @@ Deno.serve(async (req) => {
       userId = newUser.user.id;
       isNewUser = true;
 
-      // Create profile for the new user
+      // Create (or update) profile for the new user
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .insert({
-          id: userId,
-          email: email,
-        });
+        .upsert(
+          {
+            id: userId,
+            email: email,
+          },
+          { onConflict: 'id' }
+        );
 
       if (profileError) {
-        console.error("[invite-admin-user] profile insert error:", profileError.message);
+        console.error("[invite-admin-user] profile upsert error:", profileError.message);
         // Don't fail the request, profile can be created later
       }
 
