@@ -27,16 +27,16 @@ const navItems = [
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { user, isAdmin, isLoading, signOut } = useAuth();
+  const { user, isAdmin, isApproved, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && (!user || !isAdmin)) {
+    if (!isLoading && (!user || !isAdmin || !isApproved)) {
       navigate('/admin/login', { replace: true });
     }
-  }, [user, isAdmin, isLoading, navigate]);
+  }, [user, isAdmin, isApproved, isLoading, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -51,7 +51,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !isAdmin || !isApproved) {
     return null;
   }
 

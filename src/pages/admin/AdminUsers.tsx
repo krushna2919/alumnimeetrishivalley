@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, UserPlus, Trash2, ShieldAlert } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type AppRole = Database['public']['Enums']['app_role'];
@@ -51,6 +51,7 @@ interface UserRole {
   role: AppRole;
   created_at: string;
   email?: string;
+  is_approved: boolean;
 }
 
 const AdminUsers = () => {
@@ -97,6 +98,7 @@ const AdminUsers = () => {
       const { data: roles, error } = await supabase
         .from('user_roles')
         .select('*')
+        .order('is_approved', { ascending: true })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -117,6 +119,40 @@ const AdminUsers = () => {
     } catch (err) {
       console.error('Error fetching user roles');
       toast.error('Failed to load user roles');
+    }
+  };
+
+  const handleApproveRole = async (roleId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ is_approved: true })
+        .eq('id', roleId);
+
+      if (error) throw error;
+
+      toast.success('Admin access approved');
+      await fetchUserRoles();
+    } catch (err) {
+      console.error('Error approving role');
+      toast.error('Failed to approve admin access');
+    }
+  };
+
+  const handleRejectRole = async (roleId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('id', roleId);
+
+      if (error) throw error;
+
+      toast.success('Admin request rejected');
+      await fetchUserRoles();
+    } catch (err) {
+      console.error('Error rejecting role');
+      toast.error('Failed to reject admin request');
     }
   };
 
@@ -322,18 +358,106 @@ const AdminUsers = () => {
           </CardContent>
         </Card>
 
-        {/* Current Users Table */}
+        {/* Pending Approvals */}
+        {userRoles.filter(r => !r.is_approved).length > 0 && (
+          <Card className="border-amber-500/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-600">
+                <XCircle className="h-5 w-5" />
+                Pending Approvals
+              </CardTitle>
+              <CardDescription>
+                Users waiting for admin access approval
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role Requested</TableHead>
+                    <TableHead>Requested On</TableHead>
+                    <TableHead className="w-[150px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userRoles.filter(r => !r.is_approved).map((role) => (
+                    <TableRow key={role.id}>
+                      <TableCell className="font-medium">{role.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {role.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(role.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={() => handleApproveRole(role.id)}
+                            title="Approve"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive"
+                                title="Reject"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Reject Request</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to reject the admin request from {role.email}? 
+                                  This will remove their pending request.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleRejectRole(role.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Reject
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Approved Admins Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Current Admins</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Approved Admins
+            </CardTitle>
             <CardDescription>
-              Users with admin or superadmin access
+              Users with active admin or superadmin access
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {userRoles.length === 0 ? (
+            {userRoles.filter(r => r.is_approved).length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                No admin users found.
+                No approved admin users found.
               </p>
             ) : (
               <Table>
@@ -346,7 +470,7 @@ const AdminUsers = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userRoles.map((role) => (
+                  {userRoles.filter(r => r.is_approved).map((role) => (
                     <TableRow key={role.id}>
                       <TableCell className="font-medium">{role.email}</TableCell>
                       <TableCell>
