@@ -126,58 +126,54 @@ const AdminUsers = () => {
       return;
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserEmail.trim())) {
+      toast.error('Invalid email format');
+      return;
+    }
+
     setIsAdding(true);
     try {
-      // Find user by email in profiles
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('email', newUserEmail.trim())
-        .maybeSingle();
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error('Authentication required');
+        return;
+      }
 
-      if (profileError) throw profileError;
+      // Call edge function to invite/add user
+      const response = await supabase.functions.invoke('invite-admin-user', {
+        body: {
+          email: newUserEmail.trim(),
+          role: newUserRole,
+        },
+      });
 
-      if (!profile) {
-        toast.error('User not found', {
-          description: 'The user must first create an account by logging in.'
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to add user');
+      }
+
+      const data = response.data;
+
+      if (data.error) {
+        toast.error('Failed to add user', {
+          description: data.error
         });
         return;
       }
 
-      // Check if role already exists
-      const { data: existingRole } = await supabase
-        .from('user_roles')
-        .select('id')
-        .eq('user_id', profile.id)
-        .eq('role', newUserRole)
-        .maybeSingle();
-
-      if (existingRole) {
-        toast.error('Role already assigned', {
-          description: `This user already has the ${newUserRole} role.`
-        });
-        return;
-      }
-
-      // Add new role
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: profile.id,
-          role: newUserRole
-        });
-
-      if (insertError) throw insertError;
-
-      toast.success('Role assigned successfully', {
-        description: `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`
+      toast.success(data.isNewUser ? 'User created successfully' : 'Role assigned successfully', {
+        description: data.isNewUser 
+          ? `New account created for ${newUserEmail}. They can reset their password to log in.`
+          : `${newUserEmail} is now ${newUserRole === 'admin' ? 'an admin' : 'a superadmin'}.`
       });
 
       setNewUserEmail('');
       await fetchUserRoles();
     } catch (err) {
       console.error('Error adding user role');
-      toast.error('Failed to assign role');
+      toast.error('Failed to add user');
     } finally {
       setIsAdding(false);
     }
@@ -257,10 +253,10 @@ const AdminUsers = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
-              Grant Admin Access
+              Add Admin User
             </CardTitle>
             <CardDescription>
-              Add a new admin or superadmin. The user must have an existing account.
+              Add a new admin or superadmin. If the user doesn't exist, a new account will be created.
             </CardDescription>
           </CardHeader>
           <CardContent>
