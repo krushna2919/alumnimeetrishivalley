@@ -103,32 +103,64 @@ Deno.serve(async (req) => {
       if (!sendInviteEmail) {
         return { attempted: false, sent: false, error: null as string | null };
       }
-      try {
-        const emailResult = await resend.emails.send({
-          from: "Alumni Meet <alumnimeet@rishivalley.org>",
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #333;">Welcome!</h1>
+          <p>You have been invited to join as an <strong>${role}</strong>.</p>
+          <p>Please click the button below to set your password and access the admin dashboard:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${actionLink}"
+               style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Set Your Password
+            </a>
+          </div>
+          <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
+          <p style="color: #666; font-size: 14px;">If you didn't expect this invitation, you can safely ignore this email.</p>
+        </div>
+      `;
+
+      // NOTE: Resend requires the FROM domain to be verified.
+      // We'll try the custom FROM first, and if the domain isn't verified, fall back to a verified resend.dev sender.
+      const primaryFrom = "Alumni Meet <alumnimeet@rishivalley.org>";
+      const fallbackFrom = "Alumni Meet <onboarding@resend.dev>";
+
+      const send = async (from: string) => {
+        return await resend.emails.send({
+          from,
           to: [email],
           subject: "You've been invited as an Admin",
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #333;">Welcome!</h1>
-              <p>You have been invited to join as an <strong>${role}</strong>.</p>
-              <p>Please click the button below to set your password and access the admin dashboard:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${actionLink}"
-                   style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                  Set Your Password
-                </a>
-              </div>
-              <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
-              <p style="color: #666; font-size: 14px;">If you didn't expect this invitation, you can safely ignore this email.</p>
-            </div>
-          `,
+          html,
+          reply_to: "alumnimeet@rishivalley.org",
         });
+      };
+
+      try {
+        const emailResult = await send(primaryFrom);
         console.log('[invite-admin-user] resend send result', JSON.stringify(emailResult));
         return { attempted: true, sent: true, error: null as string | null };
       } catch (err: any) {
-        console.error('[invite-admin-user] resend send error', err?.message || err);
-        return { attempted: true, sent: false, error: err?.message || 'Email send failed' };
+        const msg = err?.message || String(err);
+        console.error('[invite-admin-user] resend send error (primary from)', msg);
+
+        // Domain not verified → retry with fallback sender so invites still deliver.
+        if (msg.toLowerCase().includes('domain is not verified')) {
+          try {
+            const emailResult2 = await send(fallbackFrom);
+            console.log('[invite-admin-user] resend send result (fallback from)', JSON.stringify(emailResult2));
+            return {
+              attempted: true,
+              sent: true,
+              error: 'Primary sender domain not verified; sent via fallback sender.',
+            };
+          } catch (err2: any) {
+            const msg2 = err2?.message || String(err2);
+            console.error('[invite-admin-user] resend send error (fallback from)', msg2);
+            return { attempted: true, sent: false, error: msg2 };
+          }
+        }
+
+        return { attempted: true, sent: false, error: msg };
       }
     };
 
