@@ -1,9 +1,8 @@
 import { useEffect, useCallback, useRef } from "react";
 
 // Cloudflare Turnstile Site Key
-// Cloudflare Turnstile - Using visible test key that always passes
-// See: https://developers.cloudflare.com/turnstile/troubleshooting/testing/
-const TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
+// Cloudflare Turnstile Site Key
+const TURNSTILE_SITE_KEY = "0x4AAAAAACMMZoWdON6tXqr3";
 
 declare global {
   interface Window {
