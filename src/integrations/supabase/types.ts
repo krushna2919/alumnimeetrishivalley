@@ -88,6 +88,7 @@ export type Database = {
           district: string
           email: string
           gender: string
+          hostel_name: string | null
           id: string
           name: string
           occupation: string
@@ -121,6 +122,7 @@ export type Database = {
           district: string
           email: string
           gender: string
+          hostel_name?: string | null
           id?: string
           name: string
           occupation: string
@@ -154,6 +156,7 @@ export type Database = {
           district?: string
           email?: string
           gender?: string
+          hostel_name?: string | null
           id?: string
           name?: string
           occupation?: string

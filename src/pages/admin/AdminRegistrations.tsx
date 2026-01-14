@@ -53,12 +53,19 @@ import {
   Users,
   ChevronRight,
   CheckCheck,
-  XOctagon
+  XOctagon,
+  Building2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 
 type Registration = Tables<'registrations'>;
+
+const HOSTEL_OPTIONS = [
+  'takshila', 'silver', 'golden', 'raavi', 'neem', 'palm', 'green', 'red',
+  'amaltash', 'gulmohar', 'meru', 'nilgiri', 'krishna', 'cauvery', 'trishul',
+  'jacaranda', 'duranta', 'malli'
+] as const;
 
 const AdminRegistrations = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -79,6 +86,32 @@ const AdminRegistrations = () => {
   
   const { toast } = useToast();
   const { userRole } = useAuth();
+
+  // Handle hostel assignment
+  const handleHostelAssign = async (registration: Registration, hostelName: string) => {
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .update({ hostel_name: hostelName })
+        .eq('id', registration.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Hostel Assigned',
+        description: `${registration.name} has been assigned to ${hostelName.charAt(0).toUpperCase() + hostelName.slice(1)} hostel.`,
+      });
+
+      fetchRegistrations();
+    } catch (error) {
+      console.error('Error assigning hostel:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to assign hostel',
+        variant: 'destructive',
+      });
+    }
+  };
 
   useEffect(() => {
     fetchRegistrations();
@@ -546,6 +579,7 @@ const AdminRegistrations = () => {
                       <TableHead>Year</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Payment</TableHead>
+                      <TableHead>Hostel</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -562,7 +596,7 @@ const AdminRegistrations = () => {
                                 <React.Fragment key={groupId}>
                                   {/* Group header row */}
                                   <TableRow className="bg-primary/5 border-l-4 border-l-primary">
-                                    <TableCell colSpan={5} className="py-2">
+                                    <TableCell colSpan={6} className="py-2">
                                       <div className="flex items-center gap-2">
                                         <Users className="h-4 w-4 text-primary" />
                                         <span className="font-semibold text-primary">
@@ -578,7 +612,7 @@ const AdminRegistrations = () => {
                                         )}
                                       </div>
                                     </TableCell>
-                                    <TableCell colSpan={3} className="text-right py-2">
+                                    <TableCell colSpan={4} className="text-right py-2">
                                       {hasGroupPendingRegistrations(members) && (
                                         <div className="flex items-center justify-end gap-2">
                                           <Button
@@ -631,6 +665,33 @@ const AdminRegistrations = () => {
                                       <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                       <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                       <TableCell>
+                                        {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                                          <Select
+                                            value={registration.hostel_name || ''}
+                                            onValueChange={(value) => handleHostelAssign(registration, value)}
+                                          >
+                                            <SelectTrigger className="w-28 h-8 text-xs">
+                                              <SelectValue placeholder="Assign" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {HOSTEL_OPTIONS.map((hostel) => (
+                                                <SelectItem key={hostel} value={hostel} className="capitalize">
+                                                  {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        ) : registration.hostel_name ? (
+                                          <Badge variant="secondary" className="capitalize">
+                                            {registration.hostel_name}
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground text-xs">
+                                            {registration.stay_type === 'outside' ? 'N/A' : '-'}
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
                                         {format(new Date(registration.created_at), 'MMM d, yyyy')}
                                       </TableCell>
                                       <TableCell className="text-right">
@@ -660,6 +721,33 @@ const AdminRegistrations = () => {
                                   <TableCell>{registration.year_of_passing}</TableCell>
                                   <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                   <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
+                                  <TableCell>
+                                    {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                                      <Select
+                                        value={registration.hostel_name || ''}
+                                        onValueChange={(value) => handleHostelAssign(registration, value)}
+                                      >
+                                        <SelectTrigger className="w-28 h-8 text-xs">
+                                          <SelectValue placeholder="Assign" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {HOSTEL_OPTIONS.map((hostel) => (
+                                            <SelectItem key={hostel} value={hostel} className="capitalize">
+                                              {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : registration.hostel_name ? (
+                                      <Badge variant="secondary" className="capitalize">
+                                        {registration.hostel_name}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">
+                                        {registration.stay_type === 'outside' ? 'N/A' : '-'}
+                                      </span>
+                                    )}
+                                  </TableCell>
                                   <TableCell>
                                     {format(new Date(registration.created_at), 'MMM d, yyyy')}
                                   </TableCell>
@@ -700,6 +788,33 @@ const AdminRegistrations = () => {
                           <TableCell>{registration.year_of_passing}</TableCell>
                           <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                           <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
+                          <TableCell>
+                            {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                              <Select
+                                value={registration.hostel_name || ''}
+                                onValueChange={(value) => handleHostelAssign(registration, value)}
+                              >
+                                <SelectTrigger className="w-28 h-8 text-xs">
+                                  <SelectValue placeholder="Assign" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {HOSTEL_OPTIONS.map((hostel) => (
+                                    <SelectItem key={hostel} value={hostel} className="capitalize">
+                                      {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : registration.hostel_name ? (
+                              <Badge variant="secondary" className="capitalize">
+                                {registration.hostel_name}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">
+                                {registration.stay_type === 'outside' ? 'N/A' : '-'}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {format(new Date(registration.created_at), 'MMM d, yyyy')}
                           </TableCell>
@@ -775,6 +890,38 @@ const AdminRegistrations = () => {
                   <label className="text-sm text-muted-foreground">Registration Fee</label>
                   <p className="font-medium">₹{selectedRegistration.registration_fee}</p>
                 </div>
+                {/* Hostel Assignment - Only for approved on-campus registrations */}
+                {selectedRegistration.stay_type === 'on-campus' && (
+                  <div>
+                    <label className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      Hostel Accommodation
+                    </label>
+                    {selectedRegistration.registration_status === 'approved' ? (
+                      <Select
+                        value={selectedRegistration.hostel_name || ''}
+                        onValueChange={(value) => handleHostelAssign(selectedRegistration, value)}
+                      >
+                        <SelectTrigger className="w-full mt-1">
+                          <SelectValue placeholder="Select hostel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HOSTEL_OPTIONS.map((hostel) => (
+                            <SelectItem key={hostel} value={hostel} className="capitalize">
+                              {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium text-muted-foreground mt-1">
+                        {selectedRegistration.hostel_name 
+                          ? selectedRegistration.hostel_name.charAt(0).toUpperCase() + selectedRegistration.hostel_name.slice(1)
+                          : 'Pending approval'}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="col-span-2">
                   <label className="text-sm text-muted-foreground">Payment Proof</label>
                   {selectedRegistration.payment_proof_url ? (
