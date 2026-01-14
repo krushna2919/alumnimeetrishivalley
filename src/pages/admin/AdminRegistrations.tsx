@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -84,6 +85,11 @@ const AdminRegistrations = () => {
   const [isGroupRejectDialogOpen, setIsGroupRejectDialogOpen] = useState(false);
   const [groupRejectionReason, setGroupRejectionReason] = useState('');
   
+  // Bulk hostel assignment state
+  const [selectedForHostel, setSelectedForHostel] = useState<Set<string>>(new Set());
+  const [isBulkHostelDialogOpen, setIsBulkHostelDialogOpen] = useState(false);
+  const [bulkHostelSelection, setBulkHostelSelection] = useState<string>('');
+  
   const { toast } = useToast();
   const { userRole } = useAuth();
 
@@ -110,6 +116,70 @@ const AdminRegistrations = () => {
         description: 'Failed to assign hostel',
         variant: 'destructive',
       });
+    }
+  };
+
+  // Handle bulk hostel assignment
+  const handleBulkHostelAssign = async () => {
+    if (!bulkHostelSelection || selectedForHostel.size === 0) return;
+
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .update({ hostel_name: bulkHostelSelection })
+        .in('id', Array.from(selectedForHostel));
+
+      if (error) throw error;
+
+      toast({
+        title: 'Hostels Assigned',
+        description: `${selectedForHostel.size} registration(s) assigned to ${bulkHostelSelection.charAt(0).toUpperCase() + bulkHostelSelection.slice(1)} hostel.`,
+      });
+
+      setSelectedForHostel(new Set());
+      setBulkHostelSelection('');
+      setIsBulkHostelDialogOpen(false);
+      fetchRegistrations();
+    } catch (error) {
+      console.error('Error bulk assigning hostels:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to assign hostels',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Toggle selection for bulk hostel assignment
+  const toggleHostelSelection = (id: string) => {
+    setSelectedForHostel(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Get eligible registrations for hostel assignment (approved + on-campus)
+  const getHostelEligibleRegistrations = () => {
+    return filteredRegistrations.filter(
+      r => r.registration_status === 'approved' && r.stay_type === 'on-campus'
+    );
+  };
+
+  // Select/deselect all eligible registrations
+  const toggleSelectAllHostel = () => {
+    const eligible = getHostelEligibleRegistrations();
+    if (selectedForHostel.size === eligible.length) {
+      setSelectedForHostel(new Set());
+    } else {
+      setSelectedForHostel(new Set(eligible.map(r => r.id)));
     }
   };
 
@@ -519,6 +589,16 @@ const AdminRegistrations = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            {selectedForHostel.size > 0 && (
+              <Button 
+                onClick={() => setIsBulkHostelDialogOpen(true)}
+                size="sm"
+                className="bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                <Building2 className="h-4 w-4 mr-2" />
+                Assign Hostel ({selectedForHostel.size})
+              </Button>
+            )}
             <Button 
               onClick={() => setShowGrouped(!showGrouped)} 
               variant={showGrouped ? "default" : "outline"} 
@@ -573,6 +653,13 @@ const AdminRegistrations = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={getHostelEligibleRegistrations().length > 0 && selectedForHostel.size === getHostelEligibleRegistrations().length}
+                          onCheckedChange={toggleSelectAllHostel}
+                          aria-label="Select all eligible for hostel"
+                        />
+                      </TableHead>
                       <TableHead>Application ID</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
@@ -596,7 +683,8 @@ const AdminRegistrations = () => {
                                 <React.Fragment key={groupId}>
                                   {/* Group header row */}
                                   <TableRow className="bg-primary/5 border-l-4 border-l-primary">
-                                    <TableCell colSpan={6} className="py-2">
+                                    <TableCell className="py-2" />
+                                    <TableCell colSpan={5} className="py-2">
                                       <div className="flex items-center gap-2">
                                         <Users className="h-4 w-4 text-primary" />
                                         <span className="font-semibold text-primary">
@@ -612,7 +700,7 @@ const AdminRegistrations = () => {
                                         )}
                                       </div>
                                     </TableCell>
-                                    <TableCell colSpan={4} className="text-right py-2">
+                                    <TableCell colSpan={5} className="text-right py-2">
                                       {hasGroupPendingRegistrations(members) && (
                                         <div className="flex items-center justify-end gap-2">
                                           <Button
@@ -645,11 +733,22 @@ const AdminRegistrations = () => {
                                     </TableCell>
                                   </TableRow>
                                   {/* Group members */}
-                                  {members.map((registration, index) => (
+                                  {members.map((registration, index) => {
+                                    const isHostelEligible = registration.registration_status === 'approved' && registration.stay_type === 'on-campus';
+                                    return (
                                     <TableRow 
                                       key={registration.id}
                                       className={`${index === 0 ? 'bg-primary/10' : 'bg-muted/30'} border-l-4 ${index === 0 ? 'border-l-primary' : 'border-l-muted-foreground/30'}`}
                                     >
+                                      <TableCell>
+                                        {isHostelEligible && (
+                                          <Checkbox
+                                            checked={selectedForHostel.has(registration.id)}
+                                            onCheckedChange={() => toggleHostelSelection(registration.id)}
+                                            aria-label={`Select ${registration.name} for hostel assignment`}
+                                          />
+                                        )}
+                                      </TableCell>
                                       <TableCell className="font-mono text-sm">
                                         <div className="flex items-center gap-2">
                                           {index > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
@@ -665,7 +764,7 @@ const AdminRegistrations = () => {
                                       <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                       <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                       <TableCell>
-                                        {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                                        {isHostelEligible ? (
                                           <Select
                                             value={registration.hostel_name || ''}
                                             onValueChange={(value) => handleHostelAssign(registration, value)}
@@ -707,12 +806,23 @@ const AdminRegistrations = () => {
                                         </Button>
                                       </TableCell>
                                     </TableRow>
-                                  ))}
+                                  )})}
                                 </React.Fragment>
                               ))}
                               {/* Standalone registrations */}
-                              {standalone.map((registration) => (
+                              {standalone.map((registration) => {
+                                const isHostelEligible = registration.registration_status === 'approved' && registration.stay_type === 'on-campus';
+                                return (
                                 <TableRow key={registration.id}>
+                                  <TableCell>
+                                    {isHostelEligible && (
+                                      <Checkbox
+                                        checked={selectedForHostel.has(registration.id)}
+                                        onCheckedChange={() => toggleHostelSelection(registration.id)}
+                                        aria-label={`Select ${registration.name} for hostel assignment`}
+                                      />
+                                    )}
+                                  </TableCell>
                                   <TableCell className="font-mono text-sm">
                                     {registration.application_id}
                                   </TableCell>
@@ -722,7 +832,7 @@ const AdminRegistrations = () => {
                                   <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                   <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                   <TableCell>
-                                    {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                                    {isHostelEligible ? (
                                       <Select
                                         value={registration.hostel_name || ''}
                                         onValueChange={(value) => handleHostelAssign(registration, value)}
@@ -764,15 +874,26 @@ const AdminRegistrations = () => {
                                     </Button>
                                   </TableCell>
                                 </TableRow>
-                              ))}
+                              )})}
                             </>
                           );
                         })()}
                       </>
                     ) : (
                       /* Flat view - original behavior */
-                      filteredRegistrations.map((registration) => (
+                      filteredRegistrations.map((registration) => {
+                        const isHostelEligible = registration.registration_status === 'approved' && registration.stay_type === 'on-campus';
+                        return (
                         <TableRow key={registration.id}>
+                          <TableCell>
+                            {isHostelEligible && (
+                              <Checkbox
+                                checked={selectedForHostel.has(registration.id)}
+                                onCheckedChange={() => toggleHostelSelection(registration.id)}
+                                aria-label={`Select ${registration.name} for hostel assignment`}
+                              />
+                            )}
+                          </TableCell>
                           <TableCell className="font-mono text-sm">
                             <div className="flex items-center gap-2">
                               {registration.application_id}
@@ -789,7 +910,7 @@ const AdminRegistrations = () => {
                           <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                           <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                           <TableCell>
-                            {registration.registration_status === 'approved' && registration.stay_type === 'on-campus' ? (
+                            {isHostelEligible ? (
                               <Select
                                 value={registration.hostel_name || ''}
                                 onValueChange={(value) => handleHostelAssign(registration, value)}
@@ -831,7 +952,7 @@ const AdminRegistrations = () => {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))
+                      )})
                     )}
                   </TableBody>
                 </Table>
@@ -1156,6 +1277,76 @@ const AdminRegistrations = () => {
                 <XOctagon className="h-4 w-4 mr-2" />
               )}
               Reject All ({selectedGroup?.filter(m => m.registration_status === 'pending').length || 0})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Hostel Assignment Dialog */}
+      <Dialog open={isBulkHostelDialogOpen} onOpenChange={(open) => {
+        setIsBulkHostelDialogOpen(open);
+        if (!open) {
+          setBulkHostelSelection('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Bulk Hostel Assignment
+            </DialogTitle>
+            <DialogDescription>
+              Assign the same hostel to {selectedForHostel.size} selected registration(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Select Hostel</label>
+              <Select value={bulkHostelSelection} onValueChange={setBulkHostelSelection}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose a hostel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOSTEL_OPTIONS.map((hostel) => (
+                    <SelectItem key={hostel} value={hostel} className="capitalize">
+                      {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium mb-2">Selected registrations:</p>
+              <ul className="list-disc list-inside space-y-1 max-h-40 overflow-y-auto">
+                {filteredRegistrations
+                  .filter(r => selectedForHostel.has(r.id))
+                  .map(r => (
+                    <li key={r.id}>{r.name} ({r.application_id})</li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsBulkHostelDialogOpen(false);
+                setBulkHostelSelection('');
+              }}
+              disabled={isProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkHostelAssign}
+              disabled={isProcessing || !bulkHostelSelection}
+            >
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Building2 className="h-4 w-4 mr-2" />
+              )}
+              Assign to {selectedForHostel.size} Registration(s)
             </Button>
           </DialogFooter>
         </DialogContent>
