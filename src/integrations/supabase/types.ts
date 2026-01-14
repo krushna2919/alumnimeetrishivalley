@@ -50,6 +50,110 @@ export type Database = {
         }
         Relationships: []
       }
+      bed_assignments: {
+        Row: {
+          bed_number: number
+          created_at: string
+          id: string
+          registration_id: string | null
+          room_id: string
+          updated_at: string
+        }
+        Insert: {
+          bed_number: number
+          created_at?: string
+          id?: string
+          registration_id?: string | null
+          room_id: string
+          updated_at?: string
+        }
+        Update: {
+          bed_number?: number
+          created_at?: string
+          id?: string
+          registration_id?: string | null
+          room_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bed_assignments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: true
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bed_assignments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "hostel_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hostel_rooms: {
+        Row: {
+          beds_count: number
+          created_at: string
+          hostel_id: string
+          id: string
+          room_number: string
+        }
+        Insert: {
+          beds_count?: number
+          created_at?: string
+          hostel_id: string
+          id?: string
+          room_number: string
+        }
+        Update: {
+          beds_count?: number
+          created_at?: string
+          hostel_id?: string
+          id?: string
+          room_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hostel_rooms_hostel_id_fkey"
+            columns: ["hostel_id"]
+            isOneToOne: false
+            referencedRelation: "hostels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hostels: {
+        Row: {
+          beds_per_room: number
+          created_at: string
+          id: string
+          name: string
+          total_rooms: number
+          updated_at: string
+          washrooms: number
+        }
+        Insert: {
+          beds_per_room?: number
+          created_at?: string
+          id?: string
+          name: string
+          total_rooms?: number
+          updated_at?: string
+          washrooms?: number
+        }
+        Update: {
+          beds_per_room?: number
+          created_at?: string
+          id?: string
+          name?: string
+          total_rooms?: number
+          updated_at?: string
+          washrooms?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
