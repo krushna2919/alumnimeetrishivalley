@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -193,7 +194,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Rishi Valley Alumni Meet <noreply@alumnimeetrishivalley.lovable.app>",
+        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
         to: [to],
         subject: subject,
         html: htmlContent,
