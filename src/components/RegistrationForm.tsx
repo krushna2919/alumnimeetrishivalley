@@ -220,7 +220,7 @@ const RegistrationForm = () => {
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-              <strong>Note:</strong> Currently accepting batches of ICSE 1978/ ISC {CUTOFF_YEAR} and earlier only.
+              <strong>Note:</strong> Currently accepting batches of ICSE 1978 / ISC {CUTOFF_YEAR} and earlier only.
             </span>
           </div>
         </motion.div>
