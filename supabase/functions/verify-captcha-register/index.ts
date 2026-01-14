@@ -6,6 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const EMAILJS_SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID");
+const EMAILJS_PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY");
+const EMAILJS_TEMPLATE_ID_SUCCESS = Deno.env.get("EMAILJS_TEMPLATE_ID_SUCCESS");
+
 interface AttendeeInfo {
   name: string;
   email: string;
@@ -66,6 +70,46 @@ async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
   }
 
   return { success: result.success };
+}
+
+async function sendConfirmationEmail(
+  email: string,
+  name: string,
+  applicationId: string
+): Promise<void> {
+  if (!EMAILJS_SERVICE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_TEMPLATE_ID_SUCCESS) {
+    console.warn("EmailJS not configured, skipping confirmation email");
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE_ID,
+        template_id: EMAILJS_TEMPLATE_ID_SUCCESS,
+        user_id: EMAILJS_PUBLIC_KEY,
+        template_params: {
+          to_email: email,
+          to_name: name,
+          application_id: applicationId,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("EmailJS error:", errorText);
+    } else {
+      console.log("Confirmation email sent to:", email);
+    }
+  } catch (error) {
+    console.error("Error sending confirmation email:", error);
+    // Don't throw - email failure shouldn't fail the registration
+  }
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -163,6 +207,9 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("Main registration saved successfully:", applicationId);
 
+    // Send confirmation email to main registrant
+    await sendConfirmationEmail(data.email, data.name, applicationId);
+
     // Process additional attendees if any
     const additionalRegistrations: any[] = [];
     if (data.additionalAttendees && data.additionalAttendees.length > 0) {
@@ -219,6 +266,9 @@ serve(async (req: Request): Promise<Response> => {
             stayType: attendeeReg.stay_type,
             registrationFee: attendeeReg.registration_fee,
           });
+
+          // Send confirmation email to each attendee
+          await sendConfirmationEmail(attendee.email, attendee.name, attendeeAppId);
         }
       }
     }
