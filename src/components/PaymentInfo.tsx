@@ -97,9 +97,9 @@ const PaymentInfo = () => {
             <div className="bg-accent/20 backdrop-blur-sm rounded-2xl p-8 border border-accent/30">
               <div className="flex items-center gap-3 mb-4">
                 <Mail className="w-6 h-6 text-accent" />
-                <h3 className="font-serif text-xl font-semibold text-accent-foreground">After Payment</h3>
+                <h3 className="font-serif text-xl font-semibold text-primary-foreground">After Payment</h3>
               </div>
-              <p className="text-foreground/80 mb-4">
+              <p className="text-primary-foreground/90 mb-4">
                 Please remember to inform the details of the transfer immediately by email to:
               </p>
               <a 
@@ -122,7 +122,7 @@ const PaymentInfo = () => {
         >
           <AlertCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-foreground mb-1">Registration Fees are Non-Refundable</p>
+            <p className="font-semibold text-primary-foreground mb-1">Registration Fees are Non-Refundable</p>
             <p className="text-muted-foreground">
               Please ensure all details are correct before completing your payment.
             </p>
