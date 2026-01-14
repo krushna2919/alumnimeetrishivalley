@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, Upload, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -569,11 +569,13 @@ const RegistrationForm = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectLabel className="text-muted-foreground font-normal">Select size</SelectLabel>
-                              <SelectItem value="S">S (Chest: 36")</SelectItem>
-                              <SelectItem value="M">M (Chest: 38-40")</SelectItem>
-                              <SelectItem value="L">L (Chest: 42")</SelectItem>
-                              <SelectItem value="XL">XL (Chest: 44")</SelectItem>
+                              <SelectGroup>
+                                <SelectLabel className="text-muted-foreground font-normal">Select size</SelectLabel>
+                                <SelectItem value="S">S (Chest: 36")</SelectItem>
+                                <SelectItem value="M">M (Chest: 38-40")</SelectItem>
+                                <SelectItem value="L">L (Chest: 42")</SelectItem>
+                                <SelectItem value="XL">XL (Chest: 44")</SelectItem>
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -594,9 +596,11 @@ const RegistrationForm = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectLabel className="text-muted-foreground font-normal">Select gender</SelectLabel>
-                              <SelectItem value="M">Male</SelectItem>
-                              <SelectItem value="F">Female</SelectItem>
+                              <SelectGroup>
+                                <SelectLabel className="text-muted-foreground font-normal">Select gender</SelectLabel>
+                                <SelectItem value="M">Male</SelectItem>
+                                <SelectItem value="F">Female</SelectItem>
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                           <FormMessage />
