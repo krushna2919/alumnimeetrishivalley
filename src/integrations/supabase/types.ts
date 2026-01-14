@@ -91,6 +91,7 @@ export type Database = {
           id: string
           name: string
           occupation: string
+          parent_application_id: string | null
           payment_date: string | null
           payment_reference: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
@@ -122,6 +123,7 @@ export type Database = {
           id?: string
           name: string
           occupation: string
+          parent_application_id?: string | null
           payment_date?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -153,6 +155,7 @@ export type Database = {
           id?: string
           name?: string
           occupation?: string
+          parent_application_id?: string | null
           payment_date?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -168,7 +171,15 @@ export type Database = {
           updated_at?: string
           year_of_passing?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "registrations_parent_application_id_fkey"
+            columns: ["parent_application_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["application_id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

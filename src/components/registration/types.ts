@@ -67,6 +67,7 @@ export interface RegistrationData {
   registrationFee: number;
   paymentStatus: string;
   createdAt: string;
+  parentApplicationId?: string | null;
 }
 
 // Calculate fee for stay type
