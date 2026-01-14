@@ -222,9 +222,6 @@ const RegistrationForm = () => {
             <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
               <strong>Note:</strong> Currently accepting batches of {CUTOFF_YEAR} and earlier only.
             </span>
-            {/* <span className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-lg border border-primary/30">
-              <strong>New:</strong> Register up to {MAX_ATTENDEES} people at once!
-            </span> */}
           </div>
         </motion.div>
 
