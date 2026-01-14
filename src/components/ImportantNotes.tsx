@@ -60,8 +60,9 @@ const ImportantNotes = () => {
             Eligibility Criteria
           </h3>
           <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
-            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can register. 
-            Registration will be opened in phases, starting with earlier batches.
+            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can register.
+            <br className="block mt-2" />
+            <span className="block mt-2">Registration will be opened in phases, starting with earlier batches.</span>
           </p>
         </motion.div>
 
