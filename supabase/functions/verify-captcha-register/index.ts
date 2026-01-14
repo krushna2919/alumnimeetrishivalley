@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 interface AttendeeInfo {
   name: string;
@@ -89,7 +90,7 @@ async function sendConfirmationEmail(
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Rishi Valley Alumni Meet <noreply@alumnimeetrishivalley.lovable.app>",
+        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
         to: [email],
         subject: `Registration Confirmed - Application ID: ${applicationId}`,
         html: `
