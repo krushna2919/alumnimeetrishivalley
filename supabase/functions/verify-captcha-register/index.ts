@@ -6,9 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EMAILJS_SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID");
-const EMAILJS_PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY");
-const EMAILJS_TEMPLATE_ID_SUCCESS = Deno.env.get("EMAILJS_TEMPLATE_ID_SUCCESS");
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 interface AttendeeInfo {
   name: string;
@@ -75,36 +73,55 @@ async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
 async function sendConfirmationEmail(
   email: string,
   name: string,
-  applicationId: string
+  applicationId: string,
+  registrationFee: number
 ): Promise<void> {
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_TEMPLATE_ID_SUCCESS) {
-    console.warn("EmailJS not configured, skipping confirmation email");
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY not configured, skipping confirmation email");
     return;
   }
 
   try {
-    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: EMAILJS_TEMPLATE_ID_SUCCESS,
-        user_id: EMAILJS_PUBLIC_KEY,
-        template_params: {
-          to_email: email,
-          to_name: name,
-          application_id: applicationId,
-        },
+        from: "Rishi Valley Alumni Meet <noreply@alumnimeetrishivalley.lovable.app>",
+        to: [email],
+        subject: `Registration Confirmed - Application ID: ${applicationId}`,
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+              Registration Confirmed
+            </h1>
+            <p>Dear ${name},</p>
+            <p>Thank you for registering for the Rishi Valley Alumni Meet!</p>
+            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #666;">Your Application ID:</p>
+              <p style="margin: 10px 0 0; font-size: 24px; font-weight: bold; color: #5c4a3d; font-family: monospace;">
+                ${applicationId}
+              </p>
+            </div>
+            <p><strong>Registration Fee:</strong> ₹${registrationFee.toLocaleString('en-IN')}</p>
+            <p>Please save your Application ID for future reference. You will need it to check your registration status and complete payment.</p>
+            <p style="margin-top: 30px;">
+              Best regards,<br>
+              <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+            </p>
+          </div>
+        `,
       }),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("EmailJS error:", errorText);
+      const errorData = await response.json();
+      console.error("Resend error:", errorData);
     } else {
-      console.log("Confirmation email sent to:", email);
+      const result = await response.json();
+      console.log("Confirmation email sent to:", email, result);
     }
   } catch (error) {
     console.error("Error sending confirmation email:", error);
@@ -208,7 +225,7 @@ serve(async (req: Request): Promise<Response> => {
     console.log("Main registration saved successfully:", applicationId);
 
     // Send confirmation email to main registrant
-    await sendConfirmationEmail(data.email, data.name, applicationId);
+    await sendConfirmationEmail(data.email, data.name, applicationId, data.registrationFee);
 
     // Process additional attendees if any
     const additionalRegistrations: any[] = [];
@@ -268,7 +285,7 @@ serve(async (req: Request): Promise<Response> => {
           });
 
           // Send confirmation email to each attendee
-          await sendConfirmationEmail(attendee.email, attendee.name, attendeeAppId);
+          await sendConfirmationEmail(attendee.email, attendee.name, attendeeAppId, attendee.registrationFee);
         }
       }
     }
