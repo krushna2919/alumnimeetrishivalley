@@ -569,7 +569,6 @@ const RegistrationForm = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="" disabled>Select size</SelectItem>
                               <SelectItem value="S">S (Chest: 36")</SelectItem>
                               <SelectItem value="M">M (Chest: 38-40")</SelectItem>
                               <SelectItem value="L">L (Chest: 42")</SelectItem>
@@ -594,7 +593,6 @@ const RegistrationForm = () => {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="" disabled>Select gender</SelectItem>
                               <SelectItem value="M">Male</SelectItem>
                               <SelectItem value="F">Female</SelectItem>
                             </SelectContent>
