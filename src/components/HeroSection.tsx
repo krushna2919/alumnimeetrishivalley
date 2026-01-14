@@ -48,7 +48,7 @@ const HeroSection = () => {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="inline-block mt-8 bg-primary-foreground text-secondary font-semibold px-10 py-4 rounded-full shadow-elevated hover:shadow-card transition-all duration-300 hover:scale-105"
           >
-            Register Now
+            Proceed to Registration
           </motion.a>
         </motion.div>
       </div>
