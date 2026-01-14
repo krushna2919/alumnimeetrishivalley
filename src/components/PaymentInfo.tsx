@@ -123,7 +123,7 @@ const PaymentInfo = () => {
           <AlertCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-primary-foreground mb-1">Registration Fees are Non-Refundable</p>
-            <p className="text-muted-foreground">
+            <p className="text-primary-foreground/90">
               Please ensure all details are correct before completing your payment.
             </p>
           </div>
