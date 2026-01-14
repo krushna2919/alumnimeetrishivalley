@@ -74,6 +74,28 @@ const AdminRegistrations = () => {
 
   useEffect(() => {
     fetchRegistrations();
+
+    // Subscribe to real-time changes on registrations table
+    const channel = supabase
+      .channel('registrations-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'registrations'
+        },
+        (payload) => {
+          console.log('Registration change detected:', payload.eventType);
+          // Refresh the registrations list when any change occurs
+          fetchRegistrations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
