@@ -16,16 +16,16 @@ import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
 import AdditionalAttendeesSection from "./registration/AdditionalAttendeesSection";
-import { 
-  registrantSchema, 
-  RegistrantData, 
-  AttendeeData, 
-  defaultRegistrant, 
-  calculateFee, 
+import {
+  registrantSchema,
+  RegistrantData,
+  AttendeeData,
+  defaultRegistrant,
+  calculateFee,
   calculateTotalFee,
   RegistrationData,
   CUTOFF_YEAR,
-  MAX_ATTENDEES
+  MAX_ATTENDEES,
 } from "./registration/types";
 
 const currentYear = new Date().getFullYear();
@@ -85,11 +85,11 @@ const RegistrationForm = () => {
 
   const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
-    
+
     try {
       // Get Turnstile token
       const captchaToken = getToken();
-      
+
       if (!captchaToken) {
         toast.error("Please complete the verification", {
           description: "Click the checkbox to verify you're human.",
@@ -97,11 +97,11 @@ const RegistrationForm = () => {
         setIsSubmitting(false);
         return;
       }
-      
+
       const registrationFee = calculateFee(data.stayType);
 
       // Prepare additional attendees data
-      const additionalAttendeesData = additionalAttendees.map(attendee => ({
+      const additionalAttendeesData = additionalAttendees.map((attendee) => ({
         name: attendee.name,
         email: attendee.email,
         phone: attendee.phone,
@@ -161,9 +161,9 @@ const RegistrationForm = () => {
       });
       setViewState("success");
       resetTurnstile();
-      
+
       const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
-      toast.success(`${totalRegistered} registration${totalRegistered > 1 ? 's' : ''} submitted!`, {
+      toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
         description: `Primary Application ID: ${result.applicationId}`,
       });
     } catch (error: unknown) {
@@ -213,16 +213,14 @@ const RegistrationForm = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Registration Form
-          </h2>
+          <h2 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">Registration Form</h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Register before 31st August 2026. Accommodation is on a first-come, first-serve basis
-            with preference to alumni from older batches.
+            Register before 31st August 2026. Accommodation is on a first-come, first-serve basis with preference to
+            alumni from older batches.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-              <strong>Note:</strong> Currently accepting batches of {CUTOFF_YEAR} and earlier only.
+              <strong>Note:</strong> Currently accepting batches of ICSE 1978/ISC{CUTOFF_YEAR} and earlier only.
             </span>
             <span className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-lg border border-primary/30">
               <strong>New:</strong> Register up to {MAX_ATTENDEES} people at once!
@@ -240,7 +238,7 @@ const RegistrationForm = () => {
           {viewState === "form" && (
             <>
               <ApplicationLookup onApplicationFound={handleApplicationFound} />
-              
+
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   {/* Main Registrant Section */}
@@ -249,7 +247,7 @@ const RegistrationForm = () => {
                       <User className="w-5 h-5 text-primary" />
                       Primary Registrant (You)
                     </h3>
-                    
+
                     {/* Personal Information */}
                     <div className="grid md:grid-cols-2 gap-6">
                       <FormField
@@ -279,7 +277,12 @@ const RegistrationForm = () => {
                               Email Address
                             </FormLabel>
                             <FormControl>
-                              <Input type="email" placeholder="your.email@example.com" {...field} className="bg-background" />
+                              <Input
+                                type="email"
+                                placeholder="your.email@example.com"
+                                {...field}
+                                className="bg-background"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -359,7 +362,7 @@ const RegistrationForm = () => {
                       <MapPin className="w-4 h-4 text-primary" />
                       Address Details
                     </h3>
-                    
+
                     <FormField
                       control={form.control}
                       name="addressLine1"
@@ -397,22 +400,18 @@ const RegistrationForm = () => {
                           <FormItem>
                             <FormLabel className="text-foreground flex items-center gap-2">
                               PIN Code
-                              {isLookingUpPostalCode && (
-                                <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                              )}
+                              {isLookingUpPostalCode && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                             </FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="Enter 6-digit PIN code" 
-                                {...field} 
+                              <Input
+                                placeholder="Enter 6-digit PIN code"
+                                {...field}
                                 className="bg-background"
                                 maxLength={6}
                               />
                             </FormControl>
                             <FormMessage />
-                            <p className="text-xs text-muted-foreground">
-                              City, district & state will auto-fill
-                            </p>
+                            <p className="text-xs text-muted-foreground">City, district & state will auto-fill</p>
                           </FormItem>
                         )}
                       />
@@ -496,11 +495,13 @@ const RegistrationForm = () => {
                             value={field.value}
                             className="grid md:grid-cols-2 gap-4 mt-3"
                           >
-                            <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                              field.value === "on-campus" 
-                                ? "border-primary bg-primary/5" 
-                                : "border-border hover:border-primary/50"
-                            }`}>
+                            <label
+                              className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                                field.value === "on-campus"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
                               <RadioGroupItem value="on-campus" className="mt-1" />
                               <div>
                                 <p className="font-semibold text-foreground">On Campus Stay</p>
@@ -510,12 +511,14 @@ const RegistrationForm = () => {
                                 </p>
                               </div>
                             </label>
-                            
-                            <label className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                              field.value === "outside" 
-                                ? "border-primary bg-primary/5" 
-                                : "border-border hover:border-primary/50"
-                            }`}>
+
+                            <label
+                              className={`flex items-start gap-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                                field.value === "outside"
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
                               <RadioGroupItem value="outside" className="mt-1" />
                               <div>
                                 <p className="font-semibold text-foreground">Staying Outside</p>
@@ -592,9 +595,7 @@ const RegistrationForm = () => {
                   {/* Turnstile Captcha */}
                   <div className="flex flex-col items-center gap-3">
                     <div id="turnstile-container" className="flex justify-center"></div>
-                    <p className="text-xs text-muted-foreground text-center">
-                      Protected by Cloudflare Turnstile
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center">Protected by Cloudflare Turnstile</p>
                   </div>
 
                   {/* Submit */}
@@ -602,29 +603,27 @@ const RegistrationForm = () => {
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                       <div className="text-center md:text-left">
                         <p className="text-muted-foreground">
-                          Total Registration Fee 
+                          Total Registration Fee
                           {additionalAttendees.length > 0 && (
-                            <span className="text-sm ml-1">
-                              ({1 + additionalAttendees.length} people)
-                            </span>
+                            <span className="text-sm ml-1">({1 + additionalAttendees.length} people)</span>
                           )}
                         </p>
-                        <p className="text-3xl font-bold text-primary">
-                          ₹{totalFee.toLocaleString()}
-                        </p>
+                        <p className="text-3xl font-bold text-primary">₹{totalFee.toLocaleString()}</p>
                         {additionalAttendees.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
                             You: ₹{registrantFee.toLocaleString()} + {additionalAttendees.length} attendee(s)
                           </p>
                         )}
                       </div>
-                      <Button 
-                        type="submit" 
+                      <Button
+                        type="submit"
                         size="lg"
                         disabled={isSubmitting}
                         className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all"
                       >
-                        {isSubmitting ? "Submitting..." : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
+                        {isSubmitting
+                          ? "Submitting..."
+                          : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
                       </Button>
                     </div>
                   </div>
