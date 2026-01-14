@@ -243,10 +243,12 @@ serve(async (req: Request): Promise<Response> => {
         }
 
         // Use main registrant's address for additional attendees
+        // Link to parent application ID
         const { data: attendeeReg, error: attendeeError } = await supabase
           .from("registrations")
           .insert({
             application_id: attendeeAppId,
+            parent_application_id: applicationId, // Link to primary registrant
             name: attendee.name,
             email: attendee.email,
             phone: attendee.phone,

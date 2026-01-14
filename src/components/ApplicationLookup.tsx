@@ -27,7 +27,7 @@ const ApplicationLookup = ({ onApplicationFound }: ApplicationLookupProps) => {
     try {
       const { data: application, error: fetchError } = await supabase
         .from("registrations")
-        .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at")
+        .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at, parent_application_id")
         .eq("application_id", applicationId.trim().toUpperCase())
         .single();
 
@@ -45,6 +45,7 @@ const ApplicationLookup = ({ onApplicationFound }: ApplicationLookupProps) => {
         registrationFee: application.registration_fee,
         paymentStatus: application.payment_status,
         createdAt: application.created_at,
+        parentApplicationId: application.parent_application_id,
       });
     } catch (err) {
       console.error("Lookup error:", err);
