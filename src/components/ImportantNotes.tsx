@@ -20,12 +20,12 @@ const notes = [
   {
     icon: Users,
     title: "Hostel Grouping",
-    description: "We will try to accommodate batches in the same hostels as far as possible.",
+    description: "We will try, as far as possible, to accommodate all of each batch in the same hostel.",
   },
   {
     icon: Shirt,
     title: "T-Shirt Sizing",
-    description: "S (36\"), M (38-40\"), L (42\"), XL (44\") — Please select the correct size during registration.",
+    description: 'S (36"), M (38-40"), L (42"), XL (44") — Please select the correct size during registration.',
   },
 ];
 
@@ -40,29 +40,9 @@ const ImportantNotes = () => {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Important Information
-          </h2>
+          <h2 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">Important Information</h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Please review these important details before completing your registration
-          </p>
-        </motion.div>
-
-        {/* Eligibility Note - Moved to top */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mb-8 bg-secondary/10 border border-secondary/20 rounded-xl p-8 text-center"
-        >
-          <h3 className="font-serif text-2xl font-semibold text-foreground mb-3">
-            Eligibility Criteria
-          </h3>
-          <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
-            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can register.
-            <br className="block mt-2" />
-            <span className="block mt-2">Registration will be opened in phases, starting with earlier batches.</span>
           </p>
         </motion.div>
 
@@ -79,15 +59,26 @@ const ImportantNotes = () => {
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <note.icon className="w-6 h-6 text-primary" />
               </div>
-              <h3 className="font-serif text-xl font-semibold text-foreground mb-2">
-                {note.title}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed">
-                {note.description}
-              </p>
+              <h3 className="font-serif text-xl font-semibold text-foreground mb-2">{note.title}</h3>
+              <p className="text-muted-foreground leading-relaxed">{note.description}</p>
             </motion.div>
           ))}
         </div>
+
+        {/* Eligibility Note */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="mt-12 bg-secondary/10 border border-secondary/20 rounded-xl p-8 text-center"
+        >
+          <h3 className="font-serif text-2xl font-semibold text-foreground mb-3">Eligibility Criteria</h3>
+          <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
+            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can
+            register. Registration will be opened in phases, starting with earlier batches.
+          </p>
+        </motion.div>
       </div>
     </section>
   );
