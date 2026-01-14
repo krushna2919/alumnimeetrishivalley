@@ -21,6 +21,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -30,6 +40,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   Search, 
   Loader2, 
@@ -37,7 +48,8 @@ import {
   CheckCircle, 
   XCircle,
   RefreshCw,
-  Mail
+  Mail,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
@@ -53,10 +65,12 @@ const AdminRegistrations = () => {
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
   const { toast } = useToast();
+  const { userRole } = useAuth();
 
   useEffect(() => {
     fetchRegistrations();
@@ -214,6 +228,38 @@ const AdminRegistrations = () => {
       toast({
         title: 'Error',
         description: 'Failed to reject registration',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedRegistration) return;
+
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .delete()
+        .eq('id', selectedRegistration.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Registration Deleted',
+        description: `${selectedRegistration.name}'s registration has been permanently deleted.`,
+      });
+
+      fetchRegistrations();
+      setIsDeleteDialogOpen(false);
+      setIsDetailOpen(false);
+    } catch (error) {
+      console.error('Error deleting registration:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete registration',
         variant: 'destructive',
       });
     } finally {
@@ -436,6 +482,17 @@ const AdminRegistrations = () => {
           )}
 
           <DialogFooter className="gap-2">
+            {userRole === 'superadmin' && (
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                disabled={isProcessing}
+                className="mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
             {selectedRegistration?.registration_status === 'pending' && (
               <>
                 <Button
@@ -501,6 +558,35 @@ const AdminRegistrations = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Registration</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete the registration for{' '}
+              <span className="font-semibold">{selectedRegistration?.name}</span>? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isProcessing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 };
