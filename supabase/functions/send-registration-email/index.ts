@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const EMAILJS_SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID");
-const EMAILJS_PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY");
-const EMAILJS_TEMPLATE_ID_APPROVED = Deno.env.get("EMAILJS_TEMPLATE_ID_APPROVED");
-const EMAILJS_TEMPLATE_ID_REJECTED = Deno.env.get("EMAILJS_TEMPLATE_ID_REJECTED");
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,45 +130,87 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending ${type} email to ${to} for application ${applicationId}`);
 
-    // Select the appropriate template based on type
-    const templateId = type === "approved" ? EMAILJS_TEMPLATE_ID_APPROVED : EMAILJS_TEMPLATE_ID_REJECTED;
+    // Build email content based on type
+    let subject: string;
+    let htmlContent: string;
 
-    // Prepare template parameters
-    const templateParams: Record<string, string> = {
-      to_email: to,
-      to_name: name,
-      application_id: applicationId,
-    };
-
-    // Add rejection reason if provided and type is rejected
-    if (type === "rejected" && rejectionReason) {
-      templateParams.rejection_reason = rejectionReason.slice(0, 500);
+    if (type === "approved") {
+      subject = `Registration Approved - Application ID: ${applicationId}`;
+      htmlContent = `
+        <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #2e7d32; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+            🎉 Registration Approved!
+          </h1>
+          <p>Dear ${name},</p>
+          <p>We are pleased to inform you that your registration for the <strong>Rishi Valley Alumni Meet</strong> has been approved!</p>
+          <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2e7d32;">
+            <p style="margin: 0; font-size: 14px; color: #666;">Your Application ID:</p>
+            <p style="margin: 10px 0 0; font-size: 24px; font-weight: bold; color: #2e7d32; font-family: monospace;">
+              ${applicationId}
+            </p>
+          </div>
+          <p>Please complete your payment if you haven't already to confirm your participation.</p>
+          <p>We look forward to seeing you at the event!</p>
+          <p style="margin-top: 30px;">
+            Best regards,<br>
+            <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+          </p>
+        </div>
+      `;
+    } else {
+      subject = `Registration Update - Application ID: ${applicationId}`;
+      htmlContent = `
+        <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #c62828; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+            Registration Update
+          </h1>
+          <p>Dear ${name},</p>
+          <p>We regret to inform you that your registration for the <strong>Rishi Valley Alumni Meet</strong> could not be approved at this time.</p>
+          <div style="background: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #c62828;">
+            <p style="margin: 0; font-size: 14px; color: #666;">Application ID:</p>
+            <p style="margin: 10px 0 0; font-size: 18px; font-weight: bold; color: #c62828; font-family: monospace;">
+              ${applicationId}
+            </p>
+            ${rejectionReason ? `
+              <p style="margin: 15px 0 0; font-size: 14px; color: #666;">Reason:</p>
+              <p style="margin: 5px 0 0; color: #333;">${rejectionReason}</p>
+            ` : ''}
+          </div>
+          <p>If you believe this was in error or have questions, please contact the organizing committee.</p>
+          <p style="margin-top: 30px;">
+            Best regards,<br>
+            <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+          </p>
+        </div>
+      `;
     }
 
-    // Send email via EmailJS API
-    const emailjsResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    // Send email via Resend API
+    const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        service_id: EMAILJS_SERVICE_ID,
-        template_id: templateId,
-        user_id: EMAILJS_PUBLIC_KEY,
-        template_params: templateParams,
+        from: "Rishi Valley Alumni Meet <noreply@alumnimeetrishivalley.lovable.app>",
+        to: [to],
+        subject: subject,
+        html: htmlContent,
       }),
     });
 
-    if (!emailjsResponse.ok) {
-      const errorText = await emailjsResponse.text();
-      console.error("EmailJS error:", errorText);
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error("Resend error:", errorData);
       return new Response(
-        JSON.stringify({ success: false, error: `EmailJS error: ${errorText}` }),
+        JSON.stringify({ success: false, error: `Email error: ${JSON.stringify(errorData)}` }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Email sent successfully via EmailJS");
+    const result = await emailResponse.json();
+    console.log("Email sent successfully via Resend:", result);
 
     return new Response(JSON.stringify({ success: true, message: "Email sent successfully" }), {
       status: 200,
