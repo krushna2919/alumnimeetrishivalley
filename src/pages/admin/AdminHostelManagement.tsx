@@ -28,7 +28,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Bed, Users, Building2, Edit, Loader2 } from 'lucide-react';
 
@@ -400,21 +399,18 @@ const AdminHostelManagement = () => {
           </Card>
         ) : (
           <Tabs defaultValue={hostels[0]?.id} className="w-full">
-            <ScrollArea className="w-full whitespace-nowrap">
-              <TabsList className="inline-flex h-auto p-1 mb-4">
-                {hostels.map((hostel) => (
-                  <TabsTrigger
-                    key={hostel.id}
-                    value={hostel.id}
-                    className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                  >
-                    <Building2 className="h-4 w-4" />
-                    <span>{hostel.name}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <TabsList className="flex flex-wrap h-auto p-1 mb-4 gap-1">
+              {hostels.map((hostel) => (
+                <TabsTrigger
+                  key={hostel.id}
+                  value={hostel.id}
+                  className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Building2 className="h-4 w-4" />
+                  <span>{hostel.name}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
             {hostels.map((hostel) => (
               <TabsContent key={hostel.id} value={hostel.id} className="mt-0">
