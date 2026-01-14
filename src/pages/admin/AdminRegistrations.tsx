@@ -764,23 +764,7 @@ const AdminRegistrations = () => {
                                       <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                       <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                       <TableCell>
-                                        {isHostelEligible ? (
-                                          <Select
-                                            value={registration.hostel_name || ''}
-                                            onValueChange={(value) => handleHostelAssign(registration, value)}
-                                          >
-                                            <SelectTrigger className="w-28 h-8 text-xs">
-                                              <SelectValue placeholder="Assign" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {HOSTEL_OPTIONS.map((hostel) => (
-                                                <SelectItem key={hostel} value={hostel} className="capitalize">
-                                                  {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        ) : registration.hostel_name ? (
+                                        {registration.hostel_name ? (
                                           <Badge variant="secondary" className="capitalize">
                                             {registration.hostel_name}
                                           </Badge>
@@ -832,23 +816,7 @@ const AdminRegistrations = () => {
                                   <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                                   <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                   <TableCell>
-                                    {isHostelEligible ? (
-                                      <Select
-                                        value={registration.hostel_name || ''}
-                                        onValueChange={(value) => handleHostelAssign(registration, value)}
-                                      >
-                                        <SelectTrigger className="w-28 h-8 text-xs">
-                                          <SelectValue placeholder="Assign" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {HOSTEL_OPTIONS.map((hostel) => (
-                                            <SelectItem key={hostel} value={hostel} className="capitalize">
-                                              {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    ) : registration.hostel_name ? (
+                                    {registration.hostel_name ? (
                                       <Badge variant="secondary" className="capitalize">
                                         {registration.hostel_name}
                                       </Badge>
@@ -910,23 +878,7 @@ const AdminRegistrations = () => {
                           <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
                           <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                           <TableCell>
-                            {isHostelEligible ? (
-                              <Select
-                                value={registration.hostel_name || ''}
-                                onValueChange={(value) => handleHostelAssign(registration, value)}
-                              >
-                                <SelectTrigger className="w-28 h-8 text-xs">
-                                  <SelectValue placeholder="Assign" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {HOSTEL_OPTIONS.map((hostel) => (
-                                    <SelectItem key={hostel} value={hostel} className="capitalize">
-                                      {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : registration.hostel_name ? (
+                            {registration.hostel_name ? (
                               <Badge variant="secondary" className="capitalize">
                                 {registration.hostel_name}
                               </Badge>
