@@ -410,9 +410,6 @@ const AdminHostelManagement = () => {
                   >
                     <Building2 className="h-4 w-4" />
                     <span>{hostel.name}</span>
-                    <span className="ml-1 text-xs opacity-70">
-                      ({getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)})
-                    </span>
                   </TabsTrigger>
                 ))}
               </TabsList>
