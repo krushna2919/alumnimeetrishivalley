@@ -41,8 +41,8 @@ export const defaultAttendee: AttendeeData = {
   occupation: "",
   yearOfPassing: "",
   stayType: "on-campus",
-  tshirtSize: "M",
-  gender: "M",
+  tshirtSize: "" as AttendeeData["tshirtSize"],
+  gender: "" as AttendeeData["gender"],
 };
 
 // Default values for main registrant
