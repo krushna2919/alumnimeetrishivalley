@@ -10,7 +10,8 @@ import {
   Loader2,
   Menu,
   X,
-  UserCog
+  UserCog,
+  Building2
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ const getNavItems = (userRole: string | null) => {
   const items = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/registrations', label: 'Registrations', icon: Users },
+    { href: '/admin/hostels', label: 'Hostel Management', icon: Building2 },
   ];
   
   // Only admin and superadmin can access User Management and Settings
