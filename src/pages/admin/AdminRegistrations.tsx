@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,9 @@ import {
   XCircle,
   RefreshCw,
   Mail,
-  Trash2
+  Trash2,
+  Users,
+  ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
@@ -68,6 +70,7 @@ const AdminRegistrations = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showGrouped, setShowGrouped] = useState(true);
   
   const { toast } = useToast();
   const { userRole } = useAuth();
@@ -143,6 +146,52 @@ const AdminRegistrations = () => {
     }
 
     setFilteredRegistrations(filtered);
+  };
+
+  // Group registrations by parent_application_id
+  const getGroupedRegistrations = () => {
+    const groups: Map<string, Registration[]> = new Map();
+    const standalone: Registration[] = [];
+
+    // First pass: identify primary registrants (those without parent_application_id)
+    filteredRegistrations.forEach(reg => {
+      if (!reg.parent_application_id) {
+        // This is a primary registrant
+        if (!groups.has(reg.application_id)) {
+          groups.set(reg.application_id, [reg]);
+        }
+      }
+    });
+
+    // Second pass: add dependent registrants to their groups
+    filteredRegistrations.forEach(reg => {
+      if (reg.parent_application_id) {
+        const parentGroup = groups.get(reg.parent_application_id);
+        if (parentGroup) {
+          parentGroup.push(reg);
+        } else {
+          // Parent not in filtered results, create a new group
+          if (!groups.has(reg.parent_application_id)) {
+            groups.set(reg.parent_application_id, []);
+          }
+          groups.get(reg.parent_application_id)!.push(reg);
+        }
+      }
+    });
+
+    // Identify standalone registrations (primary with no dependents in results)
+    groups.forEach((members, key) => {
+      if (members.length === 1 && !members[0].parent_application_id) {
+        // Check if there are any dependents for this registration
+        const hasDependents = filteredRegistrations.some(r => r.parent_application_id === key);
+        if (!hasDependents) {
+          standalone.push(members[0]);
+          groups.delete(key);
+        }
+      }
+    });
+
+    return { groups, standalone };
   };
 
   const sendNotificationEmail = async (
@@ -323,10 +372,20 @@ const AdminRegistrations = () => {
               Manage alumni registrations
             </p>
           </div>
-          <Button onClick={fetchRegistrations} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowGrouped(!showGrouped)} 
+              variant={showGrouped ? "default" : "outline"} 
+              size="sm"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              {showGrouped ? 'Grouped' : 'Flat'}
+            </Button>
+            <Button onClick={fetchRegistrations} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <Card className="shadow-card">
@@ -379,33 +438,137 @@ const AdminRegistrations = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRegistrations.map((registration) => (
-                      <TableRow key={registration.id}>
-                        <TableCell className="font-mono text-sm">
-                          {registration.application_id}
-                        </TableCell>
-                        <TableCell className="font-medium">{registration.name}</TableCell>
-                        <TableCell>{registration.email}</TableCell>
-                        <TableCell>{registration.year_of_passing}</TableCell>
-                        <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
-                        <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
-                        <TableCell>
-                          {format(new Date(registration.created_at), 'MMM d, yyyy')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRegistration(registration);
-                              setIsDetailOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {showGrouped ? (
+                      <>
+                        {/* Grouped registrations */}
+                        {(() => {
+                          const { groups, standalone } = getGroupedRegistrations();
+                          return (
+                            <>
+                              {Array.from(groups.entries()).map(([groupId, members]) => (
+                                <React.Fragment key={groupId}>
+                                  {/* Group header row */}
+                                  <TableRow className="bg-primary/5 border-l-4 border-l-primary">
+                                    <TableCell colSpan={8} className="py-2">
+                                      <div className="flex items-center gap-2">
+                                        <Users className="h-4 w-4 text-primary" />
+                                        <span className="font-semibold text-primary">
+                                          Group: {groupId}
+                                        </span>
+                                        <Badge variant="secondary" className="ml-2">
+                                          {members.length} member{members.length > 1 ? 's' : ''}
+                                        </Badge>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                  {/* Group members */}
+                                  {members.map((registration, index) => (
+                                    <TableRow 
+                                      key={registration.id}
+                                      className={`${index === 0 ? 'bg-primary/10' : 'bg-muted/30'} border-l-4 ${index === 0 ? 'border-l-primary' : 'border-l-muted-foreground/30'}`}
+                                    >
+                                      <TableCell className="font-mono text-sm">
+                                        <div className="flex items-center gap-2">
+                                          {index > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                                          {registration.application_id}
+                                          {index === 0 && (
+                                            <Badge variant="outline" className="text-xs">Primary</Badge>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="font-medium">{registration.name}</TableCell>
+                                      <TableCell>{registration.email}</TableCell>
+                                      <TableCell>{registration.year_of_passing}</TableCell>
+                                      <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                                      <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
+                                      <TableCell>
+                                        {format(new Date(registration.created_at), 'MMM d, yyyy')}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedRegistration(registration);
+                                            setIsDetailOpen(true);
+                                          }}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </React.Fragment>
+                              ))}
+                              {/* Standalone registrations */}
+                              {standalone.map((registration) => (
+                                <TableRow key={registration.id}>
+                                  <TableCell className="font-mono text-sm">
+                                    {registration.application_id}
+                                  </TableCell>
+                                  <TableCell className="font-medium">{registration.name}</TableCell>
+                                  <TableCell>{registration.email}</TableCell>
+                                  <TableCell>{registration.year_of_passing}</TableCell>
+                                  <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                                  <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
+                                  <TableCell>
+                                    {format(new Date(registration.created_at), 'MMM d, yyyy')}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedRegistration(registration);
+                                        setIsDetailOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      /* Flat view - original behavior */
+                      filteredRegistrations.map((registration) => (
+                        <TableRow key={registration.id}>
+                          <TableCell className="font-mono text-sm">
+                            <div className="flex items-center gap-2">
+                              {registration.application_id}
+                              {registration.parent_application_id && (
+                                <Badge variant="outline" className="text-xs">
+                                  → {registration.parent_application_id}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{registration.name}</TableCell>
+                          <TableCell>{registration.email}</TableCell>
+                          <TableCell>{registration.year_of_passing}</TableCell>
+                          <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                          <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
+                          <TableCell>
+                            {format(new Date(registration.created_at), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRegistration(registration);
+                                setIsDetailOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
