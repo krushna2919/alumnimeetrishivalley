@@ -28,7 +28,7 @@ interface PaymentDetailsFormProps {
 const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [relatedRegistrations, setRelatedRegistrations] = useState<RegistrationData[]>([]);
-  const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set([application.applicationId]));
+  const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
 
   const form = useForm<PaymentFormData>({
@@ -123,18 +123,23 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
 
   const allRegistrations = [application, ...relatedRegistrations];
   
-  const selectedTotal = allRegistrations
+  // Only show registrations with pending payment status (exclude submitted, verified, rejected)
+  const pendingPaymentRegistrations = allRegistrations.filter(
+    reg => reg.paymentStatus === "pending"
+  );
+
+  const selectedTotal = pendingPaymentRegistrations
     .filter(reg => selectedApplications.has(reg.applicationId))
     .reduce((sum, reg) => sum + reg.registrationFee, 0);
 
-  const pendingPaymentRegistrations = allRegistrations.filter(
-    reg => reg.paymentStatus !== "submitted"
-  );
+  // Auto-select the current application if it has pending payment
+  useEffect(() => {
+    if (application.paymentStatus === "pending") {
+      setSelectedApplications(new Set([application.applicationId]));
+    }
+  }, [application.applicationId, application.paymentStatus]);
 
   const toggleSelection = (applicationId: string) => {
-    const registration = allRegistrations.find(r => r.applicationId === applicationId);
-    if (registration?.paymentStatus === "submitted") return; // Can't toggle already submitted
-
     const newSelection = new Set(selectedApplications);
     if (newSelection.has(applicationId)) {
       newSelection.delete(applicationId);
@@ -204,7 +209,7 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
 
   const formatFee = (fee: number) => `₹${fee.toLocaleString('en-IN')}`;
 
-  const hasMultipleRegistrations = relatedRegistrations.length > 0;
+  const hasMultipleRegistrations = pendingPaymentRegistrations.length > 1;
   const allAlreadySubmitted = pendingPaymentRegistrations.length === 0;
 
   return (
@@ -234,39 +239,35 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
               <Users className="w-5 h-5 text-primary" />
               <h4 className="font-semibold text-foreground">
                 {hasMultipleRegistrations 
-                  ? `Select Registrations for Payment (${allRegistrations.length} total)`
+                  ? `Select Registrations for Payment (${pendingPaymentRegistrations.length} pending)`
                   : "Registration Details"
                 }
               </h4>
             </div>
-            {hasMultipleRegistrations && pendingPaymentRegistrations.length > 1 && (
+            {hasMultipleRegistrations && (
               <Button variant="outline" size="sm" onClick={selectAll}>
-                Select All Pending
+                Select All
               </Button>
             )}
           </div>
 
           <div className="space-y-3">
-            {allRegistrations.map((reg) => {
+            {pendingPaymentRegistrations.map((reg) => {
               const isSelected = selectedApplications.has(reg.applicationId);
-              const isSubmitted = reg.paymentStatus === "submitted";
               const isPrimary = reg.applicationId === application.applicationId && !application.parentApplicationId;
               
               return (
                 <div
                   key={reg.applicationId}
                   className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
-                    isSubmitted 
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                      : isSelected 
-                        ? "bg-primary/10 border-primary/30" 
-                        : "bg-background border-border hover:border-primary/20"
+                    isSelected 
+                      ? "bg-primary/10 border-primary/30" 
+                      : "bg-background border-border hover:border-primary/20"
                   }`}
                 >
                   <Checkbox
-                    checked={isSelected || isSubmitted}
+                    checked={isSelected}
                     onCheckedChange={() => toggleSelection(reg.applicationId)}
-                    disabled={isSubmitted}
                     className="data-[state=checked]:bg-primary"
                   />
                   
@@ -276,12 +277,6 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
                       {isPrimary && (
                         <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                           Primary
-                        </span>
-                      )}
-                      {isSubmitted && (
-                        <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          Paid
                         </span>
                       )}
                     </div>
@@ -302,7 +297,7 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
                   </div>
 
                   <div className="text-right">
-                    <p className={`font-semibold ${isSubmitted ? "text-green-600 dark:text-green-400" : "text-foreground"}`}>
+                    <p className="font-semibold text-foreground">
                       {formatFee(reg.registrationFee)}
                     </p>
                   </div>
