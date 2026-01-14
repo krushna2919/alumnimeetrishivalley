@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         orientation: "portrait",
         scope: "/",
-        start_url: "/admin",
+        start_url: "/admin/",
         icons: [
           {
             src: "pwa-192x192.png",
@@ -47,7 +47,9 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallback: "index.html",
+        // Ensure installed app routes (React Router) always resolve to the SPA shell
+        navigateFallback: "/index.html",
+        navigateFallbackAllowlist: [/^\/$/, /^\/admin(\/.*)?$/, /^\/install(\/.*)?$/],
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
