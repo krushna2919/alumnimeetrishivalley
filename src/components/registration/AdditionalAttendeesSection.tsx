@@ -83,22 +83,13 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange }: Additional
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center py-8 border-2 border-dashed border-border rounded-xl"
+          className="text-center py-6 border-2 border-dashed border-border rounded-xl"
         >
-          <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground mb-4">
-            Want to register more people?
+          <Users className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+          <p className="text-sm text-muted-foreground">
+            Use the "Add Person" button above to register additional attendees
           </p>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleAddAttendee}
-            className="flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Additional Attendee
-          </Button>
-          <p className="text-xs text-muted-foreground mt-3">
+          <p className="text-xs text-muted-foreground mt-1">
             You can register up to {MAX_ATTENDEES} people (including yourself)
           </p>
         </motion.div>
