@@ -1,23 +1,11 @@
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CreditCard, Calendar, ArrowLeft, CheckCircle, Copy, Users, IndianRupee } from "lucide-react";
+import { CreditCard, ArrowLeft, CheckCircle, Copy, Users, IndianRupee, Upload, X, FileImage, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { RegistrationData } from "./registration/types";
-
-const paymentSchema = z.object({
-  paymentReference: z.string().min(5, "Payment reference must be at least 5 characters").max(50),
-  paymentDate: z.string().min(1, "Please enter payment date"),
-});
-
-type PaymentFormData = z.infer<typeof paymentSchema>;
 
 interface PaymentDetailsFormProps {
   application: RegistrationData;
@@ -30,14 +18,10 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
   const [relatedRegistrations, setRelatedRegistrations] = useState<RegistrationData[]>([]);
   const [selectedApplications, setSelectedApplications] = useState<Set<string>>(new Set());
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
-
-  const form = useForm<PaymentFormData>({
-    resolver: zodResolver(paymentSchema),
-    defaultValues: {
-      paymentReference: "",
-      paymentDate: "",
-    },
-  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch related registrations (additional attendees linked to this primary registrant)
   useEffect(() => {
@@ -157,23 +141,90 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
     setSelectedApplications(newSelection);
   };
 
-  const onSubmit = async (data: PaymentFormData) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Please upload a JPG, PNG, WebP, or PDF file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+
+    setSelectedFile(file);
+    
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const onSubmit = async () => {
     if (selectedApplications.size === 0) {
       toast.error("Please select at least one registration for payment");
       return;
     }
 
+    if (!selectedFile) {
+      toast.error("Please upload payment proof");
+      return;
+    }
+
     setIsSubmitting(true);
+    setIsUploading(true);
 
     try {
-      // Update all selected registrations with payment details
+      // Upload file to storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${application.applicationId}-${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, selectedFile);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        toast.error("Failed to upload payment proof");
+        setIsSubmitting(false);
+        setIsUploading(false);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(fileName);
+
+      setIsUploading(false);
+
+      // Update all selected registrations with payment proof URL
       const selectedIds = Array.from(selectedApplications);
       
       const { error } = await supabase
         .from("registrations")
         .update({
-          payment_reference: data.paymentReference,
-          payment_date: data.paymentDate,
+          payment_proof_url: publicUrl,
           payment_status: "submitted" as const,
           updated_at: new Date().toISOString(),
         })
@@ -186,8 +237,8 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
         return;
       }
 
-      toast.success(`Payment details updated for ${selectedIds.length} registration(s)!`, {
-        description: "Your registration is now complete.",
+      toast.success(`Payment proof uploaded for ${selectedIds.length} registration(s)!`, {
+        description: "Your payment is now pending verification.",
       });
       
       onComplete({
@@ -200,6 +251,7 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
     }
 
     setIsSubmitting(false);
+    setIsUploading(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -333,101 +385,119 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
           </div>
         </div>
       ) : (
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="bg-secondary/50 rounded-xl p-6 border border-border">
-              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-primary" />
-                Submit Payment Details
-              </h4>
+        <div className="space-y-6">
+          <div className="bg-secondary/50 rounded-xl p-6 border border-border">
+            <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary" />
+              Upload Payment Proof
+            </h4>
+            
+            {selectedApplications.size === 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mb-4 border border-amber-200 dark:border-amber-800">
+                <p className="text-amber-700 dark:text-amber-300 text-sm">
+                  ⚠️ Please select at least one registration above to submit payment for.
+                </p>
+              </div>
+            )}
+            
+            {/* File Upload Area */}
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Upload a screenshot or photo of your payment confirmation (JPG, PNG, WebP, or PDF - max 5MB)
+              </p>
               
-              {selectedApplications.size === 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mb-4 border border-amber-200 dark:border-amber-800">
-                  <p className="text-amber-700 dark:text-amber-300 text-sm">
-                    ⚠️ Please select at least one registration above to submit payment for.
-                  </p>
+              {!selectedFile ? (
+                <div 
+                  className="border-2 border-dashed border-primary/30 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-12 h-12 mx-auto text-primary/50 mb-4" />
+                  <p className="text-foreground font-medium">Click to upload payment proof</p>
+                  <p className="text-sm text-muted-foreground mt-1">or drag and drop</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="border border-border rounded-xl p-4 bg-background">
+                  <div className="flex items-start gap-4">
+                    {previewUrl ? (
+                      <img 
+                        src={previewUrl} 
+                        alt="Payment proof preview" 
+                        className="w-24 h-24 object-cover rounded-lg border border-border"
+                      />
+                    ) : (
+                      <div className="w-24 h-24 bg-muted rounded-lg flex items-center justify-center">
+                        <FileImage className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{selectedFile.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeFile}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="paymentReference"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">
-                        Transaction / Reference Number
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="e.g., UTR123456789" 
-                          {...field} 
-                          className="bg-background"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            </div>
+          </div>
 
-                <FormField
-                  control={form.control}
-                  name="paymentDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2 text-foreground">
-                        <Calendar className="w-4 h-4 text-primary" />
-                        Payment Date
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="date" 
-                          {...field} 
-                          className="bg-background"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          {/* Summary before submit */}
+          <div className="bg-accent/30 rounded-xl p-4 border border-accent/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Submitting payment for {selectedApplications.size} registration(s)
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {Array.from(selectedApplications).join(", ")}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Total Amount</p>
+                <p className="text-2xl font-bold text-primary">
+                  {formatFee(selectedTotal)}
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Summary before submit */}
-            <div className="bg-accent/30 rounded-xl p-4 border border-accent/50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Submitting payment for {selectedApplications.size} registration(s)
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {Array.from(selectedApplications).join(", ")}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatFee(selectedTotal)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                size="lg"
-                disabled={isSubmitting || selectedApplications.size === 0}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
-              >
-                {isSubmitting 
-                  ? "Submitting..." 
-                  : `Submit Payment for ${selectedApplications.size} Registration(s)`
-                }
-              </Button>
-            </div>
-          </form>
-        </Form>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="lg"
+              disabled={isSubmitting || selectedApplications.size === 0 || !selectedFile}
+              onClick={onSubmit}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-8"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : isSubmitting ? (
+                "Submitting..."
+              ) : (
+                `Submit Payment for ${selectedApplications.size} Registration(s)`
+              )}
+            </Button>
+          </div>
+        </div>
       )}
     </motion.div>
   );

@@ -775,9 +775,37 @@ const AdminRegistrations = () => {
                   <label className="text-sm text-muted-foreground">Registration Fee</label>
                   <p className="font-medium">₹{selectedRegistration.registration_fee}</p>
                 </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Payment Reference</label>
-                  <p className="font-medium">{selectedRegistration.payment_reference || 'N/A'}</p>
+                <div className="col-span-2">
+                  <label className="text-sm text-muted-foreground">Payment Proof</label>
+                  {selectedRegistration.payment_proof_url ? (
+                    <div className="mt-2">
+                      {selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
+                        <a 
+                          href={selectedRegistration.payment_proof_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View PDF Payment Proof
+                        </a>
+                      ) : (
+                        <a 
+                          href={selectedRegistration.payment_proof_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <img 
+                            src={selectedRegistration.payment_proof_url} 
+                            alt="Payment proof" 
+                            className="max-w-full max-h-64 rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">No proof uploaded</p>
+                  )}
                 </div>
               </div>
 

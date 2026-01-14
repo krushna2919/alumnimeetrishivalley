@@ -93,6 +93,7 @@ export type Database = {
           occupation: string
           parent_application_id: string | null
           payment_date: string | null
+          payment_proof_url: string | null
           payment_reference: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           phone: string
@@ -125,6 +126,7 @@ export type Database = {
           occupation: string
           parent_application_id?: string | null
           payment_date?: string | null
+          payment_proof_url?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone: string
@@ -157,6 +159,7 @@ export type Database = {
           occupation?: string
           parent_application_id?: string | null
           payment_date?: string | null
+          payment_proof_url?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone?: string
