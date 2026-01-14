@@ -51,7 +51,9 @@ import {
   Mail,
   Trash2,
   Users,
-  ChevronRight
+  ChevronRight,
+  CheckCheck,
+  XOctagon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
@@ -71,6 +73,9 @@ const AdminRegistrations = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showGrouped, setShowGrouped] = useState(true);
+  const [selectedGroup, setSelectedGroup] = useState<Registration[] | null>(null);
+  const [isGroupRejectDialogOpen, setIsGroupRejectDialogOpen] = useState(false);
+  const [groupRejectionReason, setGroupRejectionReason] = useState('');
   
   const { toast } = useToast();
   const { userRole } = useAuth();
@@ -338,6 +343,109 @@ const AdminRegistrations = () => {
     }
   };
 
+  // Handle group approval - approve all pending members in the group
+  const handleGroupApprove = async (members: Registration[]) => {
+    const pendingMembers = members.filter(m => m.registration_status === 'pending');
+    if (pendingMembers.length === 0) {
+      toast({
+        title: 'No Pending Registrations',
+        description: 'All members in this group are already processed.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const memberIds = pendingMembers.map(m => m.id);
+      const { error } = await supabase
+        .from('registrations')
+        .update({
+          registration_status: 'approved',
+          approved_at: new Date().toISOString(),
+        })
+        .in('id', memberIds);
+
+      if (error) throw error;
+
+      // Send notification emails to all approved members
+      const emailPromises = pendingMembers.map(member => 
+        sendNotificationEmail(member, 'approved')
+      );
+      await Promise.all(emailPromises);
+
+      toast({
+        title: 'Group Approved',
+        description: `${pendingMembers.length} registration(s) have been approved.`,
+      });
+
+      fetchRegistrations();
+    } catch (error) {
+      console.error('Error approving group:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to approve group registrations',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle group rejection - reject all pending members in the group
+  const handleGroupReject = async () => {
+    if (!selectedGroup || !groupRejectionReason.trim()) return;
+
+    const pendingMembers = selectedGroup.filter(m => m.registration_status === 'pending');
+    if (pendingMembers.length === 0) {
+      toast({
+        title: 'No Pending Registrations',
+        description: 'All members in this group are already processed.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const memberIds = pendingMembers.map(m => m.id);
+      const { error } = await supabase
+        .from('registrations')
+        .update({
+          registration_status: 'rejected',
+          rejection_reason: groupRejectionReason,
+        })
+        .in('id', memberIds);
+
+      if (error) throw error;
+
+      // Send notification emails to all rejected members
+      const emailPromises = pendingMembers.map(member => 
+        sendNotificationEmail(member, 'rejected', groupRejectionReason)
+      );
+      await Promise.all(emailPromises);
+
+      toast({
+        title: 'Group Rejected',
+        description: `${pendingMembers.length} registration(s) have been rejected.`,
+      });
+
+      fetchRegistrations();
+      setIsGroupRejectDialogOpen(false);
+      setSelectedGroup(null);
+      setGroupRejectionReason('');
+    } catch (error) {
+      console.error('Error rejecting group:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reject group registrations',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -360,6 +468,11 @@ const AdminRegistrations = () => {
       default:
         return <Badge variant="outline">Pending</Badge>;
     }
+  };
+
+  // Check if a group has any pending registrations
+  const hasGroupPendingRegistrations = (members: Registration[]) => {
+    return members.some(m => m.registration_status === 'pending');
   };
 
   return (
@@ -449,7 +562,7 @@ const AdminRegistrations = () => {
                                 <React.Fragment key={groupId}>
                                   {/* Group header row */}
                                   <TableRow className="bg-primary/5 border-l-4 border-l-primary">
-                                    <TableCell colSpan={8} className="py-2">
+                                    <TableCell colSpan={5} className="py-2">
                                       <div className="flex items-center gap-2">
                                         <Users className="h-4 w-4 text-primary" />
                                         <span className="font-semibold text-primary">
@@ -458,7 +571,43 @@ const AdminRegistrations = () => {
                                         <Badge variant="secondary" className="ml-2">
                                           {members.length} member{members.length > 1 ? 's' : ''}
                                         </Badge>
+                                        {hasGroupPendingRegistrations(members) && (
+                                          <Badge variant="outline" className="border-accent text-accent">
+                                            {members.filter(m => m.registration_status === 'pending').length} pending
+                                          </Badge>
+                                        )}
                                       </div>
+                                    </TableCell>
+                                    <TableCell colSpan={3} className="text-right py-2">
+                                      {hasGroupPendingRegistrations(members) && (
+                                        <div className="flex items-center justify-end gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setSelectedGroup(members);
+                                              setIsGroupRejectDialogOpen(true);
+                                            }}
+                                            disabled={isProcessing}
+                                            className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                          >
+                                            <XOctagon className="h-4 w-4 mr-1" />
+                                            Reject All
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleGroupApprove(members)}
+                                            disabled={isProcessing}
+                                          >
+                                            {isProcessing ? (
+                                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                            ) : (
+                                              <CheckCheck className="h-4 w-4 mr-1" />
+                                            )}
+                                            Approve All
+                                          </Button>
+                                        </div>
+                                      )}
                                     </TableCell>
                                   </TableRow>
                                   {/* Group members */}
@@ -772,6 +921,70 @@ const AdminRegistrations = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Group Rejection Dialog */}
+      <Dialog open={isGroupRejectDialogOpen} onOpenChange={(open) => {
+        setIsGroupRejectDialogOpen(open);
+        if (!open) {
+          setSelectedGroup(null);
+          setGroupRejectionReason('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-serif">Reject Entire Group</DialogTitle>
+            <DialogDescription>
+              This will reject {selectedGroup?.filter(m => m.registration_status === 'pending').length || 0} pending registration(s) in this group.
+              Please provide a reason for the rejection.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedGroup && (
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-2">Members to be rejected:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  {selectedGroup
+                    .filter(m => m.registration_status === 'pending')
+                    .map(m => (
+                      <li key={m.id}>{m.name} ({m.application_id})</li>
+                    ))}
+                </ul>
+              </div>
+              <Textarea
+                placeholder="Enter rejection reason for all group members..."
+                value={groupRejectionReason}
+                onChange={(e) => setGroupRejectionReason(e.target.value)}
+                rows={4}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsGroupRejectDialogOpen(false);
+                setSelectedGroup(null);
+                setGroupRejectionReason('');
+              }}
+              disabled={isProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleGroupReject}
+              disabled={isProcessing || !groupRejectionReason.trim()}
+            >
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <XOctagon className="h-4 w-4 mr-2" />
+              )}
+              Reject All ({selectedGroup?.filter(m => m.registration_status === 'pending').length || 0})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
