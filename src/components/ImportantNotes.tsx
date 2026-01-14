@@ -48,6 +48,23 @@ const ImportantNotes = () => {
           </p>
         </motion.div>
 
+        {/* Eligibility Note - Moved to top */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mb-8 bg-secondary/10 border border-secondary/20 rounded-xl p-8 text-center"
+        >
+          <h3 className="font-serif text-2xl font-semibold text-foreground mb-3">
+            Eligibility Criteria
+          </h3>
+          <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
+            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can register. 
+            Registration will be opened in phases, starting with earlier batches.
+          </p>
+        </motion.div>
+
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {notes.map((note, index) => (
             <motion.div
@@ -70,23 +87,6 @@ const ImportantNotes = () => {
             </motion.div>
           ))}
         </div>
-
-        {/* Eligibility Note */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-12 bg-secondary/10 border border-secondary/20 rounded-xl p-8 text-center"
-        >
-          <h3 className="font-serif text-2xl font-semibold text-foreground mb-3">
-            Eligibility Criteria
-          </h3>
-          <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
-            Only batches prior to and including <strong className="text-foreground">ICSE 2018 / ISC 2020</strong> can register. 
-            Registration will be opened in phases, starting with earlier batches.
-          </p>
-        </motion.div>
       </div>
     </section>
   );
