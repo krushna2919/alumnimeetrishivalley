@@ -27,12 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Bed, Users, Building2, Edit, Loader2 } from 'lucide-react';
 
@@ -403,112 +399,133 @@ const AdminHostelManagement = () => {
             </CardContent>
           </Card>
         ) : (
-          <Accordion type="multiple" className="space-y-4">
+          <Tabs defaultValue={hostels[0]?.id} className="w-full">
+            <ScrollArea className="w-full whitespace-nowrap">
+              <TabsList className="inline-flex h-auto p-1 mb-4">
+                {hostels.map((hostel) => (
+                  <TabsTrigger
+                    key={hostel.id}
+                    value={hostel.id}
+                    className="flex items-center gap-2 px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    <span>{hostel.name}</span>
+                    <span className="ml-1 text-xs opacity-70">
+                      ({getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)})
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
             {hostels.map((hostel) => (
-              <AccordionItem key={hostel.id} value={hostel.id} className="border rounded-lg">
-                <AccordionTrigger className="px-4 hover:no-underline">
-                  <div className="flex items-center justify-between w-full pr-4">
-                    <div className="flex items-center gap-4">
-                      <Building2 className="h-5 w-5 text-primary" />
-                      <div className="text-left">
-                        <p className="font-semibold">{hostel.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {getRoomsForHostel(hostel.id).length} rooms • {getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)} beds occupied • {hostel.washrooms} washrooms
-                        </p>
-                      </div>
+              <TabsContent key={hostel.id} value={hostel.id} className="mt-0">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        {hostel.name}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {getRoomsForHostel(hostel.id).length} rooms • {getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)} beds occupied • {hostel.washrooms} washrooms
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
                         onClick={() => {
                           setEditingHostel(hostel);
                           setIsEditHostelOpen(true);
                         }}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
                         className="text-destructive hover:text-destructive"
                         onClick={() => handleDeleteHostel(hostel.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
                       </Button>
                     </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Room</TableHead>
-                        <TableHead>Bed</TableHead>
-                        <TableHead>Assigned To</TableHead>
-                        <TableHead>Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {getRoomsForHostel(hostel.id).map((room) =>
-                        getBedsForRoom(room.id).map((bed, bedIndex) => (
-                          <TableRow key={bed.id}>
-                            {bedIndex === 0 && (
-                              <TableCell rowSpan={getBedsForRoom(room.id).length} className="font-medium">
-                                Room {room.room_number}
-                              </TableCell>
-                            )}
-                            <TableCell>Bed {bed.bed_number}</TableCell>
-                            <TableCell>
-                              {bed.registration ? (
-                                <span className="text-sm">
-                                  {bed.registration.name} ({bed.registration.application_id})
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">Unassigned</span>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Room</TableHead>
+                          <TableHead>Bed</TableHead>
+                          <TableHead>Assigned To</TableHead>
+                          <TableHead>Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getRoomsForHostel(hostel.id).map((room) =>
+                          getBedsForRoom(room.id).map((bed, bedIndex) => (
+                            <TableRow key={bed.id}>
+                              {bedIndex === 0 && (
+                                <TableCell rowSpan={getBedsForRoom(room.id).length} className="font-medium">
+                                  Room {room.room_number}
+                                </TableCell>
                               )}
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={bed.registration_id || 'unassigned'}
-                                onValueChange={(value) => 
-                                  handleAssignBed(bed.id, value === 'unassigned' ? null : value)
-                                }
-                              >
-                                <SelectTrigger className="w-[200px]">
-                                  <SelectValue placeholder="Select attendee" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                                  {bed.registration && (
-                                    <SelectItem value={bed.registration.id}>
-                                      {bed.registration.name}
-                                    </SelectItem>
-                                  )}
-                                  {availableRegistrations.map((reg) => (
-                                    <SelectItem key={reg.id} value={reg.id}>
-                                      {reg.name} ({reg.application_id})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <TableCell>Bed {bed.bed_number}</TableCell>
+                              <TableCell>
+                                {bed.registration ? (
+                                  <span className="text-sm">
+                                    {bed.registration.name} ({bed.registration.application_id})
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">Unassigned</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={bed.registration_id || 'unassigned'}
+                                  onValueChange={(value) =>
+                                    handleAssignBed(bed.id, value === 'unassigned' ? null : value)
+                                  }
+                                >
+                                  <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Select attendee" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                                    {bed.registration && (
+                                      <SelectItem value={bed.registration.id}>
+                                        {bed.registration.name}
+                                      </SelectItem>
+                                    )}
+                                    {availableRegistrations.map((reg) => (
+                                      <SelectItem key={reg.id} value={reg.id}>
+                                        {reg.name} ({reg.application_id})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                        {getRoomsForHostel(hostel.id).length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No rooms configured for this hostel
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                      {getRoomsForHostel(hostel.id).length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                            No rooms configured for this hostel
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </AccordionContent>
-              </AccordionItem>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
             ))}
-          </Accordion>
+          </Tabs>
         )}
 
         {/* Edit Hostel Dialog */}
