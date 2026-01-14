@@ -373,12 +373,12 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
 
       {/* Payment Form or Already Submitted Message */}
       {allAlreadySubmitted ? (
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6 border border-green-200 dark:border-green-800">
+        <div className="bg-terracotta-50 dark:bg-terracotta-700/20 rounded-xl p-6 border border-terracotta-200 dark:border-terracotta-600">
           <div className="flex items-center gap-3">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+            <CheckCircle className="w-8 h-8 text-terracotta-500" />
             <div>
-              <h4 className="font-semibold text-green-800 dark:text-green-200">All Payments Submitted</h4>
-              <p className="text-green-700 dark:text-green-300 text-sm">
+              <h4 className="font-semibold text-terracotta-700 dark:text-terracotta-200">All Payments Submitted</h4>
+              <p className="text-terracotta-600 dark:text-terracotta-300 text-sm">
                 Payment details have been submitted for all registrations.
               </p>
             </div>
@@ -386,15 +386,15 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="bg-secondary/50 rounded-xl p-6 border border-border">
+          <div className="bg-terracotta-50 dark:bg-terracotta-700/20 rounded-xl p-6 border border-terracotta-200 dark:border-terracotta-600">
             <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-primary" />
+              <CreditCard className="w-5 h-5 text-terracotta-500" />
               Upload Payment Proof
             </h4>
             
             {selectedApplications.size === 0 && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 mb-4 border border-amber-200 dark:border-amber-800">
-                <p className="text-amber-700 dark:text-amber-300 text-sm">
+              <div className="bg-terracotta-100 dark:bg-terracotta-700/30 rounded-lg p-3 mb-4 border border-terracotta-300 dark:border-terracotta-600">
+                <p className="text-terracotta-700 dark:text-terracotta-300 text-sm">
                   ⚠️ Please select at least one registration above to submit payment for.
                 </p>
               </div>
@@ -408,10 +408,10 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
               
               {!selectedFile ? (
                 <div 
-                  className="border-2 border-dashed border-primary/30 rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                  className="border-2 border-dashed border-terracotta-300 dark:border-terracotta-500 rounded-xl p-8 text-center hover:border-terracotta-400 dark:hover:border-terracotta-400 transition-colors cursor-pointer bg-terracotta-50/50 dark:bg-terracotta-700/10"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="w-12 h-12 mx-auto text-primary/50 mb-4" />
+                  <Upload className="w-12 h-12 mx-auto text-terracotta-400 mb-4" />
                   <p className="text-foreground font-medium">Click to upload payment proof</p>
                   <p className="text-sm text-muted-foreground mt-1">or drag and drop</p>
                   <input
