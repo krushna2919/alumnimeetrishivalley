@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 // Schema for a single attendee - year validation is done dynamically based on batch config
+// Email is optional for additional attendees (defaults to primary registrant's email)
 export const attendeeSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
   boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
@@ -15,8 +16,17 @@ export const attendeeSchema = z.object({
 
 export type AttendeeData = z.infer<typeof attendeeSchema>;
 
-// Schema for the main registrant (includes address)
-export const registrantSchema = attendeeSchema.extend({
+// Schema for the main registrant (includes address, email is required)
+export const registrantSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Please enter a valid email address"),
+  phone: z.string().min(10, "Please enter a valid phone number").max(15),
+  occupation: z.string().min(2, "Please enter your occupation").max(100),
+  boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
+  yearOfPassing: z.string().min(1, "Please select a year of passing"),
+  stayType: z.enum(["on-campus", "outside"]),
+  tshirtSize: z.enum(["S", "M", "L", "XL"]),
+  gender: z.enum(["M", "F"]),
   addressLine1: z.string().min(5, "Please enter your street address").max(200),
   addressLine2: z.string().max(200).optional(),
   city: z.string().min(2, "Please enter your city").max(100),

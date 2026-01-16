@@ -14,9 +14,10 @@ interface AttendeeCardProps {
   onRemove: () => void;
   canRemove: boolean;
   yearOptions: number[];
+  primaryEmail: string;
 }
 
-const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions }: AttendeeCardProps) => {
+const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail }: AttendeeCardProps) => {
   const stayType = form.watch(`attendees.${index}.stayType`);
   const fee = calculateFee(stayType);
 
@@ -72,11 +73,19 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions }: Attende
               <FormItem>
                 <FormLabel className="flex items-center gap-2 text-foreground">
                   <Mail className="w-4 h-4 text-primary" />
-                  Email Address
+                  Email Address <span className="text-xs text-muted-foreground font-normal">(Optional - defaults to primary)</span>
                 </FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="email@example.com" {...field} className="bg-background" />
+                  <Input 
+                    type="email" 
+                    placeholder={primaryEmail || "Leave blank to use primary email"} 
+                    {...field} 
+                    className="bg-background" 
+                  />
                 </FormControl>
+                <p className="text-xs text-muted-foreground mt-1">
+                  If provided, this attendee will receive a separate confirmation email with their details.
+                </p>
                 <FormMessage />
               </FormItem>
             )}

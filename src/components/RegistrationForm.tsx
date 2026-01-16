@@ -683,6 +683,7 @@ const RegistrationForm = () => {
                       attendees={additionalAttendees}
                       onAttendeesChange={setAdditionalAttendees}
                       yearOptions={yearOptions}
+                      primaryEmail={form.watch("email")}
                     />
                   </div>
 
