@@ -23,8 +23,14 @@ interface AttendeeInfo {
   registrationFee: number;
 }
 
+interface BotValidation {
+  honeypot: string;
+  formLoadTime: number;
+  submitTime: number;
+}
+
 interface RegistrationRequest {
-  captchaToken: string;
+  botValidation: BotValidation;
   // Main registrant info
   name: string;
   email: string;
@@ -47,31 +53,28 @@ interface RegistrationRequest {
   additionalAttendees?: AttendeeInfo[];
 }
 
-async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
-  const secretKey = Deno.env.get("TURNSTILE_SECRET_KEY");
-  
-  if (!secretKey) {
-    console.error("TURNSTILE_SECRET_KEY not configured");
-    throw new Error("Turnstile not configured");
+function validateBotProtection(validation: BotValidation): { success: boolean; reason?: string } {
+  // Check if honeypot field was filled (bots fill all fields)
+  if (validation.honeypot && validation.honeypot.length > 0) {
+    console.warn("Bot detected: honeypot field was filled");
+    return { success: false, reason: "honeypot" };
   }
 
-  const formData = new FormData();
-  formData.append("secret", secretKey);
-  formData.append("response", token);
-
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: formData,
-  });
-
-  const result = await response.json();
-  console.log("Turnstile verification result:", { success: result.success });
-  
-  if (!result.success) {
-    console.error("Turnstile error codes:", result["error-codes"]);
+  // Check if form was submitted too quickly (less than 3 seconds)
+  const timeDiff = validation.submitTime - validation.formLoadTime;
+  if (timeDiff < 3000) {
+    console.warn("Bot detected: form submitted too quickly", { timeDiff });
+    return { success: false, reason: "too_fast" };
   }
 
-  return { success: result.success };
+  // Check for unreasonably long time (more than 1 hour - might be stale/automated)
+  if (timeDiff > 3600000) {
+    console.warn("Suspicious: form took too long", { timeDiff });
+    // Don't fail, just log - could be legitimate user
+  }
+
+  console.log("Bot validation passed", { timeDiff: `${(timeDiff / 1000).toFixed(1)}s` });
+  return { success: true };
 }
 
 interface RegistrationInfo {
@@ -286,15 +289,15 @@ serve(async (req: Request): Promise<Response> => {
     console.log("Registration request received for:", data.email);
     console.log("Additional attendees count:", data.additionalAttendees?.length || 0);
 
-    // Verify Turnstile token
-    const captchaResult = await verifyTurnstile(data.captchaToken);
+    // Validate bot protection (honeypot + timing)
+    const botResult = validateBotProtection(data.botValidation);
     
-    if (!captchaResult.success) {
-      console.warn("Turnstile verification failed for:", data.email);
+    if (!botResult.success) {
+      console.warn("Bot protection failed for:", data.email, "reason:", botResult.reason);
       return new Response(
         JSON.stringify({ 
-          error: "CAPTCHA verification failed. Please complete the verification and try again.",
-          code: "CAPTCHA_FAILED"
+          error: "Verification failed. Please try again.",
+          code: "BOT_DETECTED"
         }),
         {
           status: 400,
@@ -303,7 +306,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("Turnstile verified successfully");
+    console.log("Bot protection verified successfully");
 
     // Create Supabase client with service role for inserting
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
