@@ -54,38 +54,63 @@ const AdminLogin = () => {
       // Handle both hash params (#access_token=...) and query params (?token=...)
       const hashParams = new URLSearchParams(location.hash.substring(1));
       const searchParams = new URLSearchParams(location.search);
-      
+
       const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
-      const type = hashParams.get('type') || searchParams.get('type');
       const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token') || '';
-      
-      console.log('Checking for recovery token:', { type, hasAccessToken: !!accessToken, hash: location.hash, search: location.search });
-      
-      // Handle recovery and invite types (both are used for password setup)
-      if ((type === 'recovery' || type === 'invite' || type === 'magiclink') && accessToken) {
-        console.log('Setting session with recovery token...');
-        
-        // Set the session with the recovery token
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
+      const type = (hashParams.get('type') || searchParams.get('type')) as
+        | 'recovery'
+        | 'invite'
+        | 'magiclink'
+        | null;
+
+      const tokenHash = searchParams.get('token') || searchParams.get('token_hash');
+
+      // If we get a raw token hash (common when email client doesn't complete the redirect-to step)
+      if (!accessToken && type && tokenHash && (type === 'recovery' || type === 'invite' || type === 'magiclink')) {
+        const { data, error } = await supabase.auth.verifyOtp({
+          type,
+          token_hash: tokenHash,
         });
-        
+
         if (error) {
-          console.error('Recovery session error:', error);
+          console.error('OTP verification error:', error);
           toast({
             title: 'Link Expired',
-            description: 'This password reset link has expired. Please request a new one.',
+            description: 'This password setup link has expired. Please request a new one.',
             variant: 'destructive',
           });
           return;
         }
-        
+
         if (data.user) {
-          console.log('Recovery session set successfully for:', data.user.email);
           setIsRecoveryMode(true);
           setRecoveryEmail(data.user.email || null);
-          // Clear the hash and search params from URL
+          window.history.replaceState(null, '', location.pathname);
+        }
+
+        return;
+      }
+
+      // Normal case: verified redirect includes access_token in hash
+      if (type && accessToken && (type === 'recovery' || type === 'invite' || type === 'magiclink')) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          console.error('Recovery session error:', error);
+          toast({
+            title: 'Link Expired',
+            description: 'This password setup link has expired. Please request a new one.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (data.user) {
+          setIsRecoveryMode(true);
+          setRecoveryEmail(data.user.email || null);
           window.history.replaceState(null, '', location.pathname);
         }
       }
@@ -95,13 +120,13 @@ const AdminLogin = () => {
   }, [location, toast]);
 
   // Redirect if already logged in as approved admin
-  if (!isLoading && user && isAdmin && isApproved) {
+  if (!isRecoveryMode && !isLoading && user && isAdmin && isApproved) {
     navigate('/admin', { replace: true });
     return null;
   }
 
   // Show pending approval message
-  if (!isLoading && user && isPendingApproval) {
+  if (!isRecoveryMode && !isLoading && user && isPendingApproval) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted p-4">
         <Card className="w-full max-w-md shadow-elevated">
