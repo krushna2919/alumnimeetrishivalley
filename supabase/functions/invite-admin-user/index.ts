@@ -310,12 +310,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Assign the role
+    // Assign the role with auto-approval (superadmin-invited users are pre-approved)
     const { error: roleInsertError } = await supabaseAdmin
       .from('user_roles')
       .insert({
         user_id: userId,
         role: role,
+        is_approved: true,
       });
 
     if (roleInsertError) {
