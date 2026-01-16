@@ -71,11 +71,19 @@ async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
   return { success: result.success };
 }
 
-async function sendConfirmationEmail(
+interface RegistrationInfo {
+  applicationId: string;
+  name: string;
+  stayType: string;
+  registrationFee: number;
+}
+
+async function sendConsolidatedConfirmationEmail(
   email: string,
-  name: string,
-  applicationId: string,
-  registrationFee: number
+  primaryName: string,
+  primaryApplicationId: string,
+  allRegistrations: RegistrationInfo[],
+  totalFee: number
 ): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not configured, skipping confirmation email");
@@ -83,6 +91,20 @@ async function sendConfirmationEmail(
   }
 
   try {
+    // Build the registrations list HTML
+    const registrationsHtml = allRegistrations.map((reg, index) => `
+      <tr style="border-bottom: 1px solid #e0e0e0;">
+        <td style="padding: 12px; font-family: monospace; font-weight: bold; color: #5c4a3d;">${reg.applicationId}</td>
+        <td style="padding: 12px;">${reg.name}${index === 0 ? ' <span style="color: #b8860b; font-size: 12px;">(Primary)</span>' : ''}</td>
+        <td style="padding: 12px;">${reg.stayType === 'on-campus' ? 'On Campus' : 'Staying Outside'}</td>
+        <td style="padding: 12px; text-align: right;">₹${reg.registrationFee.toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+
+    const subject = allRegistrations.length > 1 
+      ? `Registration Confirmed - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
+      : `Registration Confirmed - Application ID: ${primaryApplicationId}`;
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -92,22 +114,50 @@ async function sendConfirmationEmail(
       body: JSON.stringify({
         from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
         to: [email],
-        subject: `Registration Confirmed - Application ID: ${applicationId}`,
+        subject: subject,
         html: `
-          <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
               Registration Confirmed
             </h1>
-            <p>Dear ${name},</p>
+            <p>Dear ${primaryName},</p>
             <p>Thank you for registering for the Rishi Valley Alumni Meet!</p>
-            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0; font-size: 14px; color: #666;">Your Application ID:</p>
-              <p style="margin: 10px 0 0; font-size: 24px; font-weight: bold; color: #5c4a3d; font-family: monospace;">
-                ${applicationId}
-              </p>
+            
+            ${allRegistrations.length > 1 ? `
+              <p>You have registered <strong>${allRegistrations.length} people</strong> for the event. Here are the details:</p>
+            ` : ''}
+            
+            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0; overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; min-width: 500px;">
+                <thead>
+                  <tr style="background: #e8e4d8; border-bottom: 2px solid #b8860b;">
+                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Application ID</th>
+                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Name</th>
+                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Stay Type</th>
+                    <th style="padding: 12px; text-align: right; color: #5c4a3d;">Fee</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${registrationsHtml}
+                </tbody>
+                <tfoot>
+                  <tr style="background: #e8e4d8; font-weight: bold;">
+                    <td colspan="3" style="padding: 12px; text-align: right; color: #5c4a3d;">Total Amount Due:</td>
+                    <td style="padding: 12px; text-align: right; color: #5c4a3d; font-size: 18px;">₹${totalFee.toLocaleString('en-IN')}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-            <p><strong>Registration Fee:</strong> ₹${registrationFee.toLocaleString('en-IN')}</p>
-            <p>Please save your Application ID for future reference. You will need it to check your registration status and complete payment.</p>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please save your Primary Application ID (<strong>${primaryApplicationId}</strong>) for future reference. You will need it to:</p>
+              <ul style="color: #856404; margin: 10px 0 0; padding-left: 20px;">
+                <li>Check registration status for all registrants</li>
+                <li>Submit payment details for all registrations</li>
+                <li>View and manage your group registration</li>
+              </ul>
+            </div>
+            
             <p style="margin-top: 30px;">
               Best regards,<br>
               <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
@@ -122,7 +172,7 @@ async function sendConfirmationEmail(
       console.error("Resend error:", errorData);
     } else {
       const result = await response.json();
-      console.log("Confirmation email sent to:", email, result);
+      console.log("Consolidated confirmation email sent to:", email, result);
     }
   } catch (error) {
     console.error("Error sending confirmation email:", error);
@@ -225,8 +275,13 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("Main registration saved successfully:", applicationId);
 
-    // Send confirmation email to main registrant
-    await sendConfirmationEmail(data.email, data.name, applicationId, data.registrationFee);
+    // Collect all registrations for the consolidated email
+    const allRegistrations: RegistrationInfo[] = [{
+      applicationId: registration.application_id,
+      name: registration.name,
+      stayType: registration.stay_type,
+      registrationFee: registration.registration_fee,
+    }];
 
     // Process additional attendees if any
     const additionalRegistrations: any[] = [];
@@ -287,8 +342,13 @@ serve(async (req: Request): Promise<Response> => {
             registrationFee: attendeeReg.registration_fee,
           });
 
-          // Send confirmation email to each attendee
-          await sendConfirmationEmail(attendee.email, attendee.name, attendeeAppId, attendee.registrationFee);
+          // Add to consolidated email list
+          allRegistrations.push({
+            applicationId: attendeeReg.application_id,
+            name: attendeeReg.name,
+            stayType: attendeeReg.stay_type,
+            registrationFee: attendeeReg.registration_fee,
+          });
         }
       }
     }
@@ -296,6 +356,15 @@ serve(async (req: Request): Promise<Response> => {
     // Calculate total fee
     const totalFee = data.registrationFee + 
       (data.additionalAttendees?.reduce((sum, a) => sum + a.registrationFee, 0) || 0);
+
+    // Send ONE consolidated confirmation email to the primary registrant only
+    await sendConsolidatedConfirmationEmail(
+      data.email,
+      data.name,
+      applicationId,
+      allRegistrations,
+      totalFee
+    );
 
     return new Response(
       JSON.stringify({
