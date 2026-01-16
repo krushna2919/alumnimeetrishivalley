@@ -9,6 +9,7 @@ export const attendeeSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
+  boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
   yearOfPassing: z.string().refine((val) => {
     const year = parseInt(val);
     return year <= CUTOFF_YEAR && year >= 1930;
@@ -39,6 +40,7 @@ export const defaultAttendee: AttendeeData = {
   email: "",
   phone: "",
   occupation: "",
+  boardType: "" as AttendeeData["boardType"],
   yearOfPassing: "",
   stayType: "on-campus",
   tshirtSize: "" as AttendeeData["tshirtSize"],
@@ -48,6 +50,7 @@ export const defaultAttendee: AttendeeData = {
 // Default values for main registrant
 export const defaultRegistrant: RegistrantData = {
   ...defaultAttendee,
+  boardType: "" as RegistrantData["boardType"],
   addressLine1: "",
   addressLine2: "",
   city: "",

@@ -14,6 +14,7 @@ interface AttendeeInfo {
   email: string;
   phone: string;
   occupation: string;
+  boardType: string;
   yearOfPassing: number;
   stayType: string;
   tshirtSize: string;
@@ -28,6 +29,7 @@ interface RegistrationRequest {
   email: string;
   phone: string;
   occupation: string;
+  boardType: string;
   yearOfPassing: number;
   addressLine1: string;
   addressLine2?: string;
@@ -235,6 +237,7 @@ serve(async (req: Request): Promise<Response> => {
         email: data.email,
         phone: data.phone,
         occupation: data.occupation,
+        board_type: data.boardType,
         year_of_passing: data.yearOfPassing,
         address_line1: data.addressLine1,
         address_line2: data.addressLine2 || null,
@@ -308,6 +311,7 @@ serve(async (req: Request): Promise<Response> => {
             email: attendee.email,
             phone: attendee.phone,
             occupation: attendee.occupation,
+            board_type: attendee.boardType,
             year_of_passing: attendee.yearOfPassing,
             address_line1: data.addressLine1,
             address_line2: data.addressLine2 || null,
