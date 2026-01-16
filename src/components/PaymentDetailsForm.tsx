@@ -23,13 +23,19 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch related registrations (additional attendees linked to this primary registrant)
+  // Fetch related registrations (only for primary registrants - secondary applicants see only themselves)
   useEffect(() => {
     const fetchRelatedRegistrations = async () => {
+      // If this is a secondary applicant (has parent_application_id), don't fetch related registrations
+      // Only show this specific applicant for payment proof upload
+      if (application.parentApplicationId) {
+        setRelatedRegistrations([]);
+        return;
+      }
+
       setIsLoadingRelated(true);
       try {
-        // Fetch registrations where parent_application_id matches current application
-        // OR if this is a child, fetch siblings and parent
+        // This is a primary registrant - fetch all children
         const { data: children, error: childrenError } = await supabase
           .from("registrations")
           .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at, parent_application_id")
@@ -42,7 +48,6 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
         let allRelated: RegistrationData[] = [];
 
         if (children && children.length > 0) {
-          // This is a primary registrant - add all children
           allRelated = children.map(reg => ({
             applicationId: reg.application_id,
             name: reg.name,
@@ -53,46 +58,6 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
             createdAt: reg.created_at,
             parentApplicationId: reg.parent_application_id,
           }));
-        } else if (application.parentApplicationId) {
-          // This is a child - fetch parent and siblings
-          const { data: parent, error: parentError } = await supabase
-            .from("registrations")
-            .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at")
-            .eq("application_id", application.parentApplicationId)
-            .maybeSingle();
-
-          if (parent && !parentError) {
-            allRelated.push({
-              applicationId: parent.application_id,
-              name: parent.name,
-              email: parent.email,
-              stayType: parent.stay_type,
-              registrationFee: parent.registration_fee,
-              paymentStatus: parent.payment_status,
-              createdAt: parent.created_at,
-              parentApplicationId: null,
-            });
-          }
-
-          // Fetch siblings
-          const { data: siblings, error: siblingsError } = await supabase
-            .from("registrations")
-            .select("application_id, name, email, stay_type, registration_fee, payment_status, created_at, parent_application_id")
-            .eq("parent_application_id", application.parentApplicationId)
-            .neq("application_id", application.applicationId);
-
-          if (siblings && !siblingsError) {
-            allRelated.push(...siblings.map(reg => ({
-              applicationId: reg.application_id,
-              name: reg.name,
-              email: reg.email,
-              stayType: reg.stay_type,
-              registrationFee: reg.registration_fee,
-              paymentStatus: reg.payment_status,
-              createdAt: reg.created_at,
-              parentApplicationId: reg.parent_application_id,
-            })));
-          }
         }
 
         setRelatedRegistrations(allRelated);
