@@ -11,6 +11,7 @@ import AttendeeCard from "./AttendeeCard";
 interface AdditionalAttendeesSectionProps {
   attendees: AttendeeData[];
   onAttendeesChange: (attendees: AttendeeData[]) => void;
+  yearOptions: number[];
 }
 
 const attendeesFormSchema = z.object({
@@ -19,7 +20,7 @@ const attendeesFormSchema = z.object({
 
 type AttendeesFormData = z.infer<typeof attendeesFormSchema>;
 
-const AdditionalAttendeesSection = ({ attendees, onAttendeesChange }: AdditionalAttendeesSectionProps) => {
+const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions }: AdditionalAttendeesSectionProps) => {
   const form = useForm<AttendeesFormData>({
     resolver: zodResolver(attendeesFormSchema),
     defaultValues: {
@@ -102,6 +103,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange }: Additional
                   key={field.id}
                   index={index}
                   form={form}
+                  yearOptions={yearOptions}
                   onRemove={() => {
                     handleRemoveAttendee(index);
                     setTimeout(handleFormChange, 0);

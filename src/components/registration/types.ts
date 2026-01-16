@@ -1,19 +1,13 @@
 import { z } from "zod";
 
-export const CUTOFF_YEAR = 1980;
-const currentYear = new Date().getFullYear();
-
-// Schema for a single attendee
+// Schema for a single attendee - year validation is done dynamically based on batch config
 export const attendeeSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
   boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
-  yearOfPassing: z.string().refine((val) => {
-    const year = parseInt(val);
-    return year <= CUTOFF_YEAR && year >= 1930;
-  }, `Registration is currently open only for batches of ${CUTOFF_YEAR} and earlier.`),
+  yearOfPassing: z.string().min(1, "Please select a year of passing"),
   stayType: z.enum(["on-campus", "outside"]),
   tshirtSize: z.enum(["S", "M", "L", "XL"]),
   gender: z.enum(["M", "F"]),
