@@ -185,6 +185,7 @@ export type Database = {
           application_id: string
           approved_at: string | null
           approved_by: string | null
+          board_type: string
           city: string
           confirmation_email_sent: boolean | null
           country: string
@@ -219,6 +220,7 @@ export type Database = {
           application_id: string
           approved_at?: string | null
           approved_by?: string | null
+          board_type?: string
           city: string
           confirmation_email_sent?: boolean | null
           country?: string
@@ -253,6 +255,7 @@ export type Database = {
           application_id?: string
           approved_at?: string | null
           approved_by?: string | null
+          board_type?: string
           city?: string
           confirmation_email_sent?: boolean | null
           country?: string

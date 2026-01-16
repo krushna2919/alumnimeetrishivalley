@@ -126,6 +126,7 @@ const RegistrationForm = () => {
         email: attendee.email,
         phone: attendee.phone,
         occupation: attendee.occupation,
+        boardType: attendee.boardType,
         yearOfPassing: parseInt(attendee.yearOfPassing),
         stayType: attendee.stayType,
         tshirtSize: attendee.tshirtSize,
@@ -135,26 +136,27 @@ const RegistrationForm = () => {
 
       // Call edge function with captcha token
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
-        body: {
-          captchaToken,
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          occupation: data.occupation,
-          yearOfPassing: parseInt(data.yearOfPassing),
-          addressLine1: data.addressLine1,
-          addressLine2: data.addressLine2 || undefined,
-          city: data.city,
-          district: data.district,
-          state: data.state,
-          postalCode: data.postalCode,
-          country: data.country,
-          stayType: data.stayType,
-          tshirtSize: data.tshirtSize,
-          gender: data.gender,
-          registrationFee,
-          additionalAttendees: additionalAttendeesData.length > 0 ? additionalAttendeesData : undefined,
-        },
+          body: {
+            captchaToken,
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            occupation: data.occupation,
+            boardType: data.boardType,
+            yearOfPassing: parseInt(data.yearOfPassing),
+            addressLine1: data.addressLine1,
+            addressLine2: data.addressLine2 || undefined,
+            city: data.city,
+            district: data.district,
+            state: data.state,
+            postalCode: data.postalCode,
+            country: data.country,
+            stayType: data.stayType,
+            tshirtSize: data.tshirtSize,
+            gender: data.gender,
+            registrationFee,
+            additionalAttendees: additionalAttendeesData.length > 0 ? additionalAttendeesData : undefined,
+          },
       });
 
       if (error) {
@@ -343,6 +345,45 @@ const RegistrationForm = () => {
                       />
                     </div>
 
+                    {/* Board Type Selection */}
+                    <div className="mt-6">
+                      <FormField
+                        control={form.control}
+                        name="boardType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground font-semibold">Board</FormLabel>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="flex gap-6 mt-2"
+                              >
+                                <label className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  field.value === "ISC" 
+                                    ? "border-primary bg-primary/5" 
+                                    : "border-border hover:border-primary/50"
+                                }`}>
+                                  <RadioGroupItem value="ISC" />
+                                  <span className="font-medium text-foreground">ISC</span>
+                                </label>
+                                
+                                <label className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  field.value === "ICSE" 
+                                    ? "border-primary bg-primary/5" 
+                                    : "border-border hover:border-primary/50"
+                                }`}>
+                                  <RadioGroupItem value="ICSE" />
+                                  <span className="font-medium text-foreground">ICSE</span>
+                                </label>
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     {/* Year of Passing */}
                     <div className="mt-6">
                       <FormField
@@ -352,7 +393,7 @@ const RegistrationForm = () => {
                           <FormItem>
                             <FormLabel className="flex items-center gap-2 text-foreground">
                               <Calendar className="w-4 h-4 text-primary" />
-                              Year of Passing (ISC/ICSE)
+                              Year of Passing
                             </FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                               <FormControl>

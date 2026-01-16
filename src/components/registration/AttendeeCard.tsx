@@ -119,6 +119,43 @@ const AttendeeCard = ({ index, form, onRemove, canRemove }: AttendeeCardProps) =
           />
         </div>
 
+        {/* Board Type Selection */}
+        <FormField
+          control={form.control}
+          name={`attendees.${index}.boardType`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground font-semibold">Board</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  className="flex gap-4 mt-2"
+                >
+                  <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                    field.value === "ISC" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  }`}>
+                    <RadioGroupItem value="ISC" />
+                    <span className="font-medium text-foreground text-sm">ISC</span>
+                  </label>
+                  
+                  <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                    field.value === "ICSE" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  }`}>
+                    <RadioGroupItem value="ICSE" />
+                    <span className="font-medium text-foreground text-sm">ICSE</span>
+                  </label>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Year of Passing */}
         <FormField
           control={form.control}
@@ -127,7 +164,7 @@ const AttendeeCard = ({ index, form, onRemove, canRemove }: AttendeeCardProps) =
             <FormItem>
               <FormLabel className="flex items-center gap-2 text-foreground">
                 <Calendar className="w-4 h-4 text-primary" />
-                Year of Passing (ISC/ICSE)
+                Year of Passing
               </FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
