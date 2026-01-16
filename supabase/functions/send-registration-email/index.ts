@@ -150,7 +150,6 @@ const handler = async (req: Request): Promise<Response> => {
               ${applicationId}
             </p>
           </div>
-          <p>Please complete your payment if you haven't already to confirm your participation.</p>
           <p>We look forward to seeing you at the event!</p>
           <p style="margin-top: 30px;">
             Best regards,<br>
