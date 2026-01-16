@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 // Schema for a single attendee - year validation is done dynamically based on batch config
-// Email is optional for additional attendees (defaults to primary registrant's email)
+// email is auto-populated from primary registrant (stored but not editable)
+// secondaryEmail is optional - if provided, attendee receives their own confirmation email
 export const attendeeSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
+  secondaryEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
   boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
@@ -42,6 +44,7 @@ export type RegistrantData = z.infer<typeof registrantSchema>;
 export const defaultAttendee: AttendeeData = {
   name: "",
   email: "",
+  secondaryEmail: "",
   phone: "",
   occupation: "",
   boardType: "" as AttendeeData["boardType"],

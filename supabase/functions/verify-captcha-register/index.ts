@@ -11,7 +11,8 @@ const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 interface AttendeeInfo {
   name: string;
-  email?: string; // Optional - if not provided, use primary registrant's email
+  email: string; // Primary registrant's email (always set)
+  secondaryEmail?: string; // Optional secondary email for individual confirmation
   phone: string;
   occupation: string;
   boardType: string;
@@ -383,8 +384,8 @@ serve(async (req: Request): Promise<Response> => {
         }
 
         // Use main registrant's address for additional attendees
-        // Use primary email if attendee email is not provided
-        const attendeeEmail = attendee.email && attendee.email.trim() !== "" ? attendee.email : data.email;
+        // Always use primary email for the registration record
+        const attendeeEmail = attendee.email || data.email;
         
         // Link to parent application ID
         const { data: attendeeReg, error: attendeeError } = await supabase
@@ -393,7 +394,7 @@ serve(async (req: Request): Promise<Response> => {
             application_id: attendeeAppId,
             parent_application_id: applicationId, // Link to primary registrant
             name: attendee.name,
-            email: attendeeEmail, // Use primary email if secondary not provided
+            email: attendeeEmail, // Use primary email
             phone: attendee.phone,
             occupation: attendee.occupation,
             board_type: attendee.boardType,
@@ -416,7 +417,7 @@ serve(async (req: Request): Promise<Response> => {
           .single();
 
         if (attendeeError) {
-          console.error("Error inserting attendee:", attendee.email, attendeeError);
+          console.error("Error inserting attendee:", attendeeEmail, attendeeError);
           // Check for duplicate and report
           if (attendeeError.code === "23505") {
             console.warn("Duplicate email for attendee:", attendeeEmail);
@@ -424,16 +425,17 @@ serve(async (req: Request): Promise<Response> => {
         } else {
           console.log("Attendee registered:", attendeeAppId);
           
-          // Track if this attendee has their own email (different from primary)
-          const hasOwnEmail = attendee.email && attendee.email.trim() !== "" && attendee.email !== data.email;
+          // Check if attendee has a secondary email for individual notification
+          const hasSecondaryEmail = attendee.secondaryEmail && attendee.secondaryEmail.trim() !== "";
           
           additionalRegistrations.push({
             applicationId: attendeeReg.application_id,
             name: attendeeReg.name,
             email: attendeeReg.email,
+            secondaryEmail: attendee.secondaryEmail, // Store secondary email for sending individual notification
             stayType: attendeeReg.stay_type,
             registrationFee: attendeeReg.registration_fee,
-            hasOwnEmail, // Flag to determine if separate email should be sent
+            hasSecondaryEmail, // Flag to determine if separate email should be sent
           });
 
           // Add to consolidated email list
@@ -461,11 +463,11 @@ serve(async (req: Request): Promise<Response> => {
       totalFee
     );
 
-    // Send individual emails to attendees who have their own email addresses
+    // Send individual emails to attendees who have a secondary email address
     for (const attendeeReg of additionalRegistrations) {
-      if (attendeeReg.hasOwnEmail) {
+      if (attendeeReg.hasSecondaryEmail && attendeeReg.secondaryEmail) {
         await sendAttendeeConfirmationEmail(
-          attendeeReg.email,
+          attendeeReg.secondaryEmail, // Send to secondary email
           attendeeReg.name,
           attendeeReg.applicationId,
           applicationId,

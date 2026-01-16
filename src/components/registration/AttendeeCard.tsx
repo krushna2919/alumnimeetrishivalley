@@ -66,25 +66,43 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
             )}
           />
 
+          {/* Primary Email - Read Only */}
+          <FormItem>
+            <FormLabel className="flex items-center gap-2 text-foreground">
+              <Mail className="w-4 h-4 text-primary" />
+              Email Address <span className="text-xs text-muted-foreground font-normal">(Primary Registrant)</span>
+            </FormLabel>
+            <Input 
+              type="email" 
+              value={primaryEmail} 
+              disabled
+              className="bg-muted text-muted-foreground cursor-not-allowed" 
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Same as the primary registrant's email address.
+            </p>
+          </FormItem>
+
+          {/* Secondary Email - Optional */}
           <FormField
             control={form.control}
-            name={`attendees.${index}.email`}
+            name={`attendees.${index}.secondaryEmail`}
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-2 text-foreground">
                   <Mail className="w-4 h-4 text-primary" />
-                  Email Address <span className="text-xs text-muted-foreground font-normal">(Optional - defaults to primary)</span>
+                  Secondary Email <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
                 </FormLabel>
                 <FormControl>
                   <Input 
                     type="email" 
-                    placeholder={primaryEmail || "Leave blank to use primary email"} 
+                    placeholder="attendee@example.com" 
                     {...field} 
                     className="bg-background" 
                   />
                 </FormControl>
                 <p className="text-xs text-muted-foreground mt-1">
-                  If provided, this attendee will receive a separate confirmation email with their details.
+                  If provided, this attendee will receive a separate confirmation email.
                 </p>
                 <FormMessage />
               </FormItem>
