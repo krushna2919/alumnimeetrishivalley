@@ -446,13 +446,18 @@ const AdminRegistrations = () => {
     }
   };
 
-  // Handle group approval - approve all pending members in the group
+  // Check if group has approvable registrations (pending + payment submitted)
+  const hasGroupApprovableRegistrations = (members: Registration[]) => {
+    return members.some(m => m.registration_status === 'pending' && m.payment_status === 'submitted');
+  };
+
+  // Handle group approval - approve all pending members with submitted payment in the group
   const handleGroupApprove = async (members: Registration[]) => {
-    const pendingMembers = members.filter(m => m.registration_status === 'pending');
-    if (pendingMembers.length === 0) {
+    const approvableMembers = members.filter(m => m.registration_status === 'pending' && m.payment_status === 'submitted');
+    if (approvableMembers.length === 0) {
       toast({
-        title: 'No Pending Registrations',
-        description: 'All members in this group are already processed.',
+        title: 'No Approvable Registrations',
+        description: 'No members with submitted payment are pending approval.',
         variant: 'destructive',
       });
       return;
@@ -460,7 +465,7 @@ const AdminRegistrations = () => {
 
     setIsProcessing(true);
     try {
-      const memberIds = pendingMembers.map(m => m.id);
+      const memberIds = approvableMembers.map(m => m.id);
       const { error } = await supabase
         .from('registrations')
         .update({
@@ -472,14 +477,14 @@ const AdminRegistrations = () => {
       if (error) throw error;
 
       // Send notification emails to all approved members
-      const emailPromises = pendingMembers.map(member => 
+      const emailPromises = approvableMembers.map(member => 
         sendNotificationEmail(member, 'approved')
       );
       await Promise.all(emailPromises);
 
       toast({
         title: 'Group Approved',
-        description: `${pendingMembers.length} registration(s) have been approved.`,
+        description: `${approvableMembers.length} registration(s) have been approved.`,
       });
 
       fetchRegistrations();
@@ -719,7 +724,8 @@ const AdminRegistrations = () => {
                                           <Button
                                             size="sm"
                                             onClick={() => handleGroupApprove(members)}
-                                            disabled={isProcessing}
+                                            disabled={isProcessing || !hasGroupApprovableRegistrations(members)}
+                                            title={!hasGroupApprovableRegistrations(members) ? 'Payment must be submitted before approval' : undefined}
                                           >
                                             {isProcessing ? (
                                               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -1075,7 +1081,7 @@ const AdminRegistrations = () => {
                 Delete
               </Button>
             )}
-            {selectedRegistration?.registration_status === 'pending' && (
+{selectedRegistration?.registration_status === 'pending' && (
               <>
                 <Button
                   variant="outline"
@@ -1087,7 +1093,8 @@ const AdminRegistrations = () => {
                 </Button>
                 <Button
                   onClick={() => selectedRegistration && handleApprove(selectedRegistration)}
-                  disabled={isProcessing}
+                  disabled={isProcessing || selectedRegistration?.payment_status !== 'submitted'}
+                  title={selectedRegistration?.payment_status !== 'submitted' ? 'Payment must be submitted before approval' : undefined}
                 >
                   {isProcessing ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
