@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, Upload, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useTurnstile } from "@/hooks/useTurnstile";
+import { useHoneypot } from "@/hooks/useHoneypot";
 import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
 import ApplicationLookup from "./ApplicationLookup";
@@ -50,7 +50,7 @@ const RegistrationForm = () => {
   const [additionalAttendees, setAdditionalAttendees] = useState<AttendeeData[]>([]);
   const [submitPaymentNow, setSubmitPaymentNow] = useState<boolean | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
-  const { getToken, resetTurnstile } = useTurnstile("turnstile-container");
+  const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError } = useBatchConfiguration();
 
@@ -106,12 +106,13 @@ const RegistrationForm = () => {
     setIsSubmitting(true);
 
     try {
-      // Get Turnstile token
-      const captchaToken = getToken();
+      // Get bot validation data
+      const botValidation = getValidationData();
 
-      if (!captchaToken) {
-        toast.error("Please complete the verification", {
-          description: "Click the checkbox to verify you're human.",
+      // Quick client-side check (server does real validation)
+      if (isLikelyBot()) {
+        toast.error("Verification failed", {
+          description: "Please wait a moment and try again.",
         });
         setIsSubmitting(false);
         return;
@@ -134,10 +135,10 @@ const RegistrationForm = () => {
         registrationFee: calculateFee(attendee.stayType),
       }));
 
-      // Call edge function with captcha token
+      // Call edge function with bot validation data
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
           body: {
-            captchaToken,
+            botValidation,
             name: data.name,
             email: data.email,
             phone: data.phone,
@@ -182,7 +183,7 @@ const RegistrationForm = () => {
         totalRegistrants: result.totalRegistrants,
       });
       setViewState("success");
-      resetTurnstile();
+      resetFormLoadTime();
 
       const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
       toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
@@ -804,11 +805,16 @@ const RegistrationForm = () => {
                     )}
                   </div>
 
-                  {/* Turnstile Captcha */}
-                  <div className="flex flex-col items-center gap-3">
-                    <div id="turnstile-container" className="flex justify-center"></div>
-                    <p className="text-xs text-muted-foreground text-center">Protected by Cloudflare Turnstile</p>
-                  </div>
+                  {/* Honeypot field - hidden from humans, visible to bots */}
+                  <input
+                    type="text"
+                    name="website_url"
+                    autoComplete="off"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    style={{ position: 'absolute', left: '-9999px', opacity: 0 }}
+                    onChange={(e) => setHoneypotValue(e.target.value)}
+                  />
 
                   {/* Submit */}
                   <div className="pt-6 border-t border-border">
