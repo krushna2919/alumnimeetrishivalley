@@ -119,10 +119,11 @@ const RegistrationForm = () => {
 
       const registrationFee = calculateFee(data.stayType);
 
-      // Prepare additional attendees data
+      // Prepare additional attendees data - use primary email, include secondary email if provided
       const additionalAttendeesData = additionalAttendees.map((attendee) => ({
         name: attendee.name,
-        email: attendee.email,
+        email: data.email, // Always use primary registrant's email
+        secondaryEmail: attendee.secondaryEmail || undefined, // Optional secondary email
         phone: attendee.phone,
         occupation: attendee.occupation,
         boardType: attendee.boardType,
