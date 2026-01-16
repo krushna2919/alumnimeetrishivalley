@@ -174,11 +174,14 @@ Deno.serve(async (req) => {
     };
 
     const generateResetLink = async () => {
+      // Use the site URL to redirect to the login page where recovery tokens are handled
+      const redirectUrl = siteUrl ? `${siteUrl}/admin/login` : undefined;
+      
       const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
         email: email,
         options: {
-          redirectTo: siteUrl ? `${siteUrl}/admin` : undefined,
+          redirectTo: redirectUrl,
         }
       });
 

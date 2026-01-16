@@ -48,18 +48,27 @@ const AdminLogin = () => {
   const location = useLocation();
   const { toast } = useToast();
 
-  // Check for recovery token in URL hash (Supabase redirects with token in hash)
+  // Check for recovery/invite token in URL hash (Supabase redirects with token in hash)
   useEffect(() => {
     const handleRecoveryToken = async () => {
+      // Handle both hash params (#access_token=...) and query params (?token=...)
       const hashParams = new URLSearchParams(location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const type = hashParams.get('type');
+      const searchParams = new URLSearchParams(location.search);
       
-      if (type === 'recovery' && accessToken) {
+      const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+      const type = hashParams.get('type') || searchParams.get('type');
+      const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token') || '';
+      
+      console.log('Checking for recovery token:', { type, hasAccessToken: !!accessToken, hash: location.hash, search: location.search });
+      
+      // Handle recovery and invite types (both are used for password setup)
+      if ((type === 'recovery' || type === 'invite' || type === 'magiclink') && accessToken) {
+        console.log('Setting session with recovery token...');
+        
         // Set the session with the recovery token
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || '',
+          refresh_token: refreshToken,
         });
         
         if (error) {
@@ -73,9 +82,10 @@ const AdminLogin = () => {
         }
         
         if (data.user) {
+          console.log('Recovery session set successfully for:', data.user.email);
           setIsRecoveryMode(true);
           setRecoveryEmail(data.user.email || null);
-          // Clear the hash from URL
+          // Clear the hash and search params from URL
           window.history.replaceState(null, '', location.pathname);
         }
       }
