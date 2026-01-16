@@ -83,9 +83,9 @@ Deno.serve(async (req) => {
     }
 
     // Validate role
-    if (!['admin', 'superadmin'].includes(role)) {
+    if (!['admin', 'superadmin', 'reviewer'].includes(role)) {
       return new Response(
-        JSON.stringify({ error: "Invalid role. Must be 'admin' or 'superadmin'" }),
+        JSON.stringify({ error: "Invalid role. Must be 'admin', 'superadmin', or 'reviewer'" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
