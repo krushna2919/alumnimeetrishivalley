@@ -12,6 +12,7 @@ interface AdditionalAttendeesSectionProps {
   attendees: AttendeeData[];
   onAttendeesChange: (attendees: AttendeeData[]) => void;
   yearOptions: number[];
+  primaryEmail: string;
 }
 
 const attendeesFormSchema = z.object({
@@ -20,7 +21,7 @@ const attendeesFormSchema = z.object({
 
 type AttendeesFormData = z.infer<typeof attendeesFormSchema>;
 
-const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions }: AdditionalAttendeesSectionProps) => {
+const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions, primaryEmail }: AdditionalAttendeesSectionProps) => {
   const form = useForm<AttendeesFormData>({
     resolver: zodResolver(attendeesFormSchema),
     defaultValues: {
@@ -104,6 +105,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions 
                   index={index}
                   form={form}
                   yearOptions={yearOptions}
+                  primaryEmail={primaryEmail}
                   onRemove={() => {
                     handleRemoveAttendee(index);
                     setTimeout(handleFormChange, 0);

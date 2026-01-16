@@ -11,7 +11,7 @@ const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 interface AttendeeInfo {
   name: string;
-  email: string;
+  email?: string; // Optional - if not provided, use primary registrant's email
   phone: string;
   occupation: string;
   boardType: string;
@@ -76,6 +76,7 @@ async function verifyTurnstile(token: string): Promise<{ success: boolean }> {
 interface RegistrationInfo {
   applicationId: string;
   name: string;
+  email: string;
   stayType: string;
   registrationFee: number;
 }
@@ -182,6 +183,86 @@ async function sendConsolidatedConfirmationEmail(
   }
 }
 
+// Send individual confirmation email to attendee with their own email
+async function sendAttendeeConfirmationEmail(
+  attendeeEmail: string,
+  attendeeName: string,
+  attendeeApplicationId: string,
+  primaryApplicationId: string,
+  primaryName: string,
+  stayType: string,
+  registrationFee: number
+): Promise<void> {
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY not configured, skipping attendee email");
+    return;
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
+        to: [attendeeEmail],
+        subject: `Registration Confirmed - Application ID: ${attendeeApplicationId}`,
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+              Registration Confirmed
+            </h1>
+            <p>Dear ${attendeeName},</p>
+            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}!</p>
+            
+            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #5c4a3d; margin-top: 0;">Your Registration Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Application ID:</td>
+                  <td style="padding: 8px 0; font-family: monospace; font-weight: bold;">${attendeeApplicationId}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Stay Type:</td>
+                  <td style="padding: 8px 0;">${stayType === 'on-campus' ? 'On Campus' : 'Staying Outside'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Registration Fee:</td>
+                  <td style="padding: 8px 0;">₹${registrationFee.toLocaleString('en-IN')}</td>
+                </tr>
+              </table>
+            </div>
+            
+            <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #2c5f73;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
+              <p style="margin: 10px 0 0; color: #2c5f73;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
+              <p style="margin: 5px 0 0; color: #2c5f73; font-size: 14px;">For payment status and updates, please contact the primary registrant.</p>
+            </div>
+            
+            <p style="margin-top: 30px;">
+              Best regards,<br>
+              <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+            </p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Resend error for attendee email:", errorData);
+    } else {
+      const result = await response.json();
+      console.log("Individual confirmation email sent to attendee:", attendeeEmail, result);
+    }
+  } catch (error) {
+    console.error("Error sending attendee confirmation email:", error);
+    // Don't throw - email failure shouldn't fail the registration
+  }
+}
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -282,6 +363,7 @@ serve(async (req: Request): Promise<Response> => {
     const allRegistrations: RegistrationInfo[] = [{
       applicationId: registration.application_id,
       name: registration.name,
+      email: registration.email,
       stayType: registration.stay_type,
       registrationFee: registration.registration_fee,
     }];
@@ -301,6 +383,9 @@ serve(async (req: Request): Promise<Response> => {
         }
 
         // Use main registrant's address for additional attendees
+        // Use primary email if attendee email is not provided
+        const attendeeEmail = attendee.email && attendee.email.trim() !== "" ? attendee.email : data.email;
+        
         // Link to parent application ID
         const { data: attendeeReg, error: attendeeError } = await supabase
           .from("registrations")
@@ -308,7 +393,7 @@ serve(async (req: Request): Promise<Response> => {
             application_id: attendeeAppId,
             parent_application_id: applicationId, // Link to primary registrant
             name: attendee.name,
-            email: attendee.email,
+            email: attendeeEmail, // Use primary email if secondary not provided
             phone: attendee.phone,
             occupation: attendee.occupation,
             board_type: attendee.boardType,
@@ -334,22 +419,28 @@ serve(async (req: Request): Promise<Response> => {
           console.error("Error inserting attendee:", attendee.email, attendeeError);
           // Check for duplicate and report
           if (attendeeError.code === "23505") {
-            console.warn("Duplicate email for attendee:", attendee.email);
+            console.warn("Duplicate email for attendee:", attendeeEmail);
           }
         } else {
           console.log("Attendee registered:", attendeeAppId);
+          
+          // Track if this attendee has their own email (different from primary)
+          const hasOwnEmail = attendee.email && attendee.email.trim() !== "" && attendee.email !== data.email;
+          
           additionalRegistrations.push({
             applicationId: attendeeReg.application_id,
             name: attendeeReg.name,
             email: attendeeReg.email,
             stayType: attendeeReg.stay_type,
             registrationFee: attendeeReg.registration_fee,
+            hasOwnEmail, // Flag to determine if separate email should be sent
           });
 
           // Add to consolidated email list
           allRegistrations.push({
             applicationId: attendeeReg.application_id,
             name: attendeeReg.name,
+            email: attendeeReg.email,
             stayType: attendeeReg.stay_type,
             registrationFee: attendeeReg.registration_fee,
           });
@@ -369,6 +460,21 @@ serve(async (req: Request): Promise<Response> => {
       allRegistrations,
       totalFee
     );
+
+    // Send individual emails to attendees who have their own email addresses
+    for (const attendeeReg of additionalRegistrations) {
+      if (attendeeReg.hasOwnEmail) {
+        await sendAttendeeConfirmationEmail(
+          attendeeReg.email,
+          attendeeReg.name,
+          attendeeReg.applicationId,
+          applicationId,
+          data.name,
+          attendeeReg.stayType,
+          attendeeReg.registrationFee
+        );
+      }
+    }
 
     return new Response(
       JSON.stringify({
