@@ -105,9 +105,9 @@ async function sendConsolidatedConfirmationEmail(
       </tr>
     `).join('');
 
-    const subject = allRegistrations.length > 1 
-      ? `Registration Confirmed - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
-      : `Registration Confirmed - Application ID: ${primaryApplicationId}`;
+      const subject = allRegistrations.length > 1 
+        ? `Registration Received - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
+        : `Registration Received - Application ID: ${primaryApplicationId}`;
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -122,10 +122,10 @@ async function sendConsolidatedConfirmationEmail(
         html: `
           <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
-              Registration Confirmed
+              Registration Received
             </h1>
             <p>Dear ${primaryName},</p>
-            <p>Thank you for registering for the Rishi Valley Alumni Meet!</p>
+            <p>Thank you for registering for the Rishi Valley Alumni Meet! Your registration has been received.</p>
             
             ${allRegistrations.length > 1 ? `
               <p>You have registered <strong>${allRegistrations.length} people</strong> for the event. Here are the details:</p>
@@ -151,6 +151,12 @@ async function sendConsolidatedConfirmationEmail(
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            
+            <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
+              <p style="margin: 10px 0 0; color: #2c5f73;">The Rishi Valley Alumni Meet Organizing Committee will tally your payment receipt and confirm your registration through email.</p>
+              <p style="margin: 10px 0 0; color: #2c5f73; font-size: 14px;">Please ensure you have submitted your payment proof on the registration portal if you haven't already.</p>
             </div>
             
             <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
@@ -209,14 +215,14 @@ async function sendAttendeeConfirmationEmail(
       body: JSON.stringify({
         from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
         to: [attendeeEmail],
-        subject: `Registration Confirmed - Application ID: ${attendeeApplicationId}`,
+        subject: `Registration Received - Application ID: ${attendeeApplicationId}`,
         html: `
           <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
-              Registration Confirmed
+              Registration Received
             </h1>
             <p>Dear ${attendeeName},</p>
-            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}!</p>
+            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}. Your registration has been received.</p>
             
             <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #5c4a3d; margin-top: 0;">Your Registration Details</h3>
@@ -237,9 +243,14 @@ async function sendAttendeeConfirmationEmail(
             </div>
             
             <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #2c5f73;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
-              <p style="margin: 10px 0 0; color: #2c5f73;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
-              <p style="margin: 5px 0 0; color: #2c5f73; font-size: 14px;">For payment status and updates, please contact the primary registrant.</p>
+              <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
+              <p style="margin: 10px 0 0; color: #2c5f73;">The Rishi Valley Alumni Meet Organizing Committee will tally the payment receipt and confirm your registration through email.</p>
+            </div>
+            
+            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
+              <p style="margin: 10px 0 0; color: #856404;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
+              <p style="margin: 5px 0 0; color: #856404; font-size: 14px;">For payment status and updates, please contact the primary registrant.</p>
             </div>
             
             <p style="margin-top: 30px;">
