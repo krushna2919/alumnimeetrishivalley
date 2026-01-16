@@ -256,6 +256,23 @@ const RegistrationForm = () => {
     );
   }
 
+  // Check if registration is open
+  if (!batchConfig.isRegistrationOpen) {
+    return (
+      <section id="register" className="py-20 gradient-warm">
+        <div className="container max-w-4xl px-4">
+          <div className="text-center py-12">
+            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">Registration Closed</h3>
+            <p className="text-muted-foreground">
+              Registration is currently closed. Please check back later or contact the organizers for more information.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="register" className="py-20 gradient-warm">
       <div className="container max-w-4xl px-4">
