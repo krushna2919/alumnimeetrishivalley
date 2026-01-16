@@ -12,6 +12,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2
 import { supabase } from "@/integrations/supabase/client";
 import { useTurnstile } from "@/hooks/useTurnstile";
 import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
+import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -24,11 +25,8 @@ import {
   calculateFee,
   calculateTotalFee,
   RegistrationData,
-  CUTOFF_YEAR,
   MAX_ATTENDEES,
 } from "./registration/types";
-
-const currentYear = new Date().getFullYear();
 
 type ViewState = "form" | "success" | "payment";
 
@@ -54,6 +52,7 @@ const RegistrationForm = () => {
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const { getToken, resetTurnstile } = useTurnstile("turnstile-container");
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
+  const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError } = useBatchConfiguration();
 
   const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -225,7 +224,35 @@ const RegistrationForm = () => {
     setViewState("form");
   };
 
-  const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => currentYear - i);
+  // Show loading or error state for batch configuration
+  if (isLoadingConfig) {
+    return (
+      <section id="register" className="py-20 gradient-warm">
+        <div className="container max-w-4xl px-4">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground">Loading registration configuration...</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (configError || !batchConfig) {
+    return (
+      <section id="register" className="py-20 gradient-warm">
+        <div className="container max-w-4xl px-4">
+          <div className="text-center py-12">
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">Registration Not Available</h3>
+            <p className="text-muted-foreground">
+              {configError || "Registration configuration is not set up. Please check back later."}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="register" className="py-20 gradient-warm">
@@ -244,7 +271,7 @@ const RegistrationForm = () => {
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
             <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-              <strong>Note:</strong> Currently accepting batches of ICSE 1978 / ISC {CUTOFF_YEAR} and earlier only.
+              <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
             </span>
           </div>
         </motion.div>
@@ -655,6 +682,7 @@ const RegistrationForm = () => {
                     <AdditionalAttendeesSection
                       attendees={additionalAttendees}
                       onAttendeesChange={setAdditionalAttendees}
+                      yearOptions={yearOptions}
                     />
                   </div>
 

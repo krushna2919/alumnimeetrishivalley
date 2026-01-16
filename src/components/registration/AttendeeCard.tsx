@@ -13,12 +13,10 @@ interface AttendeeCardProps {
   form: UseFormReturn<any>;
   onRemove: () => void;
   canRemove: boolean;
+  yearOptions: number[];
 }
 
-const currentYear = new Date().getFullYear();
-const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => currentYear - i);
-
-const AttendeeCard = ({ index, form, onRemove, canRemove }: AttendeeCardProps) => {
+const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions }: AttendeeCardProps) => {
   const stayType = form.watch(`attendees.${index}.stayType`);
   const fee = calculateFee(stayType);
 
