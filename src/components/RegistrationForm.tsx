@@ -658,10 +658,10 @@ const RegistrationForm = () => {
                             <SelectContent>
                               <SelectGroup>
                                 <SelectLabel className="text-muted-foreground font-normal">Select size</SelectLabel>
-                                <SelectItem value="S">S (Chest: 36")</SelectItem>
-                                <SelectItem value="M">M (Chest: 38-40")</SelectItem>
-                                <SelectItem value="L">L (Chest: 42")</SelectItem>
-                                <SelectItem value="XL">XL (Chest: 44")</SelectItem>
+                                <SelectItem value="S (Chest: 36&quot;)">S (Chest: 36")</SelectItem>
+                                <SelectItem value="M (Chest: 38-40&quot;)">M (Chest: 38-40")</SelectItem>
+                                <SelectItem value="L (Chest: 42&quot;)">L (Chest: 42")</SelectItem>
+                                <SelectItem value="XL (Chest: 44&quot;)">XL (Chest: 44")</SelectItem>
                               </SelectGroup>
                             </SelectContent>
                           </Select>
