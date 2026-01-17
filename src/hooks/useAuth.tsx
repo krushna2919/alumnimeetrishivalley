@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type UserRole = 'superadmin' | 'admin' | 'reviewer' | null;
+type UserRole = 'superadmin' | 'admin' | 'reviewer' | 'accounts_admin' | null;
 
 interface AuthContextType {
   user: User | null;
@@ -82,11 +82,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const approvedSuperadmin = userRoles?.find(r => (r.role as string) === 'superadmin' && r.is_approved);
       const approvedAdmin = userRoles?.find(r => (r.role as string) === 'admin' && r.is_approved);
       const approvedReviewer = userRoles?.find(r => (r.role as string) === 'reviewer' && r.is_approved);
+      const approvedAccountsAdmin = userRoles?.find(r => (r.role as string) === 'accounts_admin' && r.is_approved);
       
       // Find any pending role
       const pendingRole = userRoles?.find(r => !r.is_approved);
       
-      // Determine the active role (priority: superadmin > admin > reviewer)
+      // Determine the active role (priority: superadmin > admin > accounts_admin > reviewer)
       if (approvedSuperadmin) {
         setUserRole('superadmin');
         setIsAdmin(true);
@@ -95,6 +96,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else if (approvedAdmin) {
         setUserRole('admin');
         setIsAdmin(true);
+        setIsApproved(true);
+        setIsPendingApproval(false);
+      } else if (approvedAccountsAdmin) {
+        setUserRole('accounts_admin');
+        setIsAdmin(true); // Accounts admin can access admin panel
         setIsApproved(true);
         setIsPendingApproval(false);
       } else if (approvedReviewer) {

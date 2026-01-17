@@ -261,6 +261,8 @@ const AdminUsers = () => {
         return 'destructive';
       case 'admin':
         return 'default';
+      case 'accounts_admin':
+        return 'default';
       case 'reviewer':
         return 'secondary';
       default:
@@ -337,6 +339,7 @@ const AdminUsers = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="reviewer">Reviewer</SelectItem>
+                    <SelectItem value="accounts_admin">Accounts Admin</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="superadmin">Superadmin</SelectItem>
                   </SelectContent>

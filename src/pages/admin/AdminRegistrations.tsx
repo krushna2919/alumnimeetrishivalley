@@ -461,18 +461,51 @@ const AdminRegistrations = () => {
     }
   };
 
-  // Check if group has approvable registrations (pending + payment submitted)
-  const hasGroupApprovableRegistrations = (members: Registration[]) => {
-    return members.some(m => m.registration_status === 'pending' && m.payment_status === 'submitted');
+  // Handle re-enabling expired registration (superadmin only)
+  const handleReEnableRegistration = async (registration: Registration) => {
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .update({
+          registration_status: 'pending',
+          rejection_reason: null,
+        })
+        .eq('id', registration.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Registration Re-enabled',
+        description: `${registration.name}'s registration has been re-enabled for processing.`,
+      });
+
+      fetchRegistrations();
+      setIsDetailOpen(false);
+    } catch (error) {
+      console.error('Error re-enabling registration:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to re-enable registration',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  // Handle group approval - approve all pending members with submitted payment in the group
+  // Check if group has approvable registrations (pending + payment submitted + accounts verified)
+  const hasGroupApprovableRegistrations = (members: Registration[]) => {
+    return members.some(m => m.registration_status === 'pending' && m.payment_status === 'submitted' && m.accounts_verified);
+  };
+
+  // Handle group approval - approve all pending members with submitted payment and verified accounts in the group
   const handleGroupApprove = async (members: Registration[]) => {
-    const approvableMembers = members.filter(m => m.registration_status === 'pending' && m.payment_status === 'submitted');
+    const approvableMembers = members.filter(m => m.registration_status === 'pending' && m.payment_status === 'submitted' && m.accounts_verified);
     if (approvableMembers.length === 0) {
       toast({
         title: 'No Approvable Registrations',
-        description: 'No members with submitted payment are pending approval.',
+        description: 'No members with verified payment are pending approval.',
         variant: 'destructive',
       });
       return;
@@ -569,14 +602,20 @@ const AdminRegistrations = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, accountsVerified?: boolean) => {
     switch (status) {
       case 'approved':
         return <Badge className="bg-secondary text-secondary-foreground">Approved</Badge>;
       case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
+      case 'expired':
+        return <Badge variant="outline" className="border-destructive text-destructive">Expired</Badge>;
       default:
-        return <Badge variant="outline" className="border-accent text-accent">Pending</Badge>;
+        // Show different pending status based on accounts verification
+        if (accountsVerified) {
+          return <Badge className="bg-accent text-accent-foreground">Ready for Approval</Badge>;
+        }
+        return <Badge variant="outline" className="border-accent text-accent">Pending Account Review</Badge>;
     }
   };
 
@@ -678,6 +717,7 @@ const AdminRegistrations = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -806,7 +846,7 @@ const AdminRegistrations = () => {
                                       <TableCell className="font-medium">{registration.name}</TableCell>
                                       <TableCell>{registration.email}</TableCell>
                                       <TableCell>{registration.year_of_passing}</TableCell>
-                                      <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                                      <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
                                       <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                       <TableCell>
                                         {registration.hostel_name ? (
@@ -858,7 +898,7 @@ const AdminRegistrations = () => {
                                   <TableCell className="font-medium">{registration.name}</TableCell>
                                   <TableCell>{registration.email}</TableCell>
                                   <TableCell>{registration.year_of_passing}</TableCell>
-                                  <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                                  <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
                                   <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                   <TableCell>
                                     {registration.hostel_name ? (
@@ -920,7 +960,7 @@ const AdminRegistrations = () => {
                           <TableCell className="font-medium">{registration.name}</TableCell>
                           <TableCell>{registration.email}</TableCell>
                           <TableCell>{registration.year_of_passing}</TableCell>
-                          <TableCell>{getStatusBadge(registration.registration_status)}</TableCell>
+                          <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
                           <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                           <TableCell>
                             {registration.hostel_name ? (
@@ -1133,14 +1173,24 @@ const AdminRegistrations = () => {
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Registration Status</label>
-                  <div className="mt-1">{getStatusBadge(selectedRegistration.registration_status)}</div>
+                  <div className="mt-1">{getStatusBadge(selectedRegistration.registration_status, selectedRegistration.accounts_verified)}</div>
                 </div>
-                <div className="ml-4">
+                <div>
                   <label className="text-sm text-muted-foreground">Payment Status</label>
                   <div className="mt-1">{getPaymentBadge(selectedRegistration.payment_status)}</div>
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Accounts Verified</label>
+                  <div className="mt-1">
+                    {selectedRegistration.accounts_verified ? (
+                      <Badge className="bg-secondary text-secondary-foreground">Verified</Badge>
+                    ) : (
+                      <Badge variant="outline">Pending</Badge>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1177,8 +1227,14 @@ const AdminRegistrations = () => {
                 </Button>
                 <Button
                   onClick={() => selectedRegistration && handleApprove(selectedRegistration)}
-                  disabled={isProcessing || selectedRegistration?.payment_status !== 'submitted'}
-                  title={selectedRegistration?.payment_status !== 'submitted' ? 'Payment must be submitted before approval' : undefined}
+                  disabled={isProcessing || selectedRegistration?.payment_status !== 'submitted' || !selectedRegistration?.accounts_verified}
+                  title={
+                    selectedRegistration?.payment_status !== 'submitted' 
+                      ? 'Payment must be submitted before approval' 
+                      : !selectedRegistration?.accounts_verified 
+                        ? 'Accounts Admin must verify payment before approval' 
+                        : undefined
+                  }
                 >
                   {isProcessing ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1188,6 +1244,21 @@ const AdminRegistrations = () => {
                   Approve
                 </Button>
               </>
+            )}
+            {/* Superadmin can re-enable expired or rejected registrations */}
+            {userRole === 'superadmin' && (selectedRegistration?.registration_status === 'expired' || selectedRegistration?.registration_status === 'rejected') && (
+              <Button
+                onClick={() => selectedRegistration && handleReEnableRegistration(selectedRegistration)}
+                disabled={isProcessing}
+                variant="outline"
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Re-enable Registration
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

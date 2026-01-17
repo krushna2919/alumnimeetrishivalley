@@ -180,6 +180,9 @@ export type Database = {
       }
       registrations: {
         Row: {
+          accounts_verified: boolean
+          accounts_verified_at: string | null
+          accounts_verified_by: string | null
           address_line1: string
           address_line2: string | null
           application_id: string
@@ -215,6 +218,9 @@ export type Database = {
           year_of_passing: number
         }
         Insert: {
+          accounts_verified?: boolean
+          accounts_verified_at?: string | null
+          accounts_verified_by?: string | null
           address_line1: string
           address_line2?: string | null
           application_id: string
@@ -250,6 +256,9 @@ export type Database = {
           year_of_passing: number
         }
         Update: {
+          accounts_verified?: boolean
+          accounts_verified_at?: string | null
+          accounts_verified_by?: string | null
           address_line1?: string
           address_line2?: string | null
           application_id?: string
@@ -341,13 +350,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_accounts_admin: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_superadmin: { Args: { _user_id: string }; Returns: boolean }
       is_registration_manager: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "superadmin" | "admin" | "user"
+      app_role: "superadmin" | "admin" | "user" | "accounts_admin" | "reviewer"
       payment_status: "pending" | "submitted" | "verified" | "rejected"
-      registration_status: "pending" | "approved" | "rejected"
+      registration_status: "pending" | "approved" | "rejected" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -475,9 +485,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["superadmin", "admin", "user"],
+      app_role: ["superadmin", "admin", "user", "accounts_admin", "reviewer"],
       payment_status: ["pending", "submitted", "verified", "rejected"],
-      registration_status: ["pending", "approved", "rejected"],
+      registration_status: ["pending", "approved", "rejected", "expired"],
     },
   },
 } as const
