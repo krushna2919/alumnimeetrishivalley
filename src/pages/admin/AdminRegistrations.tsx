@@ -950,6 +950,10 @@ const AdminRegistrations = () => {
                   <p className="font-medium">{selectedRegistration.phone}</p>
                 </div>
                 <div>
+                  <label className="text-sm text-muted-foreground">Board</label>
+                  <p className="font-medium">{selectedRegistration.board_type || 'N/A'}</p>
+                </div>
+                <div>
                   <label className="text-sm text-muted-foreground">Year of Passing</label>
                   <p className="font-medium">{selectedRegistration.year_of_passing}</p>
                 </div>
