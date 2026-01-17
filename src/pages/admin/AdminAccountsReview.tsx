@@ -56,16 +56,14 @@ import { format } from 'date-fns';
 interface AccountsRegistration {
   id: string;
   application_id: string;
-  name: string;
-  email: string;
   registration_fee: number;
   payment_status: string;
   payment_proof_url: string | null;
   payment_reference: string | null;
+  payment_date: string | null;
   accounts_verified: boolean;
   accounts_verified_at: string | null;
   created_at: string;
-  registration_status: string;
 }
 
 const AdminAccountsReview = () => {
@@ -119,12 +117,11 @@ const AdminAccountsReview = () => {
   const fetchRegistrations = async () => {
     setIsLoading(true);
     try {
-      // Accounts admin only sees registrations with submitted payment that need verification
+      // Accounts admin only sees payment-related fields
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, name, email, registration_fee, payment_status, payment_proof_url, payment_reference, accounts_verified, accounts_verified_at, created_at, registration_status')
+        .select('id, application_id, registration_fee, payment_status, payment_proof_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
         .eq('payment_status', 'submitted')
-        .eq('registration_status', 'pending')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -147,10 +144,7 @@ const AdminAccountsReview = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (r) =>
-          r.name.toLowerCase().includes(query) ||
-          r.email.toLowerCase().includes(query) ||
-          r.application_id.toLowerCase().includes(query)
+        (r) => r.application_id.toLowerCase().includes(query)
       );
     }
 
@@ -179,7 +173,7 @@ const AdminAccountsReview = () => {
 
       toast({
         title: 'Payment Verified',
-        description: `Payment for ${registration.name}'s registration has been verified. Admin can now approve.`,
+        description: `Payment for ${registration.application_id} has been verified. Admin can now approve.`,
       });
 
       fetchRegistrations();
@@ -215,7 +209,7 @@ const AdminAccountsReview = () => {
 
       toast({
         title: 'Payment Rejected',
-        description: `Payment proof for ${selectedRegistration.name} has been rejected. They will need to resubmit.`,
+        description: `Payment proof for ${selectedRegistration.application_id} has been rejected. They will need to resubmit.`,
       });
 
       fetchRegistrations();
@@ -286,7 +280,7 @@ const AdminAccountsReview = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, email, or application ID..."
+                  placeholder="Search by application ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -320,8 +314,8 @@ const AdminAccountsReview = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Application ID</TableHead>
-                        <TableHead>Name</TableHead>
                         <TableHead>Amount</TableHead>
+                        <TableHead>Payment Date</TableHead>
                         <TableHead>Verification</TableHead>
                         <TableHead>Submitted</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -330,11 +324,15 @@ const AdminAccountsReview = () => {
                     <TableBody>
                       {paginatedRegistrations.map((registration) => (
                         <TableRow key={registration.id}>
-                          <TableCell className="font-mono text-sm">
+                          <TableCell className="font-mono text-sm font-medium">
                             {registration.application_id}
                           </TableCell>
-                          <TableCell className="font-medium">{registration.name}</TableCell>
                           <TableCell>₹{registration.registration_fee}</TableCell>
+                          <TableCell>
+                            {registration.payment_date 
+                              ? format(new Date(registration.payment_date), 'MMM d, yyyy')
+                              : '-'}
+                          </TableCell>
                           <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
                           <TableCell>
                             {format(new Date(registration.created_at), 'MMM d, yyyy')}
@@ -419,16 +417,20 @@ const AdminAccountsReview = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-muted-foreground">Applicant Name</label>
-                  <p className="font-medium">{selectedRegistration.name}</p>
-                </div>
-                <div>
                   <label className="text-sm text-muted-foreground">Registration Fee</label>
                   <p className="font-medium text-lg">₹{selectedRegistration.registration_fee}</p>
                 </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Payment Date</label>
+                  <p className="font-medium">
+                    {selectedRegistration.payment_date 
+                      ? format(new Date(selectedRegistration.payment_date), 'MMM d, yyyy')
+                      : 'Not specified'}
+                  </p>
+                </div>
                 {selectedRegistration.payment_reference && (
                   <div className="col-span-2">
-                    <label className="text-sm text-muted-foreground">Payment Reference</label>
+                    <label className="text-sm text-muted-foreground">Payment Reference / UTR</label>
                     <p className="font-mono text-sm bg-muted p-2 rounded">
                       {selectedRegistration.payment_reference}
                     </p>
