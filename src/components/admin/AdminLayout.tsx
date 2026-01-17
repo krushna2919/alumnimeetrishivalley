@@ -27,9 +27,13 @@ const getNavItems = (userRole: string | null) => {
     { href: '/admin/hostels', label: 'Hostel Management', icon: Building2 },
   ];
   
-  // Only admin and superadmin can access User Management and Settings
-  if (userRole === 'admin' || userRole === 'superadmin') {
+  // Only superadmin can access User Management
+  if (userRole === 'superadmin') {
     items.push({ href: '/admin/users', label: 'User Management', icon: UserCog });
+  }
+  
+  // Admin and superadmin can access Settings
+  if (userRole === 'admin' || userRole === 'superadmin') {
     items.push({ href: '/admin/settings', label: 'Settings', icon: Settings });
   }
   
