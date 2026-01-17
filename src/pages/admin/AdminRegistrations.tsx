@@ -673,7 +673,7 @@ const AdminRegistrations = () => {
                       <TableHead>Payment</TableHead>
                       <TableHead>Hostel</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-right sticky right-0 bg-background z-10 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -783,7 +783,7 @@ const AdminRegistrations = () => {
                                       <TableCell>
                                         {format(new Date(registration.created_at), 'MMM d, yyyy')}
                                       </TableCell>
-                                      <TableCell className="text-right">
+                                      <TableCell className="text-right sticky right-0 bg-primary/10 z-10 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">
                                         <Button
                                           variant="ghost"
                                           size="sm"
@@ -835,7 +835,7 @@ const AdminRegistrations = () => {
                                   <TableCell>
                                     {format(new Date(registration.created_at), 'MMM d, yyyy')}
                                   </TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell className="text-right sticky right-0 bg-background z-10 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -897,7 +897,7 @@ const AdminRegistrations = () => {
                           <TableCell>
                             {format(new Date(registration.created_at), 'MMM d, yyyy')}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right sticky right-0 bg-background z-10 shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.1)]">
                             <Button
                               variant="ghost"
                               size="sm"
