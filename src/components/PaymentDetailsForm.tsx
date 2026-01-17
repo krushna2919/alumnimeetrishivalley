@@ -338,13 +338,16 @@ const PaymentDetailsForm = ({ application, onBack, onComplete }: PaymentDetailsF
 
       {/* Payment Form or Already Submitted Message */}
       {allAlreadySubmitted ? (
-        <div className="bg-terracotta-50 dark:bg-terracotta-700/20 rounded-xl p-6 border border-terracotta-200 dark:border-terracotta-600">
+        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-300 dark:border-amber-600">
           <div className="flex items-center gap-3">
-            <CheckCircle className="w-8 h-8 text-terracotta-500" />
+            <CheckCircle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
             <div>
-              <h4 className="font-semibold text-terracotta-700 dark:text-terracotta-200">All Payments Submitted</h4>
-              <p className="text-terracotta-600 dark:text-terracotta-300 text-sm">
-                Payment details have been submitted for all registrations.
+              <h4 className="font-semibold text-amber-800 dark:text-amber-200">Payment Already Submitted</h4>
+              <p className="text-amber-700 dark:text-amber-300 text-sm">
+                Payment proof has already been submitted for this application. Another payment submission against this application is not possible.
+              </p>
+              <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
+                Current Status: <span className="font-medium capitalize">{application.paymentStatus}</span>
               </p>
             </div>
           </div>
