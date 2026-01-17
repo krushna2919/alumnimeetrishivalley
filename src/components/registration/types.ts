@@ -12,7 +12,7 @@ export const attendeeSchema = z.object({
   boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
   yearOfPassing: z.string().min(1, "Please select a year of passing"),
   stayType: z.enum(["on-campus", "outside"]),
-  tshirtSize: z.enum(["S", "M", "L", "XL"]),
+  tshirtSize: z.enum(["S (Chest: 36\")", "M (Chest: 38-40\")", "L (Chest: 42\")", "XL (Chest: 44\")"]),
   gender: z.enum(["M", "F"]),
 });
 
@@ -27,7 +27,7 @@ export const registrantSchema = z.object({
   boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
   yearOfPassing: z.string().min(1, "Please select a year of passing"),
   stayType: z.enum(["on-campus", "outside"]),
-  tshirtSize: z.enum(["S", "M", "L", "XL"]),
+  tshirtSize: z.enum(["S (Chest: 36\")", "M (Chest: 38-40\")", "L (Chest: 42\")", "XL (Chest: 44\")"]),
   gender: z.enum(["M", "F"]),
   addressLine1: z.string().min(5, "Please enter your street address").max(200),
   addressLine2: z.string().max(200).optional(),
