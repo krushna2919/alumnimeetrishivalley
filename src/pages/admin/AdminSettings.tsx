@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save, Calendar } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 interface BatchConfig {
   id: string;
@@ -174,10 +174,22 @@ const AdminSettings = () => {
                       id="start-date"
                       type="date"
                       value={formData.registration_start_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, registration_start_date: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const startDate = e.target.value;
+                        // Auto-calculate end date as start date + 20 days (21 days inclusive)
+                        const endDate = startDate 
+                          ? format(addDays(new Date(startDate), 20), 'yyyy-MM-dd')
+                          : '';
+                        setFormData({ 
+                          ...formData, 
+                          registration_start_date: startDate,
+                          registration_end_date: endDate
+                        });
+                      }}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Registration period is 3 weeks (21 days) from start date (IST)
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="end-date">End Date</Label>
@@ -185,10 +197,12 @@ const AdminSettings = () => {
                       id="end-date"
                       type="date"
                       value={formData.registration_end_date}
-                      onChange={(e) =>
-                        setFormData({ ...formData, registration_end_date: e.target.value })
-                      }
+                      disabled
+                      className="bg-muted"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Auto-calculated (start date + 3 weeks)
+                    </p>
                   </div>
                 </div>
               </CardContent>
