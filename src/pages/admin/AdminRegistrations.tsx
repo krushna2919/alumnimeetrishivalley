@@ -55,8 +55,18 @@ import {
   ChevronRight,
   CheckCheck,
   XOctagon,
-  Building2
+  Building2,
+  ChevronLeft
 } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 
@@ -89,6 +99,10 @@ const AdminRegistrations = () => {
   const [selectedForHostel, setSelectedForHostel] = useState<Set<string>>(new Set());
   const [isBulkHostelDialogOpen, setIsBulkHostelDialogOpen] = useState(false);
   const [bulkHostelSelection, setBulkHostelSelection] = useState<string>('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   
   const { toast } = useToast();
   const { userRole } = useAuth();
@@ -211,6 +225,7 @@ const AdminRegistrations = () => {
 
   useEffect(() => {
     filterRegistrations();
+    setCurrentPage(1); // Reset to first page when filters change
   }, [registrations, searchQuery, statusFilter]);
 
   const fetchRegistrations = async () => {
@@ -256,13 +271,13 @@ const AdminRegistrations = () => {
     setFilteredRegistrations(filtered);
   };
 
-  // Group registrations by parent_application_id
-  const getGroupedRegistrations = () => {
+  // Group registrations by parent_application_id (uses paginated data)
+  const getGroupedRegistrations = (registrationsToGroup: Registration[]) => {
     const groups: Map<string, Registration[]> = new Map();
     const standalone: Registration[] = [];
 
     // First pass: identify primary registrants (those without parent_application_id)
-    filteredRegistrations.forEach(reg => {
+    registrationsToGroup.forEach(reg => {
       if (!reg.parent_application_id) {
         // This is a primary registrant
         if (!groups.has(reg.application_id)) {
@@ -272,7 +287,7 @@ const AdminRegistrations = () => {
     });
 
     // Second pass: add dependent registrants to their groups
-    filteredRegistrations.forEach(reg => {
+    registrationsToGroup.forEach(reg => {
       if (reg.parent_application_id) {
         const parentGroup = groups.get(reg.parent_application_id);
         if (parentGroup) {
@@ -291,7 +306,7 @@ const AdminRegistrations = () => {
     groups.forEach((members, key) => {
       if (members.length === 1 && !members[0].parent_application_id) {
         // Check if there are any dependents for this registration
-        const hasDependents = filteredRegistrations.some(r => r.parent_application_id === key);
+        const hasDependents = registrationsToGroup.some(r => r.parent_application_id === key);
         if (!hasDependents) {
           standalone.push(members[0]);
           groups.delete(key);
@@ -583,6 +598,29 @@ const AdminRegistrations = () => {
     return members.some(m => m.registration_status === 'pending');
   };
 
+  // Pagination logic
+  const totalItems = filteredRegistrations.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRegistrations = filteredRegistrations.slice(startIndex, endIndex);
+
+  const getVisiblePageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('ellipsis');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('ellipsis');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -654,6 +692,7 @@ const AdminRegistrations = () => {
                 No registrations found
               </div>
             ) : (
+              <>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -681,7 +720,7 @@ const AdminRegistrations = () => {
                       <>
                         {/* Grouped registrations */}
                         {(() => {
-                          const { groups, standalone } = getGroupedRegistrations();
+                          const { groups, standalone } = getGroupedRegistrations(paginatedRegistrations);
                           return (
                             <>
                               {Array.from(groups.entries()).map(([groupId, members]) => (
@@ -855,7 +894,7 @@ const AdminRegistrations = () => {
                       </>
                     ) : (
                       /* Flat view - original behavior */
-                      filteredRegistrations.map((registration) => {
+                      paginatedRegistrations.map((registration) => {
                         const isHostelEligible = registration.registration_status === 'approved' && registration.stay_type === 'on-campus';
                         return (
                         <TableRow key={registration.id}>
@@ -915,6 +954,47 @@ const AdminRegistrations = () => {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} registrations
+                  </p>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      {getVisiblePageNumbers().map((page, index) => (
+                        <PaginationItem key={index}>
+                          {page === 'ellipsis' ? (
+                            <PaginationEllipsis />
+                          ) : (
+                            <PaginationLink
+                              onClick={() => setCurrentPage(page)}
+                              isActive={currentPage === page}
+                              className="cursor-pointer"
+                            >
+                              {page}
+                            </PaginationLink>
+                          )}
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
             )}
           </CardContent>
         </Card>
