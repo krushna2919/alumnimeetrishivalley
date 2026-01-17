@@ -11,7 +11,8 @@ import {
   Menu,
   X,
   UserCog,
-  Building2
+  Building2,
+  Receipt
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,14 @@ interface AdminLayoutProps {
 }
 
 const getNavItems = (userRole: string | null) => {
+  // Accounts admin only sees payment verification
+  if (userRole === 'accounts_admin') {
+    return [
+      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/admin/accounts-review', label: 'Payment Verification', icon: Receipt },
+    ];
+  }
+  
   const items = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/registrations', label: 'Registrations', icon: Users },
