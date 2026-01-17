@@ -19,6 +19,7 @@ interface AttendeeCardProps {
 
 const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail }: AttendeeCardProps) => {
   const stayType = form.watch(`attendees.${index}.stayType`);
+  const boardType = form.watch(`attendees.${index}.boardType`);
   const fee = calculateFee(stayType);
 
   return (
@@ -155,7 +156,7 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
                 <RadioGroup
                   onValueChange={field.onChange}
                   value={field.value}
-                  className="flex gap-4 mt-2"
+                  className="flex flex-wrap gap-3 mt-2"
                 >
                   <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
                     field.value === "ISC" 
@@ -174,12 +175,42 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
                     <RadioGroupItem value="ICSE" />
                     <span className="font-medium text-foreground text-sm">ICSE</span>
                   </label>
+                  
+                  <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
+                    field.value === "Other" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  }`}>
+                    <RadioGroupItem value="Other" />
+                    <span className="font-medium text-foreground text-sm">Other</span>
+                  </label>
                 </RadioGroup>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+        
+        {/* Custom Board Name Input - shown when "Other" is selected */}
+        {boardType === "Other" && (
+          <FormField
+            control={form.control}
+            name={`attendees.${index}.customBoardType`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Board Name</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Enter board name" 
+                    {...field} 
+                    className="bg-background" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Year of Passing */}
         <FormField

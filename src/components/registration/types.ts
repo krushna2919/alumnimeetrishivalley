@@ -9,11 +9,20 @@ export const attendeeSchema = z.object({
   secondaryEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
-  boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
+  boardType: z.string().min(1, "Please select a board"),
+  customBoardType: z.string().optional(),
   yearOfPassing: z.string().min(1, "Please select a year of passing"),
   stayType: z.enum(["on-campus", "outside"]),
   tshirtSize: z.enum(["S (Chest: 36\")", "M (Chest: 38-40\")", "L (Chest: 42\")", "XL (Chest: 44\")"]),
   gender: z.enum(["M", "F"]),
+}).refine((data) => {
+  if (data.boardType === "Other" && (!data.customBoardType || data.customBoardType.trim().length < 2)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Please enter your board name (at least 2 characters)",
+  path: ["customBoardType"],
 });
 
 export type AttendeeData = z.infer<typeof attendeeSchema>;
@@ -24,7 +33,8 @@ export const registrantSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   phone: z.string().min(10, "Please enter a valid phone number").max(15),
   occupation: z.string().min(2, "Please enter your occupation").max(100),
-  boardType: z.enum(["ISC", "ICSE"], { required_error: "Please select ISC or ICSE" }),
+  boardType: z.string().min(1, "Please select a board"),
+  customBoardType: z.string().optional(),
   yearOfPassing: z.string().min(1, "Please select a year of passing"),
   stayType: z.enum(["on-campus", "outside"]),
   tshirtSize: z.enum(["S (Chest: 36\")", "M (Chest: 38-40\")", "L (Chest: 42\")", "XL (Chest: 44\")"]),
@@ -36,6 +46,14 @@ export const registrantSchema = z.object({
   state: z.string().min(2, "Please enter your state").max(100),
   postalCode: z.string().min(5, "Please enter a valid postal code").max(10),
   country: z.string().default("India"),
+}).refine((data) => {
+  if (data.boardType === "Other" && (!data.customBoardType || data.customBoardType.trim().length < 2)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Please enter your board name (at least 2 characters)",
+  path: ["customBoardType"],
 });
 
 export type RegistrantData = z.infer<typeof registrantSchema>;
@@ -47,7 +65,8 @@ export const defaultAttendee: AttendeeData = {
   secondaryEmail: "",
   phone: "",
   occupation: "",
-  boardType: "" as AttendeeData["boardType"],
+  boardType: "",
+  customBoardType: "",
   yearOfPassing: "",
   stayType: "on-campus",
   tshirtSize: "" as AttendeeData["tshirtSize"],
@@ -57,7 +76,8 @@ export const defaultAttendee: AttendeeData = {
 // Default values for main registrant
 export const defaultRegistrant: RegistrantData = {
   ...defaultAttendee,
-  boardType: "" as RegistrantData["boardType"],
+  boardType: "",
+  customBoardType: "",
   addressLine1: "",
   addressLine2: "",
   city: "",

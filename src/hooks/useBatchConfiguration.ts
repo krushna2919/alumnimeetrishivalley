@@ -56,10 +56,29 @@ export const useBatchConfiguration = () => {
       )
     : [];
 
+  // Check if current date is within registration period
+  const isWithinRegistrationPeriod = (): boolean => {
+    if (!config) return false;
+    
+    const now = new Date();
+    const startDate = config.registrationStartDate ? new Date(config.registrationStartDate) : null;
+    const endDate = config.registrationEndDate ? new Date(config.registrationEndDate) : null;
+    
+    // If no dates are set, allow submission (only isRegistrationOpen matters)
+    if (!startDate && !endDate) return true;
+    
+    // Check if within date range
+    if (startDate && now < startDate) return false;
+    if (endDate && now > endDate) return false;
+    
+    return true;
+  };
+
   return {
     config,
     yearOptions,
     isLoading,
     error,
+    isWithinRegistrationPeriod,
   };
 };

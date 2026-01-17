@@ -52,7 +52,7 @@ const RegistrationForm = () => {
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
-  const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError } = useBatchConfiguration();
+  const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
   const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -80,10 +80,14 @@ const RegistrationForm = () => {
   // Watch postal code for auto-population
   const postalCode = form.watch("postalCode");
   const stayType = form.watch("stayType");
+  const boardType = form.watch("boardType");
 
   // Calculate fees
   const registrantFee = calculateFee(stayType);
   const totalFee = calculateTotalFee(form.getValues(), additionalAttendees);
+
+  // Check if submit is allowed based on registration period
+  const canSubmit = isWithinRegistrationPeriod();
 
   // Auto-populate city, district, state from postal code
   useEffect(() => {
@@ -119,6 +123,9 @@ const RegistrationForm = () => {
       }
 
       const registrationFee = calculateFee(data.stayType);
+      
+      // Determine the final board type value
+      const finalBoardType = data.boardType === "Other" ? data.customBoardType : data.boardType;
 
       // Prepare additional attendees data - use primary email, include secondary email if provided
       const additionalAttendeesData = additionalAttendees.map((attendee) => ({
@@ -127,7 +134,7 @@ const RegistrationForm = () => {
         secondaryEmail: attendee.secondaryEmail || undefined, // Optional secondary email
         phone: attendee.phone,
         occupation: attendee.occupation,
-        boardType: attendee.boardType,
+        boardType: attendee.boardType === "Other" ? attendee.customBoardType : attendee.boardType,
         yearOfPassing: parseInt(attendee.yearOfPassing),
         stayType: attendee.stayType,
         tshirtSize: attendee.tshirtSize,
@@ -143,7 +150,7 @@ const RegistrationForm = () => {
             email: data.email,
             phone: data.phone,
             occupation: data.occupation,
-            boardType: data.boardType,
+            boardType: finalBoardType,
             yearOfPassing: parseInt(data.yearOfPassing),
             addressLine1: data.addressLine1,
             addressLine2: data.addressLine2 || undefined,
@@ -403,7 +410,7 @@ const RegistrationForm = () => {
                               <RadioGroup
                                 onValueChange={field.onChange}
                                 value={field.value}
-                                className="flex gap-6 mt-2"
+                                className="flex flex-wrap gap-4 mt-2"
                               >
                                 <label className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all ${
                                   field.value === "ISC" 
@@ -422,12 +429,44 @@ const RegistrationForm = () => {
                                   <RadioGroupItem value="ICSE" />
                                   <span className="font-medium text-foreground">ICSE</span>
                                 </label>
+                                
+                                <label className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  field.value === "Other" 
+                                    ? "border-primary bg-primary/5" 
+                                    : "border-border hover:border-primary/50"
+                                }`}>
+                                  <RadioGroupItem value="Other" />
+                                  <span className="font-medium text-foreground">Other</span>
+                                </label>
                               </RadioGroup>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+                      
+                      {/* Custom Board Name Input - shown when "Other" is selected */}
+                      {boardType === "Other" && (
+                        <div className="mt-4">
+                          <FormField
+                            control={form.control}
+                            name="customBoardType"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-foreground">Board Name</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    placeholder="Enter your board name" 
+                                    {...field} 
+                                    className="bg-background" 
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Year of Passing */}
@@ -835,6 +874,31 @@ const RegistrationForm = () => {
 
                   {/* Submit */}
                   <div className="pt-6 border-t border-border">
+                    {!canSubmit && (
+                      <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium text-amber-800 dark:text-amber-200">
+                              Registration Period
+                            </p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                              Registration is only allowed between the configured start and end dates.
+                              {batchConfig?.registrationStartDate && (
+                                <span className="block mt-1">
+                                  Start: {new Date(batchConfig.registrationStartDate).toLocaleDateString('en-IN', { dateStyle: 'long' })}
+                                </span>
+                              )}
+                              {batchConfig?.registrationEndDate && (
+                                <span className="block">
+                                  End: {new Date(batchConfig.registrationEndDate).toLocaleDateString('en-IN', { dateStyle: 'long' })}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                       <div className="text-center md:text-left">
                         <p className="text-muted-foreground">
@@ -853,12 +917,14 @@ const RegistrationForm = () => {
                       <Button
                         type="submit"
                         size="lg"
-                        disabled={isSubmitting}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all"
+                        disabled={isSubmitting || !canSubmit}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all disabled:opacity-50"
                       >
                         {isSubmitting
                           ? "Submitting..."
-                          : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
+                          : !canSubmit 
+                            ? "Registration Period Closed"
+                            : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
                       </Button>
                     </div>
                   </div>
