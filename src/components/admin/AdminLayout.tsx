@@ -22,10 +22,9 @@ interface AdminLayoutProps {
 }
 
 const getNavItems = (userRole: string | null) => {
-  // Accounts admin only sees payment verification
+  // Accounts admin only sees payment verification - no other menus
   if (userRole === 'accounts_admin') {
     return [
-      { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/admin/accounts-review', label: 'Payment Verification', icon: Receipt },
     ];
   }
