@@ -90,7 +90,8 @@ async function sendConsolidatedConfirmationEmail(
   primaryName: string,
   primaryApplicationId: string,
   allRegistrations: RegistrationInfo[],
-  totalFee: number
+  totalFee: number,
+  paymentDeadline: string | null
 ): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not configured, skipping confirmation email");
@@ -108,9 +109,34 @@ async function sendConsolidatedConfirmationEmail(
       </tr>
     `).join('');
 
-      const subject = allRegistrations.length > 1 
-        ? `Registration Received - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
-        : `Registration Received - Application ID: ${primaryApplicationId}`;
+    // Format the payment deadline for display
+    const formattedDeadline = paymentDeadline 
+      ? new Date(paymentDeadline).toLocaleDateString('en-IN', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : null;
+
+    // Payment deadline notice HTML
+    const paymentDeadlineHtml = formattedDeadline ? `
+      <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; color: #721c24;"><strong>⏰ Payment Deadline:</strong></p>
+        <p style="margin: 10px 0 0; color: #721c24; font-size: 16px;">
+          Please submit your payment proof by <strong>${formattedDeadline}</strong>.
+        </p>
+        <p style="margin: 10px 0 0; color: #721c24; font-size: 14px;">
+          Registrations without payment proof submitted by the deadline may not be confirmed.
+        </p>
+      </div>
+    ` : '';
+
+    const subject = allRegistrations.length > 1 
+      ? `Registration Received - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
+      : `Registration Received - Application ID: ${primaryApplicationId}`;
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -155,6 +181,8 @@ async function sendConsolidatedConfirmationEmail(
                 </tfoot>
               </table>
             </div>
+            
+            ${paymentDeadlineHtml}
             
             <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
               <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
@@ -201,7 +229,8 @@ async function sendAttendeeConfirmationEmail(
   primaryApplicationId: string,
   primaryName: string,
   stayType: string,
-  registrationFee: number
+  registrationFee: number,
+  paymentDeadline: string | null
 ): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not configured, skipping attendee email");
@@ -209,6 +238,31 @@ async function sendAttendeeConfirmationEmail(
   }
 
   try {
+    // Format the payment deadline for display
+    const formattedDeadline = paymentDeadline 
+      ? new Date(paymentDeadline).toLocaleDateString('en-IN', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : null;
+
+    // Payment deadline notice HTML
+    const paymentDeadlineHtml = formattedDeadline ? `
+      <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; color: #721c24;"><strong>⏰ Payment Deadline:</strong></p>
+        <p style="margin: 10px 0 0; color: #721c24; font-size: 16px;">
+          Payment proof must be submitted by <strong>${formattedDeadline}</strong>.
+        </p>
+        <p style="margin: 10px 0 0; color: #721c24; font-size: 14px;">
+          Please coordinate with ${primaryName} for payment submission.
+        </p>
+      </div>
+    ` : '';
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -244,6 +298,8 @@ async function sendAttendeeConfirmationEmail(
                 </tr>
               </table>
             </div>
+            
+            ${paymentDeadlineHtml}
             
             <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
               <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
@@ -468,13 +524,26 @@ serve(async (req: Request): Promise<Response> => {
     const totalFee = data.registrationFee + 
       (data.additionalAttendees?.reduce((sum, a) => sum + a.registrationFee, 0) || 0);
 
+    // Fetch registration end date for payment deadline
+    let paymentDeadline: string | null = null;
+    try {
+      const { data: batchConfig, error: batchError } = await supabase.rpc("get_open_batch_configuration");
+      if (!batchError && batchConfig && batchConfig.length > 0) {
+        paymentDeadline = batchConfig[0].registration_end_date;
+        console.log("Payment deadline set to:", paymentDeadline);
+      }
+    } catch (err) {
+      console.warn("Could not fetch batch configuration for payment deadline:", err);
+    }
+
     // Send ONE consolidated confirmation email to the primary registrant only
     await sendConsolidatedConfirmationEmail(
       data.email,
       data.name,
       applicationId,
       allRegistrations,
-      totalFee
+      totalFee,
+      paymentDeadline
     );
 
     // Send individual emails to attendees who have a secondary email address
@@ -487,7 +556,8 @@ serve(async (req: Request): Promise<Response> => {
           applicationId,
           data.name,
           attendeeReg.stayType,
-          attendeeReg.registrationFee
+          attendeeReg.registrationFee,
+          paymentDeadline
         );
       }
     }
