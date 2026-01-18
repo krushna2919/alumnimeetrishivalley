@@ -87,7 +87,7 @@ export const defaultRegistrant: RegistrantData = {
   country: "India",
 };
 
-export const MAX_ATTENDEES = 10;
+export const MAX_ATTENDEES = 30;
 
 export interface RegistrationData {
   applicationId: string;
