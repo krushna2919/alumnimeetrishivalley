@@ -17,6 +17,7 @@ import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
 import AdditionalAttendeesSection from "./registration/AdditionalAttendeesSection";
+import BulkPaymentProofUpload from "./registration/BulkPaymentProofUpload";
 import {
   registrantSchema,
   RegistrantData,
@@ -50,6 +51,7 @@ const RegistrationForm = () => {
   const [additionalAttendees, setAdditionalAttendees] = useState<AttendeeData[]>([]);
   const [submitPaymentNow, setSubmitPaymentNow] = useState<boolean | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
@@ -71,6 +73,11 @@ const RegistrationForm = () => {
       toast.success("Payment proof attached", { description: file.name });
     }
   };
+
+  // Check if all required payment proofs are uploaded for bulk registration
+  const hasMultipleApplicants = additionalAttendees.length > 0;
+  const totalApplicants = 1 + additionalAttendees.length;
+  const allBulkProofsUploaded = bulkPaymentProofs.size === totalApplicants;
 
   const form = useForm<RegistrantData>({
     resolver: zodResolver(registrantSchema),
@@ -182,6 +189,101 @@ const RegistrationForm = () => {
         return;
       }
 
+      // Handle payment proof uploads if submitPaymentNow is true
+      if (submitPaymentNow === true) {
+        if (hasMultipleApplicants && bulkPaymentProofs.size > 0) {
+          // Bulk upload for multiple applicants
+          toast.info("Uploading payment proofs...");
+          
+          // Build mapping of temp IDs to actual application IDs
+          const applicationIdMap = new Map<string, string>();
+          applicationIdMap.set("primary", result.applicationId);
+          
+          if (result.additionalRegistrations) {
+            result.additionalRegistrations.forEach((reg: { applicationId: string }, index: number) => {
+              applicationIdMap.set(`attendee-${index}`, reg.applicationId);
+            });
+          }
+
+          // Upload each payment proof and update the registration
+          for (const [tempId, file] of bulkPaymentProofs.entries()) {
+            const actualAppId = applicationIdMap.get(tempId);
+            if (!actualAppId) continue;
+
+            try {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${actualAppId}-${Date.now()}.${fileExt}`;
+              
+              const { error: uploadError } = await supabase.storage
+                .from('payment-proofs')
+                .upload(fileName, file);
+
+              if (uploadError) {
+                console.error(`Upload error for ${actualAppId}:`, uploadError);
+                continue;
+              }
+
+              // Get public URL
+              const { data: { publicUrl } } = supabase.storage
+                .from('payment-proofs')
+                .getPublicUrl(fileName);
+
+              // Update registration with payment proof
+              await supabase
+                .from("registrations")
+                .update({
+                  payment_proof_url: publicUrl,
+                  payment_status: "submitted" as const,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("application_id", actualAppId);
+            } catch (uploadErr) {
+              console.error(`Error uploading proof for ${actualAppId}:`, uploadErr);
+            }
+          }
+
+          toast.success("Payment proofs uploaded successfully!");
+        } else if (paymentProofFile) {
+          // Single applicant upload
+          toast.info("Uploading payment proof...");
+          
+          try {
+            const fileExt = paymentProofFile.name.split('.').pop();
+            const fileName = `${result.applicationId}-${Date.now()}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('payment-proofs')
+              .upload(fileName, paymentProofFile);
+
+            if (uploadError) {
+              console.error("Upload error:", uploadError);
+              toast.error("Failed to upload payment proof", {
+                description: "Your registration is saved. Please upload payment proof later."
+              });
+            } else {
+              // Get public URL
+              const { data: { publicUrl } } = supabase.storage
+                .from('payment-proofs')
+                .getPublicUrl(fileName);
+
+              // Update registration with payment proof
+              await supabase
+                .from("registrations")
+                .update({
+                  payment_proof_url: publicUrl,
+                  payment_status: "submitted" as const,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("application_id", result.applicationId);
+
+              toast.success("Payment proof uploaded successfully!");
+            }
+          } catch (uploadErr) {
+            console.error("Error uploading proof:", uploadErr);
+          }
+        }
+      }
+
       setCurrentApplication(result.registration);
       setRegistrationResult({
         ...result.registration,
@@ -222,6 +324,7 @@ const RegistrationForm = () => {
     setAdditionalAttendees([]);
     setSubmitPaymentNow(null);
     setPaymentProofFile(null);
+    setBulkPaymentProofs(new Map());
     setViewState("form");
   };
 
@@ -801,44 +904,57 @@ const RegistrationForm = () => {
                     {/* Payment Proof Upload Section */}
                     {submitPaymentNow === true && (
                       <div className="mt-4 p-4 bg-accent/10 rounded-lg border border-accent/20 space-y-4">
-                        <div className="flex items-center gap-2 text-foreground font-medium">
-                          <Upload className="w-4 h-4 text-primary" />
-                          Upload Payment Proof
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Please upload a screenshot or PDF of your payment confirmation (Max 5MB).
-                        </p>
-                        <div className="flex flex-col gap-3">
-                          <input
-                            type="file"
-                            id="payment-proof"
-                            accept="image/jpeg,image/png,image/webp,application/pdf"
-                            onChange={handlePaymentProofChange}
-                            className="hidden"
+                        {hasMultipleApplicants ? (
+                          /* Bulk Payment Proof Upload for multiple applicants */
+                          <BulkPaymentProofUpload
+                            registrant={form.getValues()}
+                            additionalAttendees={additionalAttendees}
+                            paymentProofs={bulkPaymentProofs}
+                            onPaymentProofsChange={setBulkPaymentProofs}
                           />
-                          <label
-                            htmlFor="payment-proof"
-                            className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-background border border-border rounded-lg cursor-pointer hover:bg-accent/10 transition-colors"
-                          >
-                            <Upload className="w-4 h-4 text-primary" />
-                            <span className="text-foreground">
-                              {paymentProofFile ? paymentProofFile.name : "Choose file..."}
-                            </span>
-                          </label>
-                          {paymentProofFile && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <FileText className="w-4 h-4" />
-                              <span>{(paymentProofFile.size / 1024).toFixed(1)} KB</span>
-                              <button
-                                type="button"
-                                onClick={() => setPaymentProofFile(null)}
-                                className="ml-2 text-destructive hover:underline"
-                              >
-                                Remove
-                              </button>
+                        ) : (
+                          /* Single applicant - original upload UI */
+                          <>
+                            <div className="flex items-center gap-2 text-foreground font-medium">
+                              <Upload className="w-4 h-4 text-primary" />
+                              Upload Payment Proof
                             </div>
-                          )}
-                        </div>
+                            <p className="text-sm text-muted-foreground">
+                              Please upload a screenshot or PDF of your payment confirmation (Max 5MB).
+                            </p>
+                            <div className="flex flex-col gap-3">
+                              <input
+                                type="file"
+                                id="payment-proof"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={handlePaymentProofChange}
+                                className="hidden"
+                              />
+                              <label
+                                htmlFor="payment-proof"
+                                className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-background border border-border rounded-lg cursor-pointer hover:bg-accent/10 transition-colors"
+                              >
+                                <Upload className="w-4 h-4 text-primary" />
+                                <span className="text-foreground">
+                                  {paymentProofFile ? paymentProofFile.name : "Choose file..."}
+                                </span>
+                              </label>
+                              {paymentProofFile && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <FileText className="w-4 h-4" />
+                                  <span>{(paymentProofFile.size / 1024).toFixed(1)} KB</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPaymentProofFile(null)}
+                                    className="ml-2 text-destructive hover:underline"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 
@@ -917,14 +1033,20 @@ const RegistrationForm = () => {
                       <Button
                         type="submit"
                         size="lg"
-                        disabled={isSubmitting || !canSubmit}
+                        disabled={
+                          isSubmitting || 
+                          !canSubmit || 
+                          (submitPaymentNow === true && hasMultipleApplicants && !allBulkProofsUploaded)
+                        }
                         className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card hover:shadow-elevated transition-all disabled:opacity-50"
                       >
                         {isSubmitting
                           ? "Submitting..."
                           : !canSubmit 
                             ? "Registration Period Closed"
-                            : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
+                            : submitPaymentNow === true && hasMultipleApplicants && !allBulkProofsUploaded
+                              ? `Upload all ${totalApplicants} payment proofs`
+                              : `Submit ${additionalAttendees.length > 0 ? `${1 + additionalAttendees.length} Registrations` : "Registration"}`}
                       </Button>
                     </div>
                   </div>
