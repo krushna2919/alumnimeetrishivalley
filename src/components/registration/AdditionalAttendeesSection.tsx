@@ -44,13 +44,15 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
   const handleAddAttendee = () => {
     if (fields.length < MAX_ATTENDEES - 1) { // -1 because main registrant counts as 1
       append(defaultAttendee);
-      queueMicrotask(syncToParent);
+      // Defer to allow RHF state to settle
+      setTimeout(syncToParent, 0);
     }
   };
 
   const handleRemoveAttendee = (index: number) => {
     remove(index);
-    queueMicrotask(syncToParent);
+    // Defer to allow RHF state to settle
+    setTimeout(syncToParent, 0);
   };
 
   // Sync form values back to parent
