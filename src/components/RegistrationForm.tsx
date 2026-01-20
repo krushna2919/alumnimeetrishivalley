@@ -51,6 +51,7 @@ const RegistrationForm = () => {
   const [additionalAttendees, setAdditionalAttendees] = useState<AttendeeData[]>([]);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
+  const [bulkUploadMode, setBulkUploadMode] = useState<"single" | "individual">("single");
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
@@ -76,7 +77,9 @@ const RegistrationForm = () => {
   // Check if all required payment proofs are uploaded for bulk registration
   const hasMultipleApplicants = additionalAttendees.length > 0;
   const totalApplicants = 1 + additionalAttendees.length;
-  const allBulkProofsUploaded = bulkPaymentProofs.size === totalApplicants;
+  const allBulkProofsUploaded = bulkUploadMode === "single" 
+    ? bulkPaymentProofs.has("combined") 
+    : bulkPaymentProofs.size === totalApplicants;
 
   const form = useForm<RegistrantData>({
     resolver: zodResolver(registrantSchema),
@@ -194,6 +197,7 @@ const RegistrationForm = () => {
         toast.info("Uploading payment proofs...");
         
         // Build mapping of temp IDs to actual application IDs
+        // Build application ID map
         const applicationIdMap = new Map<string, string>();
         applicationIdMap.set("primary", result.applicationId);
         
@@ -203,40 +207,71 @@ const RegistrationForm = () => {
           });
         }
 
-        // Upload each payment proof and update the registration
-        for (const [tempId, file] of bulkPaymentProofs.entries()) {
-          const actualAppId = applicationIdMap.get(tempId);
-          if (!actualAppId) continue;
+        // Handle combined/single proof upload mode
+        if (bulkUploadMode === "single" && bulkPaymentProofs.has("combined")) {
+          // Upload the combined proof once and link to all applicants
+          const combinedFile = bulkPaymentProofs.get("combined")!;
+          const fileExt = combinedFile.name.split('.').pop();
+          const fileName = `combined-${result.applicationId}-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('payment-proofs')
+            .upload(fileName, combinedFile);
 
-          try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${actualAppId}-${Date.now()}.${fileExt}`;
-            
-            const { error: uploadError } = await supabase.storage
-              .from('payment-proofs')
-              .upload(fileName, file);
-
-            if (uploadError) {
-              console.error(`Upload error for ${actualAppId}:`, uploadError);
-              continue;
-            }
-
-            // Get public URL
+          if (uploadError) {
+            console.error("Combined upload error:", uploadError);
+          } else {
             const { data: { publicUrl } } = supabase.storage
               .from('payment-proofs')
               .getPublicUrl(fileName);
 
-            // Update registration with payment proof
-            await supabase
-              .from("registrations")
-              .update({
-                payment_proof_url: publicUrl,
-                payment_status: "submitted" as const,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("application_id", actualAppId);
-          } catch (uploadErr) {
-            console.error(`Error uploading proof for ${actualAppId}:`, uploadErr);
+            // Update all registrations with the same proof
+            for (const [, actualAppId] of applicationIdMap.entries()) {
+              await supabase
+                .from("registrations")
+                .update({
+                  payment_proof_url: publicUrl,
+                  payment_status: "submitted" as const,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("application_id", actualAppId);
+            }
+          }
+        } else {
+          // Upload each payment proof individually
+          for (const [tempId, file] of bulkPaymentProofs.entries()) {
+            if (tempId === "combined") continue; // Skip combined key in individual mode
+            const actualAppId = applicationIdMap.get(tempId);
+            if (!actualAppId) continue;
+
+            try {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${actualAppId}-${Date.now()}.${fileExt}`;
+              
+              const { error: uploadError } = await supabase.storage
+                .from('payment-proofs')
+                .upload(fileName, file);
+
+              if (uploadError) {
+                console.error(`Upload error for ${actualAppId}:`, uploadError);
+                continue;
+              }
+
+              const { data: { publicUrl } } = supabase.storage
+                .from('payment-proofs')
+                .getPublicUrl(fileName);
+
+              await supabase
+                .from("registrations")
+                .update({
+                  payment_proof_url: publicUrl,
+                  payment_status: "submitted" as const,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("application_id", actualAppId);
+            } catch (uploadErr) {
+              console.error(`Error uploading proof for ${actualAppId}:`, uploadErr);
+            }
           }
         }
 
@@ -321,6 +356,7 @@ const RegistrationForm = () => {
     setAdditionalAttendees([]);
     setPaymentProofFile(null);
     setBulkPaymentProofs(new Map());
+    setBulkUploadMode("single");
     setViewState("form");
   };
 
@@ -874,6 +910,8 @@ const RegistrationForm = () => {
                           additionalAttendees={additionalAttendees}
                           paymentProofs={bulkPaymentProofs}
                           onPaymentProofsChange={setBulkPaymentProofs}
+                          uploadMode={bulkUploadMode}
+                          onUploadModeChange={setBulkUploadMode}
                         />
                       ) : (
                         /* Single applicant - original upload UI */
