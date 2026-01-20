@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -47,13 +48,11 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
 
   // Sync form values back to parent
   const watchedAttendees = form.watch("attendees");
-  
-  // Update parent when attendees change
-  const handleFormChange = () => {
-    const values = form.getValues("attendees");
+
+  useEffect(() => {
     // Ensure parent always receives a new reference (RHF may mutate arrays in place)
-    onAttendeesChange(values.map((a) => ({ ...a })));
-  };
+    onAttendeesChange((watchedAttendees || []).map((a) => ({ ...a })));
+  }, [onAttendeesChange, watchedAttendees]);
 
   return (
     <div className="space-y-6">
@@ -98,7 +97,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
         </motion.div>
       ) : (
         <Form {...form}>
-          <div className="space-y-4" onChange={handleFormChange} onBlur={handleFormChange}>
+          <div className="space-y-4">
             <AnimatePresence mode="popLayout">
               {fields.map((field, index) => (
                 <AttendeeCard
@@ -107,10 +106,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
                   form={form}
                   yearOptions={yearOptions}
                   primaryEmail={primaryEmail}
-                  onRemove={() => {
-                    handleRemoveAttendee(index);
-                    setTimeout(handleFormChange, 0);
-                  }}
+                  onRemove={() => handleRemoveAttendee(index)}
                   canRemove={true}
                 />
               ))}
