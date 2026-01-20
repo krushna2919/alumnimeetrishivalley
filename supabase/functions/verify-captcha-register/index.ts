@@ -90,8 +90,7 @@ async function sendConsolidatedConfirmationEmail(
   primaryName: string,
   primaryApplicationId: string,
   allRegistrations: RegistrationInfo[],
-  totalFee: number,
-  paymentDeadline: string | null
+  totalFee: number
 ): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not configured, skipping confirmation email");
@@ -108,31 +107,6 @@ async function sendConsolidatedConfirmationEmail(
         <td style="padding: 12px; text-align: right;">₹${reg.registrationFee.toLocaleString('en-IN')}</td>
       </tr>
     `).join('');
-
-    // Format the payment deadline for display
-    const formattedDeadline = paymentDeadline 
-      ? new Date(paymentDeadline).toLocaleDateString('en-IN', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      : null;
-
-    // Payment deadline notice HTML
-    const paymentDeadlineHtml = formattedDeadline ? `
-      <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <p style="margin: 0; color: #721c24;"><strong>⏰ Payment Deadline:</strong></p>
-        <p style="margin: 10px 0 0; color: #721c24; font-size: 16px;">
-          Please submit your payment proof by <strong>${formattedDeadline}</strong>.
-        </p>
-        <p style="margin: 10px 0 0; color: #721c24; font-size: 14px;">
-          Registrations without payment proof submitted by the deadline may not be confirmed.
-        </p>
-      </div>
-    ` : '';
 
     const subject = allRegistrations.length > 1 
       ? `Registration Received - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
@@ -154,7 +128,7 @@ async function sendConsolidatedConfirmationEmail(
               Registration Received
             </h1>
             <p>Dear ${primaryName},</p>
-            <p>Thank you for registering for the Rishi Valley Alumni Meet! Your registration has been received.</p>
+            <p>Thank you for registering for the Rishi Valley Alumni Meet! Your registration has been received along with your payment proof.</p>
             
             ${allRegistrations.length > 1 ? `
               <p>You have registered <strong>${allRegistrations.length} people</strong> for the event. Here are the details:</p>
@@ -175,28 +149,22 @@ async function sendConsolidatedConfirmationEmail(
                 </tbody>
                 <tfoot>
                   <tr style="background: #e8e4d8; font-weight: bold;">
-                    <td colspan="3" style="padding: 12px; text-align: right; color: #5c4a3d;">Total Amount Due:</td>
+                    <td colspan="3" style="padding: 12px; text-align: right; color: #5c4a3d;">Total Amount Paid:</td>
                     <td style="padding: 12px; text-align: right; color: #5c4a3d; font-size: 18px;">₹${totalFee.toLocaleString('en-IN')}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
             
-            ${paymentDeadlineHtml}
-            
-            <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
-              <p style="margin: 10px 0 0; color: #2c5f73;">The Rishi Valley Alumni Meet Organizing Committee will tally your payment receipt and confirm your registration through email.</p>
-              <p style="margin: 10px 0 0; color: #2c5f73; font-size: 14px;">Please ensure you have submitted your payment proof on the registration portal if you haven't already.</p>
+            <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
+              <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
+                Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
+              </p>
             </div>
             
             <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please save your Primary Application ID (<strong>${primaryApplicationId}</strong>) for future reference. You will need it to:</p>
-              <ul style="color: #856404; margin: 10px 0 0; padding-left: 20px;">
-                <li>Check registration status for all registrants</li>
-                <li>Submit payment details for all registrations</li>
-                <li>View and manage your group registration</li>
-              </ul>
+              <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please save your Primary Application ID (<strong>${primaryApplicationId}</strong>) for future reference.</p>
             </div>
             
             <p style="margin-top: 30px;">
@@ -229,8 +197,7 @@ async function sendAttendeeConfirmationEmail(
   primaryApplicationId: string,
   primaryName: string,
   stayType: string,
-  registrationFee: number,
-  paymentDeadline: string | null
+  registrationFee: number
 ): Promise<void> {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not configured, skipping attendee email");
@@ -238,31 +205,6 @@ async function sendAttendeeConfirmationEmail(
   }
 
   try {
-    // Format the payment deadline for display
-    const formattedDeadline = paymentDeadline 
-      ? new Date(paymentDeadline).toLocaleDateString('en-IN', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      : null;
-
-    // Payment deadline notice HTML
-    const paymentDeadlineHtml = formattedDeadline ? `
-      <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <p style="margin: 0; color: #721c24;"><strong>⏰ Payment Deadline:</strong></p>
-        <p style="margin: 10px 0 0; color: #721c24; font-size: 16px;">
-          Payment proof must be submitted by <strong>${formattedDeadline}</strong>.
-        </p>
-        <p style="margin: 10px 0 0; color: #721c24; font-size: 14px;">
-          Please coordinate with ${primaryName} for payment submission.
-        </p>
-      </div>
-    ` : '';
-
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -279,7 +221,7 @@ async function sendAttendeeConfirmationEmail(
               Registration Received
             </h1>
             <p>Dear ${attendeeName},</p>
-            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}. Your registration has been received.</p>
+            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}. Your registration has been received along with payment proof.</p>
             
             <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #5c4a3d; margin-top: 0;">Your Registration Details</h3>
@@ -299,17 +241,16 @@ async function sendAttendeeConfirmationEmail(
               </table>
             </div>
             
-            ${paymentDeadlineHtml}
-            
-            <div style="background: #e8f4f8; border: 1px solid #4a90a4; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #2c5f73;"><strong>📋 Next Steps:</strong></p>
-              <p style="margin: 10px 0 0; color: #2c5f73;">The Rishi Valley Alumni Meet Organizing Committee will tally the payment receipt and confirm your registration through email.</p>
+            <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
+              <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
+                Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
+              </p>
             </div>
             
             <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
               <p style="margin: 0; color: #856404;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
               <p style="margin: 10px 0 0; color: #856404;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
-              <p style="margin: 5px 0 0; color: #856404; font-size: 14px;">For payment status and updates, please contact the primary registrant.</p>
             </div>
             
             <p style="margin-top: 30px;">
@@ -524,26 +465,13 @@ serve(async (req: Request): Promise<Response> => {
     const totalFee = data.registrationFee + 
       (data.additionalAttendees?.reduce((sum, a) => sum + a.registrationFee, 0) || 0);
 
-    // Fetch registration end date for payment deadline
-    let paymentDeadline: string | null = null;
-    try {
-      const { data: batchConfig, error: batchError } = await supabase.rpc("get_open_batch_configuration");
-      if (!batchError && batchConfig && batchConfig.length > 0) {
-        paymentDeadline = batchConfig[0].registration_end_date;
-        console.log("Payment deadline set to:", paymentDeadline);
-      }
-    } catch (err) {
-      console.warn("Could not fetch batch configuration for payment deadline:", err);
-    }
-
     // Send ONE consolidated confirmation email to the primary registrant only
     await sendConsolidatedConfirmationEmail(
       data.email,
       data.name,
       applicationId,
       allRegistrations,
-      totalFee,
-      paymentDeadline
+      totalFee
     );
 
     // Send individual emails to attendees who have a secondary email address
@@ -556,8 +484,7 @@ serve(async (req: Request): Promise<Response> => {
           applicationId,
           data.name,
           attendeeReg.stayType,
-          attendeeReg.registrationFee,
-          paymentDeadline
+          attendeeReg.registrationFee
         );
       }
     }

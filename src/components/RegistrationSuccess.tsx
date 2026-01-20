@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CheckCircle, Copy, AlertCircle, Users } from "lucide-react";
+import { CheckCircle, Copy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { RegistrationData } from "./registration/types";
@@ -16,7 +16,6 @@ interface RegistrationSuccessProps {
   application: RegistrationData;
   additionalRegistrations?: AdditionalRegistration[];
   totalFee?: number;
-  onUpdatePayment: () => void;
   onNewRegistration: () => void;
 }
 
@@ -24,7 +23,6 @@ const RegistrationSuccess = ({
   application, 
   additionalRegistrations = [], 
   totalFee,
-  onUpdatePayment, 
   onNewRegistration 
 }: RegistrationSuccessProps) => {
   const copyToClipboard = (text: string) => {
@@ -112,33 +110,27 @@ const RegistrationSuccess = ({
             <span className="font-medium text-foreground">{totalPeople}</span>
           </div>
           <div className="flex justify-between border-t border-border pt-2 mt-2">
-            <span className="text-muted-foreground">Total Amount Due:</span>
+            <span className="text-muted-foreground">Total Amount Paid:</span>
             <span className="font-bold text-primary">{displayFee}</span>
           </div>
         </div>
       </div>
 
-      {/* Payment Reminder */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800 mb-6 max-w-md mx-auto">
+      {/* Payment Confirmation */}
+      <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800 mb-6 max-w-md mx-auto">
         <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
           <div className="text-left">
-            <p className="font-semibold text-amber-800 dark:text-amber-200 text-sm">Payment Required</p>
-            <p className="text-amber-700 dark:text-amber-300 text-sm">
-              Please complete your payment and submit the payment details to confirm your registration.
+            <p className="font-semibold text-green-800 dark:text-green-200 text-sm">Payment Proof Submitted</p>
+            <p className="text-green-700 dark:text-green-300 text-sm">
+              Your payment proof has been submitted. The organizing committee will verify and confirm your registration via email.
             </p>
           </div>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Button
-          onClick={onUpdatePayment}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          Submit Payment Details
-        </Button>
+      <div className="flex justify-center">
         <Button
           variant="outline"
           onClick={onNewRegistration}

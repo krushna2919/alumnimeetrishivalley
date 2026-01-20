@@ -1007,7 +1007,6 @@ const RegistrationForm = () => {
               application={currentApplication}
               additionalRegistrations={registrationResult?.additionalRegistrations}
               totalFee={registrationResult?.totalFee}
-              onUpdatePayment={handleUpdatePayment}
               onNewRegistration={handleNewRegistration}
             />
           )}
