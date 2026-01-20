@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { UseFormReturn, FieldValues } from "react-hook-form";
 import { motion } from "framer-motion";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
@@ -7,6 +8,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, Calendar, Trash2 } from "lucide-react";
 import { AttendeeData, calculateFee } from "./types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface AttendeeCardProps {
   index: number;
@@ -18,9 +29,16 @@ interface AttendeeCardProps {
 }
 
 const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail }: AttendeeCardProps) => {
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const attendeeName = form.watch(`attendees.${index}.name`) || `Attendee ${index + 1}`;
   const stayType = form.watch(`attendees.${index}.stayType`);
   const boardType = form.watch(`attendees.${index}.boardType`);
   const fee = calculateFee(stayType);
+
+  const handleRemoveConfirm = () => {
+    setShowRemoveDialog(false);
+    onRemove();
+  };
 
   return (
     <motion.div
@@ -38,13 +56,34 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
             type="button"
             variant="ghost"
             size="sm"
-            onClick={onRemove}
+            onClick={() => setShowRemoveDialog(true)}
             className="text-destructive hover:text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="w-4 h-4 mr-1" />
             Remove
           </Button>
         )}
+
+        {/* Confirmation Dialog */}
+        <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Attendee?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove <span className="font-semibold text-foreground">"{attendeeName}"</span> from the registration? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleRemoveConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="space-y-4">
