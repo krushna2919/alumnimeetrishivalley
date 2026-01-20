@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -48,9 +48,17 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
 
   // Sync form values back to parent
   const watchedAttendees = form.watch("attendees");
+  const fieldsSignature = useMemo(() => fields.map((f) => f.id).join("|"), [fields]);
 
   useEffect(() => {
-    // Ensure parent always receives a new reference (RHF may mutate arrays in place)
+    // RHF/field-array updates (esp. remove) can mutate arrays in place.
+    // Use field IDs signature to reliably trigger sync to parent.
+    const values = form.getValues("attendees") || [];
+    onAttendeesChange(values.map((a) => ({ ...a })));
+  }, [fieldsSignature, form, onAttendeesChange]);
+
+  useEffect(() => {
+    // Keep parent in sync for in-place edits (typing/selecting) as well.
     onAttendeesChange((watchedAttendees || []).map((a) => ({ ...a })));
   }, [onAttendeesChange, watchedAttendees]);
 
