@@ -36,14 +36,21 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
     name: "attendees",
   });
 
+  const syncToParent = () => {
+    const values = form.getValues("attendees") || [];
+    onAttendeesChange(values.map((a) => ({ ...a })));
+  };
+
   const handleAddAttendee = () => {
     if (fields.length < MAX_ATTENDEES - 1) { // -1 because main registrant counts as 1
       append(defaultAttendee);
+      queueMicrotask(syncToParent);
     }
   };
 
   const handleRemoveAttendee = (index: number) => {
     remove(index);
+    queueMicrotask(syncToParent);
   };
 
   // Sync form values back to parent
@@ -53,8 +60,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
   useEffect(() => {
     // RHF/field-array updates (esp. remove) can mutate arrays in place.
     // Use field IDs signature to reliably trigger sync to parent.
-    const values = form.getValues("attendees") || [];
-    onAttendeesChange(values.map((a) => ({ ...a })));
+    syncToParent();
   }, [fieldsSignature, form, onAttendeesChange]);
 
   useEffect(() => {

@@ -90,7 +90,8 @@ const RegistrationForm = () => {
 
   // Calculate fees
   const registrantFee = calculateFee(stayType);
-  const totalFee = calculateTotalFee(form.getValues(), additionalAttendees);
+  const watchedRegistrant = form.watch();
+  const totalFee = calculateTotalFee(watchedRegistrant as RegistrantData, additionalAttendees);
 
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
