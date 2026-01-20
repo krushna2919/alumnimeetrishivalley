@@ -831,7 +831,7 @@ const RegistrationForm = () => {
                   <div className="pt-6 border-t border-border">
                     <AdditionalAttendeesSection
                       attendees={additionalAttendees}
-                      onAttendeesChange={setAdditionalAttendees}
+                      onAttendeesChange={(attendees) => setAdditionalAttendees(attendees.map((a) => ({ ...a })))}
                       yearOptions={yearOptions}
                       primaryEmail={form.watch("email")}
                     />

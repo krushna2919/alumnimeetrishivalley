@@ -51,7 +51,8 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
   // Update parent when attendees change
   const handleFormChange = () => {
     const values = form.getValues("attendees");
-    onAttendeesChange(values);
+    // Ensure parent always receives a new reference (RHF may mutate arrays in place)
+    onAttendeesChange(values.map((a) => ({ ...a })));
   };
 
   return (
