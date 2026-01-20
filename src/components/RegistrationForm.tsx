@@ -865,6 +865,7 @@ const RegistrationForm = () => {
                       {hasMultipleApplicants ? (
                         /* Bulk Payment Proof Upload for multiple applicants */
                         <BulkPaymentProofUpload
+                          key={`bulk-upload-${additionalAttendees.length}`}
                           registrant={form.watch()}
                           additionalAttendees={additionalAttendees}
                           paymentProofs={bulkPaymentProofs}
