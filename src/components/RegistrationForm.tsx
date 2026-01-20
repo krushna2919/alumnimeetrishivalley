@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -75,10 +75,15 @@ const RegistrationForm = () => {
   const form = useForm<RegistrantData>({
     resolver: zodResolver(registrantSchema),
     defaultValues: defaultRegistrant,
+    // Ensure removed attendee fields are fully removed from form state
+    // so totals and dependent UI always recalculate correctly.
+    shouldUnregister: true,
   });
 
   // Watch attendees from the form directly (single source of truth)
-  const additionalAttendees = form.watch("attendees") || [];
+  // NOTE: useWatch guarantees re-render on field-array changes (append/remove)
+  const additionalAttendees =
+    useWatch({ control: form.control, name: "attendees" }) || [];
 
   // Check if all required payment proofs are uploaded for bulk registration
   const hasMultipleApplicants = additionalAttendees.length > 0;
@@ -86,14 +91,14 @@ const RegistrationForm = () => {
   const allBulkProofsUploaded = bulkPaymentProofs.has("combined");
 
   // Watch postal code for auto-population
-  const postalCode = form.watch("postalCode");
-  const stayType = form.watch("stayType");
-  const boardType = form.watch("boardType");
+  const postalCode = useWatch({ control: form.control, name: "postalCode" });
+  const stayType = useWatch({ control: form.control, name: "stayType" });
+  const boardType = useWatch({ control: form.control, name: "boardType" });
 
   // Calculate fees
-  const registrantFee = calculateFee(stayType);
-  const watchedRegistrant = form.watch();
-  const totalFee = calculateTotalFee(watchedRegistrant as RegistrantData, additionalAttendees);
+  const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
+  const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
+  const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
 
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
