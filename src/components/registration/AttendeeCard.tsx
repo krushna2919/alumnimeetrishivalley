@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { UseFormReturn, FieldValues } from "react-hook-form";
+import { UseFormReturn } from "react-hook-form";
+import { RegistrantData, calculateFee } from "./types";
 import { motion } from "framer-motion";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, Calendar, Trash2 } from "lucide-react";
-import { AttendeeData, calculateFee } from "./types";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,7 @@ import {
 
 interface AttendeeCardProps {
   index: number;
-  form: UseFormReturn<any>;
+  form: UseFormReturn<RegistrantData>;
   onRemove: () => void;
   canRemove: boolean;
   yearOptions: number[];

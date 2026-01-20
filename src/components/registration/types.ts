@@ -27,7 +27,7 @@ export const attendeeSchema = z.object({
 
 export type AttendeeData = z.infer<typeof attendeeSchema>;
 
-// Schema for the main registrant (includes address, email is required)
+// Schema for the main registrant (includes address, email is required, + attendees array)
 export const registrantSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().email("Please enter a valid email address"),
@@ -46,6 +46,8 @@ export const registrantSchema = z.object({
   state: z.string().min(2, "Please enter your state").max(100),
   postalCode: z.string().min(5, "Please enter a valid postal code").max(10),
   country: z.string().default("India"),
+  // Additional attendees embedded in form
+  attendees: z.array(attendeeSchema).default([]),
 }).refine((data) => {
   if (data.boardType === "Other" && (!data.customBoardType || data.customBoardType.trim().length < 2)) {
     return false;
@@ -85,6 +87,7 @@ export const defaultRegistrant: RegistrantData = {
   state: "",
   postalCode: "",
   country: "India",
+  attendees: [],
 };
 
 export const MAX_ATTENDEES = 30;
