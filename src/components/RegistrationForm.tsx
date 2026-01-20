@@ -93,6 +93,12 @@ const RegistrationForm = () => {
   const watchedRegistrant = form.watch();
   const totalFee = calculateTotalFee(watchedRegistrant as RegistrantData, additionalAttendees);
 
+  // Debug: keep for now to verify attendee removal updates totals reliably
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log("[RegistrationForm] attendees:", additionalAttendees.length, "totalFee:", totalFee);
+  }, [additionalAttendees.length, totalFee]);
+
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
 
