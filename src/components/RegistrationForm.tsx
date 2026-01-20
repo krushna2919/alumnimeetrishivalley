@@ -48,7 +48,6 @@ const RegistrationForm = () => {
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
-  const [additionalAttendees, setAdditionalAttendees] = useState<AttendeeData[]>([]);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
@@ -73,15 +72,18 @@ const RegistrationForm = () => {
     }
   };
 
-  // Check if all required payment proofs are uploaded for bulk registration
-  const hasMultipleApplicants = additionalAttendees.length > 0;
-  const totalApplicants = 1 + additionalAttendees.length;
-  const allBulkProofsUploaded = bulkPaymentProofs.has("combined");
-
   const form = useForm<RegistrantData>({
     resolver: zodResolver(registrantSchema),
     defaultValues: defaultRegistrant,
   });
+
+  // Watch attendees from the form directly (single source of truth)
+  const additionalAttendees = form.watch("attendees") || [];
+
+  // Check if all required payment proofs are uploaded for bulk registration
+  const hasMultipleApplicants = additionalAttendees.length > 0;
+  const totalApplicants = 1 + additionalAttendees.length;
+  const allBulkProofsUploaded = bulkPaymentProofs.has("combined");
 
   // Watch postal code for auto-population
   const postalCode = form.watch("postalCode");
@@ -92,12 +94,6 @@ const RegistrationForm = () => {
   const registrantFee = calculateFee(stayType);
   const watchedRegistrant = form.watch();
   const totalFee = calculateTotalFee(watchedRegistrant as RegistrantData, additionalAttendees);
-
-  // Debug: keep for now to verify attendee removal updates totals reliably
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("[RegistrationForm] attendees:", additionalAttendees.length, "totalFee:", totalFee);
-  }, [additionalAttendees.length, totalFee]);
 
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
@@ -141,7 +137,8 @@ const RegistrationForm = () => {
       const finalBoardType = data.boardType === "Other" ? data.customBoardType : data.boardType;
 
       // Prepare additional attendees data - use primary email, include secondary email if provided
-      const additionalAttendeesData = additionalAttendees.map((attendee) => ({
+      const attendeesToSubmit = data.attendees || [];
+      const additionalAttendeesData = attendeesToSubmit.map((attendee) => ({
         name: attendee.name,
         email: data.email, // Always use primary registrant's email
         secondaryEmail: attendee.secondaryEmail || undefined, // Optional secondary email
@@ -317,10 +314,9 @@ const RegistrationForm = () => {
   };
 
   const handleNewRegistration = () => {
-    form.reset();
+    form.reset(defaultRegistrant);
     setCurrentApplication(null);
     setRegistrationResult(null);
-    setAdditionalAttendees([]);
     setPaymentProofFile(null);
     setBulkPaymentProofs(new Map());
     setViewState("form");
@@ -837,8 +833,7 @@ const RegistrationForm = () => {
                   {/* Additional Attendees Section */}
                   <div className="pt-6 border-t border-border">
                     <AdditionalAttendeesSection
-                      attendees={additionalAttendees}
-                      onAttendeesChange={(attendees) => setAdditionalAttendees(attendees.map((a) => ({ ...a })))}
+                      form={form}
                       yearOptions={yearOptions}
                       primaryEmail={form.watch("email")}
                     />

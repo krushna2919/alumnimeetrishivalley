@@ -1,74 +1,32 @@
-import { useEffect, useMemo } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { UseFormReturn, useFieldArray } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Plus, Users } from "lucide-react";
-import { attendeeSchema, AttendeeData, defaultAttendee, MAX_ATTENDEES } from "./types";
+import { RegistrantData, AttendeeData, defaultAttendee, MAX_ATTENDEES } from "./types";
 import AttendeeCard from "./AttendeeCard";
 
 interface AdditionalAttendeesSectionProps {
-  attendees: AttendeeData[];
-  onAttendeesChange: (attendees: AttendeeData[]) => void;
+  form: UseFormReturn<RegistrantData>;
   yearOptions: number[];
   primaryEmail: string;
 }
 
-const attendeesFormSchema = z.object({
-  attendees: z.array(attendeeSchema),
-});
-
-type AttendeesFormData = z.infer<typeof attendeesFormSchema>;
-
-const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions, primaryEmail }: AdditionalAttendeesSectionProps) => {
-  const form = useForm<AttendeesFormData>({
-    resolver: zodResolver(attendeesFormSchema),
-    defaultValues: {
-      attendees: attendees,
-    },
-    mode: "onChange",
-  });
-
+const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail }: AdditionalAttendeesSectionProps) => {
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "attendees",
   });
 
-  const syncToParent = () => {
-    const values = form.getValues("attendees") || [];
-    onAttendeesChange(values.map((a) => ({ ...a })));
-  };
-
   const handleAddAttendee = () => {
-    if (fields.length < MAX_ATTENDEES - 1) { // -1 because main registrant counts as 1
+    if (fields.length < MAX_ATTENDEES - 1) {
       append(defaultAttendee);
-      // Defer to allow RHF state to settle
-      setTimeout(syncToParent, 0);
     }
   };
 
   const handleRemoveAttendee = (index: number) => {
     remove(index);
-    // Defer to allow RHF state to settle
-    setTimeout(syncToParent, 0);
   };
-
-  // Sync form values back to parent
-  const watchedAttendees = form.watch("attendees");
-  const fieldsSignature = useMemo(() => fields.map((f) => f.id).join("|"), [fields]);
-
-  useEffect(() => {
-    // RHF/field-array updates (esp. remove) can mutate arrays in place.
-    // Use field IDs signature to reliably trigger sync to parent.
-    syncToParent();
-  }, [fieldsSignature, form, onAttendeesChange]);
-
-  useEffect(() => {
-    // Keep parent in sync for in-place edits (typing/selecting) as well.
-    onAttendeesChange((watchedAttendees || []).map((a) => ({ ...a })));
-  }, [onAttendeesChange, watchedAttendees]);
 
   return (
     <div className="space-y-6">
@@ -112,24 +70,22 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
           </p>
         </motion.div>
       ) : (
-        <Form {...form}>
-          <div className="space-y-4">
-            <AnimatePresence mode="popLayout">
-              {fields.map((field, index) => (
-                <AttendeeCard
-                  key={field.id}
-                  index={index}
-                  form={form}
-                  yearOptions={yearOptions}
-                  primaryEmail={primaryEmail}
-                  onRemove={() => handleRemoveAttendee(index)}
-                  canRemove={true}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
+        <div className="space-y-4">
+          <AnimatePresence mode="popLayout">
+            {fields.map((field, index) => (
+              <AttendeeCard
+                key={field.id}
+                index={index}
+                form={form}
+                yearOptions={yearOptions}
+                primaryEmail={primaryEmail}
+                onRemove={() => handleRemoveAttendee(index)}
+                canRemove={true}
+              />
+            ))}
+          </AnimatePresence>
           
-          {fields.length < MAX_ATTENDEES - 1 && fields.length > 0 && (
+          {fields.length < MAX_ATTENDEES - 1 && (
             <Button
               type="button"
               variant="outline"
@@ -140,7 +96,7 @@ const AdditionalAttendeesSection = ({ attendees, onAttendeesChange, yearOptions,
               Add Another Person ({fields.length + 1}/{MAX_ATTENDEES - 1})
             </Button>
           )}
-        </Form>
+        </div>
       )}
     </div>
   );
