@@ -19,6 +19,38 @@ interface EmailRequest {
   paymentReceiptUrl?: string;
 }
 
+// Helper function to fetch PDF and convert to base64
+async function fetchPdfAsBase64(url: string): Promise<{ content: string; filename: string } | null> {
+  try {
+    console.log(`Fetching PDF from: ${url}`);
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binary);
+    
+    // Extract filename from URL
+    const urlParts = url.split('/');
+    const filename = urlParts[urlParts.length - 1] || 'payment-receipt.pdf';
+    
+    console.log(`Successfully fetched PDF, size: ${uint8Array.length} bytes`);
+    return { content: base64, filename };
+  } catch (error) {
+    console.error('Error fetching PDF:', error);
+    return null;
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("send-registration-email function called");
   
@@ -157,10 +189,8 @@ const handler = async (req: Request): Promise<Response> => {
           ${receiptUrl ? `
           <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f57c00;">
             <p style="margin: 0; font-size: 14px; color: #666;">📄 Payment Receipt:</p>
-            <p style="margin: 10px 0 0;">
-              <a href="${receiptUrl}" style="color: #f57c00; text-decoration: underline; font-weight: bold;">
-                Click here to download your payment receipt
-              </a>
+            <p style="margin: 10px 0 0; color: #333;">
+              Your payment receipt is attached to this email.
             </p>
           </div>
           ` : ''}
@@ -202,20 +232,44 @@ const handler = async (req: Request): Promise<Response> => {
     // BCC for superuser on all emails
     const bccEmail = "superuseralumnimeet@rishivalley.org";
 
+    // Prepare attachments for approved emails with PDF receipt
+    const attachments: Array<{ filename: string; content: string }> = [];
+    
+    if (type === "approved" && receiptUrl && receiptUrl.toLowerCase().endsWith('.pdf')) {
+      console.log("Fetching PDF receipt for attachment...");
+      const pdfData = await fetchPdfAsBase64(receiptUrl);
+      if (pdfData) {
+        attachments.push({
+          filename: `Payment-Receipt-${applicationId}.pdf`,
+          content: pdfData.content,
+        });
+        console.log("PDF attachment prepared successfully");
+      } else {
+        console.warn("Failed to fetch PDF, email will be sent without attachment");
+      }
+    }
+
     // Send email via Resend API
+    const emailPayload: Record<string, unknown> = {
+      from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
+      to: [to],
+      bcc: [bccEmail],
+      subject: subject,
+      html: htmlContent,
+    };
+
+    // Add attachments if any
+    if (attachments.length > 0) {
+      emailPayload.attachments = attachments;
+    }
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${RESEND_API_KEY}`,
       },
-      body: JSON.stringify({
-        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
-        to: [to],
-        bcc: [bccEmail],
-        subject: subject,
-        html: htmlContent,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
     if (!emailResponse.ok) {

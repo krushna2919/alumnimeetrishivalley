@@ -330,6 +330,7 @@ const AdminRegistrations = () => {
           applicationId: registration.application_id,
           type,
           rejectionReason,
+          paymentReceiptUrl: type === 'approved' ? registration.payment_receipt_url : undefined,
         },
       });
 
