@@ -90,6 +90,65 @@ const AdminAccountsReview = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
+    // New uploads are named like: `${applicationId}-<timestamp>.<ext>`
+    // Bulk uploads are named like: `combined-${applicationId}-<timestamp>.<ext>`
+    try {
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .list('', { limit: 50, search: applicationId });
+
+      if (error) throw error;
+
+      const matches = (data ?? [])
+        .filter((f) =>
+          f.name.startsWith(`${applicationId}-`) ||
+          f.name.startsWith(`combined-${applicationId}-`)
+        )
+        .sort((a, b) => {
+          const aTime = new Date((a.updated_at || a.created_at) as string).getTime();
+          const bTime = new Date((b.updated_at || b.created_at) as string).getTime();
+          return bTime - aTime;
+        });
+
+      const latest = matches[0];
+      if (!latest) return null;
+
+      const { data: publicData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(latest.name);
+
+      return publicData.publicUrl ?? null;
+    } catch (err) {
+      console.error('Failed to resolve payment proof from storage:', err);
+      return null;
+    }
+  };
+
+  const backfillMissingPaymentProofUrls = async (rows: AccountsRegistration[]) => {
+    const missing = rows.filter((r) => r.payment_status === 'submitted' && !r.payment_proof_url);
+    if (missing.length === 0) return;
+
+    // Keep this light: resolve only a handful per refresh to avoid hammering storage.
+    const toResolve = missing.slice(0, 10);
+
+    await Promise.allSettled(
+      toResolve.map(async (r) => {
+        const resolvedUrl = await resolvePaymentProofUrlFromStorage(r.application_id);
+        if (!resolvedUrl) return;
+
+        const { error } = await supabase
+          .from('registrations')
+          .update({ payment_proof_url: resolvedUrl, updated_at: new Date().toISOString() })
+          .eq('id', r.id);
+
+        if (error) {
+          console.error('Failed to backfill payment_proof_url:', error);
+        }
+      })
+    );
+  };
+
   useEffect(() => {
     fetchRegistrations();
 
@@ -130,7 +189,13 @@ const AdminAccountsReview = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRegistrations(data || []);
+      const rows = (data || []) as AccountsRegistration[];
+      setRegistrations(rows);
+
+      // If some rows show "submitted" but proof URL is missing (upload succeeded but DB link failed),
+      // auto-resolve by looking up the latest matching file in storage and writing it back.
+      // This avoids needing any backend script runs.
+      void backfillMissingPaymentProofUrls(rows);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({

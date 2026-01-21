@@ -107,6 +107,58 @@ const AdminRegistrations = () => {
   const { toast } = useToast();
   const { userRole } = useAuth();
 
+  const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .list('', { limit: 50, search: applicationId });
+
+      if (error) throw error;
+
+      const matches = (data ?? [])
+        .filter((f) =>
+          f.name.startsWith(`${applicationId}-`) ||
+          f.name.startsWith(`combined-${applicationId}-`)
+        )
+        .sort((a, b) => {
+          const aTime = new Date((a.updated_at || a.created_at) as string).getTime();
+          const bTime = new Date((b.updated_at || b.created_at) as string).getTime();
+          return bTime - aTime;
+        });
+
+      const latest = matches[0];
+      if (!latest) return null;
+
+      const { data: publicData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(latest.name);
+
+      return publicData.publicUrl ?? null;
+    } catch (err) {
+      console.error('Failed to resolve payment proof from storage:', err);
+      return null;
+    }
+  };
+
+  const backfillMissingPaymentProofUrls = async (rows: Registration[]) => {
+    const missing = rows.filter((r) => r.payment_status === 'submitted' && !r.payment_proof_url);
+    if (missing.length === 0) return;
+
+    const toResolve = missing.slice(0, 10);
+    await Promise.allSettled(
+      toResolve.map(async (r) => {
+        const resolvedUrl = await resolvePaymentProofUrlFromStorage(r.application_id);
+        if (!resolvedUrl) return;
+        const { error } = await supabase
+          .from('registrations')
+          .update({ payment_proof_url: resolvedUrl, updated_at: new Date().toISOString() })
+          .eq('id', r.id);
+
+        if (error) console.error('Failed to backfill payment_proof_url:', error);
+      })
+    );
+  };
+
   // Handle hostel assignment
   const handleHostelAssign = async (registration: Registration, hostelName: string) => {
     try {
@@ -237,7 +289,12 @@ const AdminRegistrations = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setRegistrations(data || []);
+      const rows = (data || []) as Registration[];
+      setRegistrations(rows);
+
+      // Ensure admins can always see payment proofs even if a registration was created
+      // but the client-side DB link failed right after upload.
+      void backfillMissingPaymentProofUrls(rows);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
