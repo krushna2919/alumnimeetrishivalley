@@ -652,7 +652,7 @@ const AdminAccountsReview = () => {
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
-                  {isUploadingReceipt ? 'Uploading...' : 'Verify Payment'}
+                  {isUploadingReceipt ? 'Uploading...' : 'Approve Payment'}
                 </Button>
               </>
             )}
