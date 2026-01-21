@@ -40,7 +40,8 @@ import {
   RefreshCw,
   ChevronLeft,
   FileCheck,
-  Receipt
+  Receipt,
+  Upload
 } from 'lucide-react';
 import {
   Pagination,
@@ -59,6 +60,7 @@ interface AccountsRegistration {
   registration_fee: number;
   payment_status: string;
   payment_proof_url: string | null;
+  payment_receipt_url: string | null;
   payment_reference: string | null;
   payment_date: string | null;
   accounts_verified: boolean;
@@ -77,6 +79,9 @@ const AdminAccountsReview = () => {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,7 +125,7 @@ const AdminAccountsReview = () => {
       // Accounts admin only sees payment-related fields
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, registration_fee, payment_status, payment_proof_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
+        .select('id, application_id, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
         .eq('payment_status', 'submitted')
         .order('created_at', { ascending: false });
 
@@ -157,15 +162,92 @@ const AdminAccountsReview = () => {
     setFilteredRegistrations(filtered);
   };
 
+  const handleReceiptSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid File',
+        description: 'Please upload a JPG, PNG, WebP, or PDF file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File Too Large',
+        description: 'File size must be less than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setReceiptFile(file);
+    if (file.type.startsWith('image/')) {
+      setReceiptPreview(URL.createObjectURL(file));
+    } else {
+      setReceiptPreview(null);
+    }
+  };
+
+  const uploadReceipt = async (registration: AccountsRegistration): Promise<string | null> => {
+    if (!receiptFile) return null;
+
+    setIsUploadingReceipt(true);
+    try {
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `receipt-${registration.application_id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, receiptFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading receipt:', error);
+      throw error;
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
+
   const handleVerifyPayment = async (registration: AccountsRegistration) => {
+    if (!receiptFile && !registration.payment_receipt_url) {
+      toast({
+        title: 'Receipt Required',
+        description: 'Please upload a payment receipt before verifying',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
+      let receiptUrl = registration.payment_receipt_url;
+
+      // Upload receipt if a new file was selected
+      if (receiptFile) {
+        receiptUrl = await uploadReceipt(registration);
+      }
+
       const { error } = await supabase
         .from('registrations')
         .update({
           accounts_verified: true,
           accounts_verified_at: new Date().toISOString(),
           accounts_verified_by: user?.id,
+          payment_receipt_url: receiptUrl,
         })
         .eq('id', registration.id);
 
@@ -173,9 +255,13 @@ const AdminAccountsReview = () => {
 
       toast({
         title: 'Payment Verified',
-        description: `Payment for ${registration.application_id} has been verified. Admin can now approve.`,
+        description: `Payment for ${registration.application_id} has been verified with receipt. Admin can now approve.`,
       });
 
+      // Clear receipt state
+      setReceiptFile(null);
+      setReceiptPreview(null);
+      
       fetchRegistrations();
       setIsDetailOpen(false);
     } catch (error) {
@@ -475,6 +561,89 @@ const AdminAccountsReview = () => {
                 <label className="text-sm text-muted-foreground">Verification Status</label>
                 <div className="mt-1">{getVerificationBadge(selectedRegistration.accounts_verified)}</div>
               </div>
+
+              {/* Receipt Upload Section - Only show if not already verified */}
+              {!selectedRegistration.accounts_verified && (
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-foreground">
+                    Upload Payment Receipt (Required)
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">
+                    Upload a receipt that will be sent to the applicant upon approval
+                  </p>
+                  
+                  {/* Show existing receipt if any */}
+                  {selectedRegistration.payment_receipt_url && !receiptFile && (
+                    <div className="mb-3 p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">Current Receipt:</p>
+                      {selectedRegistration.payment_receipt_url.toLowerCase().endsWith('.pdf') ? (
+                        <a 
+                          href={selectedRegistration.payment_receipt_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                        >
+                          <FileCheck className="h-4 w-4" />
+                          View PDF Receipt
+                        </a>
+                      ) : (
+                        <img 
+                          src={selectedRegistration.payment_receipt_url} 
+                          alt="Receipt" 
+                          className="max-w-full max-h-32 rounded"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Receipt preview */}
+                  {receiptFile && (
+                    <div className="mb-3 p-3 bg-primary/10 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileCheck className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">{receiptFile.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setReceiptFile(null);
+                            setReceiptPreview(null);
+                          }}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {receiptPreview && (
+                        <img src={receiptPreview} alt="Receipt preview" className="mt-2 max-w-full max-h-32 rounded" />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Upload button */}
+                  {!receiptFile && (
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={handleReceiptSelect}
+                        className="hidden"
+                      />
+                      <div className="border-2 border-dashed border-border hover:border-primary rounded-lg p-4 text-center transition-colors">
+                        <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Click to upload receipt
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          JPG, PNG, WebP, or PDF (max 5MB)
+                        </p>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -492,14 +661,14 @@ const AdminAccountsReview = () => {
                 </Button>
                 <Button
                   onClick={() => selectedRegistration && handleVerifyPayment(selectedRegistration)}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isUploadingReceipt || (!receiptFile && !selectedRegistration?.payment_receipt_url)}
                 >
-                  {isProcessing ? (
+                  {isProcessing || isUploadingReceipt ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
-                  Verify Payment
+                  {isUploadingReceipt ? 'Uploading...' : 'Verify Payment'}
                 </Button>
               </>
             )}
