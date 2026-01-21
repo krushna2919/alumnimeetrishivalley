@@ -166,12 +166,11 @@ const AdminAccountsReview = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
+    // Validate file type - PDF only
+    if (file.type !== 'application/pdf') {
       toast({
         title: 'Invalid File',
-        description: 'Please upload a JPG, PNG, WebP, or PDF file',
+        description: 'Please upload a PDF file only',
         variant: 'destructive',
       });
       return;
@@ -188,11 +187,7 @@ const AdminAccountsReview = () => {
     }
 
     setReceiptFile(file);
-    if (file.type.startsWith('image/')) {
-      setReceiptPreview(URL.createObjectURL(file));
-    } else {
-      setReceiptPreview(null);
-    }
+    setReceiptPreview(null); // PDFs don't have preview
   };
 
   const uploadReceipt = async (registration: AccountsRegistration): Promise<string | null> => {
@@ -566,33 +561,25 @@ const AdminAccountsReview = () => {
               {!selectedRegistration.accounts_verified && (
                 <div className="border-t pt-4">
                   <label className="text-sm font-medium text-foreground">
-                    Upload Payment Receipt (Required)
+                    Upload Payment Receipt PDF (Required)
                   </label>
                   <p className="text-xs text-muted-foreground mt-1 mb-3">
-                    Upload a receipt that will be sent to the applicant upon approval
+                    Upload a PDF receipt that will be attached to the approval email
                   </p>
                   
                   {/* Show existing receipt if any */}
                   {selectedRegistration.payment_receipt_url && !receiptFile && (
                     <div className="mb-3 p-3 bg-secondary/30 rounded-lg">
                       <p className="text-sm text-muted-foreground mb-2">Current Receipt:</p>
-                      {selectedRegistration.payment_receipt_url.toLowerCase().endsWith('.pdf') ? (
-                        <a 
-                          href={selectedRegistration.payment_receipt_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
-                        >
-                          <FileCheck className="h-4 w-4" />
-                          View PDF Receipt
-                        </a>
-                      ) : (
-                        <img 
-                          src={selectedRegistration.payment_receipt_url} 
-                          alt="Receipt" 
-                          className="max-w-full max-h-32 rounded"
-                        />
-                      )}
+                      <a 
+                        href={selectedRegistration.payment_receipt_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                      >
+                        <FileCheck className="h-4 w-4" />
+                        View PDF Receipt
+                      </a>
                     </div>
                   )}
 
@@ -616,9 +603,6 @@ const AdminAccountsReview = () => {
                           <XCircle className="h-4 w-4" />
                         </Button>
                       </div>
-                      {receiptPreview && (
-                        <img src={receiptPreview} alt="Receipt preview" className="mt-2 max-w-full max-h-32 rounded" />
-                      )}
                     </div>
                   )}
 
@@ -627,17 +611,17 @@ const AdminAccountsReview = () => {
                     <label className="cursor-pointer">
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        accept="application/pdf"
                         onChange={handleReceiptSelect}
                         className="hidden"
                       />
                       <div className="border-2 border-dashed border-border hover:border-primary rounded-lg p-4 text-center transition-colors">
                         <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
                         <p className="text-sm text-muted-foreground">
-                          Click to upload receipt
+                          Click to upload PDF receipt
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          JPG, PNG, WebP, or PDF (max 5MB)
+                          PDF only (max 5MB)
                         </p>
                       </div>
                     </label>
