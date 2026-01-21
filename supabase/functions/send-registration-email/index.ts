@@ -16,6 +16,7 @@ interface EmailRequest {
   applicationId: string;
   type: "approved" | "rejected";
   rejectionReason?: string;
+  paymentReceiptUrl?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -79,7 +80,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Admin access verified for user: ${user.id}`);
 
-    const { to, name, applicationId, type, rejectionReason }: EmailRequest = await req.json();
+    const { to, name, applicationId, type, rejectionReason, paymentReceiptUrl }: EmailRequest = await req.json();
     
     // Validate required fields
     if (!to || !name || !applicationId || !type) {
@@ -106,10 +107,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Verify the application exists and the email matches
+    // Verify the application exists and get registration details including receipt
     const { data: registration, error: regError } = await supabaseClient
       .from('registrations')
-      .select('email, application_id')
+      .select('email, application_id, payment_receipt_url')
       .eq('application_id', applicationId)
       .single();
 
@@ -128,6 +129,9 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    // Use the receipt URL from the request or from the database
+    const receiptUrl = paymentReceiptUrl || registration.payment_receipt_url;
 
     console.log(`Sending ${type} email to ${to} for application ${applicationId}`);
 
@@ -150,6 +154,16 @@ const handler = async (req: Request): Promise<Response> => {
               ${applicationId}
             </p>
           </div>
+          ${receiptUrl ? `
+          <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f57c00;">
+            <p style="margin: 0; font-size: 14px; color: #666;">📄 Payment Receipt:</p>
+            <p style="margin: 10px 0 0;">
+              <a href="${receiptUrl}" style="color: #f57c00; text-decoration: underline; font-weight: bold;">
+                Click here to download your payment receipt
+              </a>
+            </p>
+          </div>
+          ` : ''}
           <p>We look forward to seeing you at the event!</p>
           <p style="margin-top: 30px;">
             Best regards,<br>
@@ -185,6 +199,9 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
+    // BCC for superuser on all emails
+    const bccEmail = "superuseralumnimeet@rishivalley.org";
+
     // Send email via Resend API
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -195,6 +212,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
         to: [to],
+        bcc: [bccEmail],
         subject: subject,
         html: htmlContent,
       }),
