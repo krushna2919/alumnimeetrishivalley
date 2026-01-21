@@ -45,7 +45,7 @@ export const registrantSchema = z.object({
   district: z.string().min(2, "Please enter your district").max(100),
   state: z.string().min(2, "Please enter your state").max(100),
   postalCode: z.string().min(5, "Please enter a valid postal code").max(10),
-  country: z.string().default("India"),
+  country: z.string().min(2, "Please enter your country").max(100),
   // Additional attendees embedded in form
   attendees: z.array(attendeeSchema).default([]),
 }).refine((data) => {
@@ -86,7 +86,7 @@ export const defaultRegistrant: RegistrantData = {
   district: "",
   state: "",
   postalCode: "",
-  country: "India",
+  country: "",
   attendees: [],
 };
 
