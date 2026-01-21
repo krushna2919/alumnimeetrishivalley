@@ -57,6 +57,7 @@ import { format } from 'date-fns';
 interface AccountsRegistration {
   id: string;
   application_id: string;
+  name: string;
   registration_fee: number;
   payment_status: string;
   payment_proof_url: string | null;
@@ -184,7 +185,7 @@ const AdminAccountsReview = () => {
       // Accounts admin only sees payment-related fields
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
+        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
         .eq('payment_status', 'submitted')
         .order('created_at', { ascending: false });
 
@@ -461,9 +462,8 @@ const AdminAccountsReview = () => {
                       <TableRow>
                         <TableHead>Application ID</TableHead>
                         <TableHead>Amount</TableHead>
-                        <TableHead>Payment Date</TableHead>
+                        <TableHead>Applicant Name</TableHead>
                         <TableHead>Verification</TableHead>
-                        <TableHead>Submitted</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -474,15 +474,8 @@ const AdminAccountsReview = () => {
                             {registration.application_id}
                           </TableCell>
                           <TableCell>₹{registration.registration_fee}</TableCell>
-                          <TableCell>
-                            {registration.payment_date 
-                              ? format(new Date(registration.payment_date), 'MMM d, yyyy')
-                              : '-'}
-                          </TableCell>
+                          <TableCell>{registration.name}</TableCell>
                           <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
-                          <TableCell>
-                            {format(new Date(registration.created_at), 'MMM d, yyyy')}
-                          </TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="ghost"
