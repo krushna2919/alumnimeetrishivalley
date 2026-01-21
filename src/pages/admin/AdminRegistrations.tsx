@@ -49,6 +49,7 @@ import {
   CheckCircle, 
   XCircle,
   RefreshCw,
+  Link2,
   Mail,
   Trash2,
   Users,
@@ -90,6 +91,7 @@ const AdminRegistrations = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSyncingProofs, setIsSyncingProofs] = useState(false);
   const [showGrouped, setShowGrouped] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<Registration[] | null>(null);
   const [isGroupRejectDialogOpen, setIsGroupRejectDialogOpen] = useState(false);
@@ -157,6 +159,74 @@ const AdminRegistrations = () => {
         if (error) console.error('Failed to backfill payment_proof_url:', error);
       })
     );
+  };
+
+  // Sync all missing payment proofs from storage (superadmin only)
+  const syncMissingProofs = async () => {
+    setIsSyncingProofs(true);
+    try {
+      // Fetch all registrations with pending payment status but no proof URL
+      const { data: pendingRecords, error: fetchError } = await supabase
+        .from('registrations')
+        .select('id, application_id, payment_status, payment_proof_url')
+        .is('payment_proof_url', null)
+        .in('payment_status', ['pending', 'submitted']);
+
+      if (fetchError) throw fetchError;
+
+      if (!pendingRecords || pendingRecords.length === 0) {
+        toast({
+          title: 'No Missing Proofs',
+          description: 'All payment proofs are already linked.',
+        });
+        return;
+      }
+
+      let linkedCount = 0;
+      
+      // Process in parallel but with a reasonable batch
+      await Promise.allSettled(
+        pendingRecords.map(async (record) => {
+          const resolvedUrl = await resolvePaymentProofUrlFromStorage(record.application_id);
+          if (!resolvedUrl) return;
+
+          const { error: updateError } = await supabase
+            .from('registrations')
+            .update({
+              payment_proof_url: resolvedUrl,
+              payment_status: 'submitted',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', record.id);
+
+          if (!updateError) {
+            linkedCount++;
+          } else {
+            console.error(`Failed to link proof for ${record.application_id}:`, updateError);
+          }
+        })
+      );
+
+      toast({
+        title: 'Sync Complete',
+        description: linkedCount > 0
+          ? `Successfully linked ${linkedCount} payment proof(s) from storage.`
+          : 'No matching files found in storage.',
+      });
+
+      if (linkedCount > 0) {
+        fetchRegistrations();
+      }
+    } catch (error) {
+      console.error('Error syncing proofs:', error);
+      toast({
+        title: 'Sync Failed',
+        description: 'Failed to sync payment proofs from storage.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncingProofs(false);
+    }
   };
 
   // Handle hostel assignment
@@ -751,6 +821,21 @@ const AdminRegistrations = () => {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
+            {userRole === 'superadmin' && (
+              <Button 
+                onClick={syncMissingProofs} 
+                variant="outline" 
+                size="sm"
+                disabled={isSyncingProofs}
+              >
+                {isSyncingProofs ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Link2 className="h-4 w-4 mr-2" />
+                )}
+                Sync Missing Proofs
+              </Button>
+            )}
           </div>
         </div>
 
