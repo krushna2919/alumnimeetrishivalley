@@ -35,6 +35,11 @@ const getNavItems = (userRole: string | null) => {
     { href: '/admin/hostels', label: 'Hostel Management', icon: Building2 },
   ];
   
+  // Superadmin can access Payment Verification (same as accounts admin)
+  if (userRole === 'superadmin') {
+    items.push({ href: '/admin/accounts-review', label: 'Payment Verification', icon: Receipt });
+  }
+  
   // Only superadmin can access User Management
   if (userRole === 'superadmin') {
     items.push({ href: '/admin/users', label: 'User Management', icon: UserCog });
