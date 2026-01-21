@@ -57,6 +57,9 @@ const ImportantNotes = () => {
           <p className="text-amber-700 dark:text-amber-400 font-medium">
             ⚠️ Hard refresh the browser before proceeding to fill the Registration Form
           </p>
+          <p className="text-amber-600 dark:text-amber-500 text-sm mt-1">
+            <span className="font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">Ctrl + Shift + R</span> (Windows/Linux) or <span className="font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">Cmd + Shift + R</span> (Mac)
+          </p>
         </motion.div>
 
         {/* Eligibility Note */}
