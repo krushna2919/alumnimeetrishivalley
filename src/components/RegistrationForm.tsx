@@ -212,23 +212,38 @@ const RegistrationForm = () => {
               .from('payment-proofs')
               .getPublicUrl(fileName);
 
-            // Update all registrations with the same proof
-            let updateFailed = false;
-            for (const [, actualAppId] of applicationIdMap.entries()) {
-              const { error: updateError, count } = await supabase
-                .from("registrations")
-                .update({
-                  payment_proof_url: publicUrl,
-                  payment_status: "submitted" as const,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("application_id", actualAppId);
-              
-              if (updateError) {
-                console.error(`Failed to update registration ${actualAppId}:`, updateError);
-                updateFailed = true;
-              }
-            }
+             // Update all registrations with the same proof (retry each update)
+             let updateFailed = false;
+             const updatePayload = {
+               payment_proof_url: publicUrl,
+               payment_status: "submitted" as const,
+               updated_at: new Date().toISOString(),
+             };
+
+             for (const [, actualAppId] of applicationIdMap.entries()) {
+               let lastError: unknown = null;
+               for (let attempt = 1; attempt <= 3; attempt++) {
+                 // eslint-disable-next-line no-await-in-loop
+                 const { error } = await supabase
+                   .from("registrations")
+                   .update(updatePayload)
+                   .eq("application_id", actualAppId);
+
+                 if (!error) {
+                   lastError = null;
+                   break;
+                 }
+
+                 lastError = error;
+                 // eslint-disable-next-line no-await-in-loop
+                 await new Promise((r) => setTimeout(r, 400 * attempt));
+               }
+
+               if (lastError) {
+                 console.error(`Failed to update registration ${actualAppId} after retries:`, lastError);
+                 updateFailed = true;
+               }
+             }
             
             if (updateFailed) {
               toast.warning("Payment proof uploaded but link may not be saved", {
@@ -262,20 +277,35 @@ const RegistrationForm = () => {
               .from('payment-proofs')
               .getPublicUrl(fileName);
 
-            // Update registration with payment proof
-            const { error: updateError } = await supabase
-              .from("registrations")
-              .update({
-                payment_proof_url: publicUrl,
-                payment_status: "submitted" as const,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("application_id", result.applicationId);
+            // Update registration with payment proof (retry to avoid intermittent RLS/network timing issues)
+            const updatePayload = {
+              payment_proof_url: publicUrl,
+              payment_status: "submitted" as const,
+              updated_at: new Date().toISOString(),
+            };
+
+            let updateError: unknown = null;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              // eslint-disable-next-line no-await-in-loop
+              const { error } = await supabase
+                .from("registrations")
+                .update(updatePayload)
+                .eq("application_id", result.applicationId);
+
+              if (!error) {
+                updateError = null;
+                break;
+              }
+
+              updateError = error;
+              // eslint-disable-next-line no-await-in-loop
+              await new Promise((r) => setTimeout(r, 400 * attempt));
+            }
 
             if (updateError) {
-              console.error("Failed to link payment proof:", updateError);
+              console.error("Failed to link payment proof after retries:", updateError);
               toast.warning("Payment proof uploaded but link may not be saved", {
-                description: "Please use 'Already registered?' to verify or re-upload."
+                description: "Your proof is uploaded. If it doesn't show up, use 'Already registered?' to re-link it.",
               });
             } else {
               toast.success("Payment proof uploaded successfully!");
