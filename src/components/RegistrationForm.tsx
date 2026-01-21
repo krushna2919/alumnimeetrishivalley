@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, Upload, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
-import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
@@ -51,7 +50,6 @@ const RegistrationForm = () => {
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
-  const { lookupPostalCode, isLoading: isLookingUpPostalCode } = usePostalCodeLookup();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
   const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,8 +88,6 @@ const RegistrationForm = () => {
   const totalApplicants = 1 + additionalAttendees.length;
   const allBulkProofsUploaded = bulkPaymentProofs.has("combined");
 
-  // Watch postal code for auto-population
-  const postalCode = useWatch({ control: form.control, name: "postalCode" });
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
 
@@ -102,23 +98,6 @@ const RegistrationForm = () => {
 
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
-
-  // Auto-populate city, district, state from postal code
-  useEffect(() => {
-    const fetchLocationData = async () => {
-      if (postalCode && postalCode.length === 6) {
-        const locationData = await lookupPostalCode(postalCode);
-        if (locationData) {
-          form.setValue("city", locationData.city, { shouldValidate: true });
-          form.setValue("district", locationData.district, { shouldValidate: true });
-          form.setValue("state", locationData.state, { shouldValidate: true });
-          toast.success("Location auto-filled from PIN code");
-        }
-      }
-    };
-
-    fetchLocationData();
-  }, [postalCode, lookupPostalCode, form]);
 
   const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
@@ -643,9 +622,8 @@ const RegistrationForm = () => {
                         name="postalCode"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-foreground flex items-center gap-2">
+                            <FormLabel className="text-foreground">
                               PIN Code
-                              {isLookingUpPostalCode && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                             </FormLabel>
                             <FormControl>
                               <Input
@@ -656,7 +634,6 @@ const RegistrationForm = () => {
                               />
                             </FormControl>
                             <FormMessage />
-                            <p className="text-xs text-muted-foreground">City, district & state will auto-fill</p>
                           </FormItem>
                         )}
                       />
