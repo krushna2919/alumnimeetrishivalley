@@ -46,6 +46,19 @@ const ImportantNotes = () => {
           </p>
         </motion.div>
 
+        {/* Hard Refresh Notice */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-center"
+        >
+          <p className="text-amber-700 dark:text-amber-400 font-medium">
+            ⚠️ Hard refresh the browser before proceeding to fill the Registration Form
+          </p>
+        </motion.div>
+
         {/* Eligibility Note */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
