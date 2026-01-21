@@ -204,14 +204,18 @@ const RegistrationForm = () => {
 
           if (uploadError) {
             console.error("Combined upload error:", uploadError);
+            toast.error("Failed to upload payment proof", {
+              description: "Your registration is saved. Please use 'Already registered?' to upload proof later."
+            });
           } else {
             const { data: { publicUrl } } = supabase.storage
               .from('payment-proofs')
               .getPublicUrl(fileName);
 
             // Update all registrations with the same proof
+            let updateFailed = false;
             for (const [, actualAppId] of applicationIdMap.entries()) {
-              await supabase
+              const { error: updateError, count } = await supabase
                 .from("registrations")
                 .update({
                   payment_proof_url: publicUrl,
@@ -219,6 +223,17 @@ const RegistrationForm = () => {
                   updated_at: new Date().toISOString(),
                 })
                 .eq("application_id", actualAppId);
+              
+              if (updateError) {
+                console.error(`Failed to update registration ${actualAppId}:`, updateError);
+                updateFailed = true;
+              }
+            }
+            
+            if (updateFailed) {
+              toast.warning("Payment proof uploaded but link may not be saved", {
+                description: "Please use 'Already registered?' to verify or re-upload."
+              });
             }
           }
         }
@@ -248,7 +263,7 @@ const RegistrationForm = () => {
               .getPublicUrl(fileName);
 
             // Update registration with payment proof
-            await supabase
+            const { error: updateError } = await supabase
               .from("registrations")
               .update({
                 payment_proof_url: publicUrl,
@@ -257,7 +272,14 @@ const RegistrationForm = () => {
               })
               .eq("application_id", result.applicationId);
 
-            toast.success("Payment proof uploaded successfully!");
+            if (updateError) {
+              console.error("Failed to link payment proof:", updateError);
+              toast.warning("Payment proof uploaded but link may not be saved", {
+                description: "Please use 'Already registered?' to verify or re-upload."
+              });
+            } else {
+              toast.success("Payment proof uploaded successfully!");
+            }
           }
         } catch (uploadErr) {
           console.error("Error uploading proof:", uploadErr);
