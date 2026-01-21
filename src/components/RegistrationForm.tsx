@@ -915,7 +915,7 @@ const RegistrationForm = () => {
                             Upload Payment Proof
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Please upload a screenshot or PDF of your payment confirmation (Max 5MB).
+                            Please upload a screenshot or PDF which consists the transaction reference number of your payment confirmation (Max 5MB).
                           </p>
                           <div className="flex flex-col gap-3">
                             <input
