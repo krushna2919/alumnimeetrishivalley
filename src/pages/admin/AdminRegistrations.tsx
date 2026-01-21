@@ -1193,6 +1193,12 @@ const AdminRegistrations = () => {
                     )}
                   </div>
                 </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Registered On</label>
+                  <p className="font-medium mt-1">
+                    {format(new Date(selectedRegistration.created_at), 'dd MMM yyyy, hh:mm a')}
+                  </p>
+                </div>
               </div>
 
               {selectedRegistration.rejection_reason && (
