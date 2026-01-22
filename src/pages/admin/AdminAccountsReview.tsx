@@ -430,6 +430,7 @@ const AdminAccountsReview = () => {
                   placeholder="Search by application ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   className="pl-10"
                 />
               </div>
