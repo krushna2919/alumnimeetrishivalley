@@ -1300,6 +1300,24 @@ const AdminRegistrations = () => {
                     <p className="font-medium text-muted-foreground">No proof uploaded</p>
                   )}
                 </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-muted-foreground">Payment Receipt (Accounts Admin)</label>
+                  {selectedRegistration.payment_receipt_url ? (
+                    <div className="mt-2">
+                      <a 
+                        href={selectedRegistration.payment_receipt_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-primary hover:underline"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Payment Receipt (PDF)
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">Not uploaded yet</p>
+                  )}
+                </div>
               </div>
 
               <div>
