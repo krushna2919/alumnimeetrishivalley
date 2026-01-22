@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.payment-reminder-cron]
 verify_jwt = false
+
+[functions.send-accounts-notification]
+verify_jwt = false
