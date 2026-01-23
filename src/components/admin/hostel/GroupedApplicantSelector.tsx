@@ -187,12 +187,13 @@ const GroupedApplicantSelector = ({
                 const unassignedCount = getUnassignedCount(group);
                 const isFullyAssigned = unassignedCount === 0;
                 const isExpanded = expandedGroups.has(group.primary.application_id);
+                const hasSecondaryMembers = group.members.length > 1;
 
                 return (
                   <Collapsible
                     key={group.primary.application_id}
                     open={isExpanded}
-                    onOpenChange={() => toggleGroupExpanded(group.primary.application_id)}
+                    onOpenChange={() => hasSecondaryMembers && toggleGroupExpanded(group.primary.application_id)}
                   >
                     <div
                       className={cn(
@@ -207,19 +208,21 @@ const GroupedApplicantSelector = ({
                     >
                       {/* Group Header */}
                       <div className="flex items-center">
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="p-3 hover:bg-accent/50 transition-colors"
-                          >
-                            <ChevronRight
-                              className={cn(
-                                'h-4 w-4 text-muted-foreground transition-transform duration-200',
-                                isExpanded && 'rotate-90'
-                              )}
-                            />
-                          </button>
-                        </CollapsibleTrigger>
+                        {hasSecondaryMembers && (
+                          <CollapsibleTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-3 hover:bg-accent/50 transition-colors"
+                            >
+                              <ChevronRight
+                                className={cn(
+                                  'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                                  isExpanded && 'rotate-90'
+                                )}
+                              />
+                            </button>
+                          </CollapsibleTrigger>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -228,7 +231,8 @@ const GroupedApplicantSelector = ({
                           }}
                           disabled={isFullyAssigned}
                           className={cn(
-                            'flex-1 flex items-center gap-3 p-3 pl-0 text-left transition-colors',
+                            'flex-1 flex items-center gap-3 p-3 text-left transition-colors',
+                            hasSecondaryMembers && 'pl-0',
                             !isFullyAssigned && 'hover:bg-accent/50 cursor-pointer',
                             isFullyAssigned && 'cursor-not-allowed'
                           )}
