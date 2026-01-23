@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save, Calendar } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import GeofenceSettings from '@/components/admin/GeofenceSettings';
 
 interface BatchConfig {
   id: string;
@@ -260,6 +261,9 @@ const AdminSettings = () => {
                 </>
               )}
             </Button>
+
+            {/* Geofence Settings - Superadmin Only */}
+            <GeofenceSettings />
           </div>
         )}
       </div>

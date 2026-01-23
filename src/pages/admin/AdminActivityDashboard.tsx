@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Activity, Smartphone, Monitor, Tablet, Search, Filter, Shield, User } from 'lucide-react';
+import { Loader2, Activity, Smartphone, Monitor, Tablet, Search, Filter, Shield, User, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { Json } from '@/integrations/supabase/types';
 
@@ -34,6 +34,11 @@ interface DeviceSession {
   user_agent: string | null;
   last_active_at: string;
   created_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  location_city: string | null;
+  location_region: string | null;
+  location_country: string | null;
 }
 
 interface GroupedDeviceSessions {
@@ -351,6 +356,7 @@ const AdminActivityDashboard = () => {
                                   <TableHead>Device</TableHead>
                                   <TableHead>Browser</TableHead>
                                   <TableHead>OS</TableHead>
+                                  <TableHead>Location</TableHead>
                                   <TableHead>Last Active</TableHead>
                                   <TableHead>First Seen</TableHead>
                                 </TableRow>
@@ -366,6 +372,18 @@ const AdminActivityDashboard = () => {
                                     </TableCell>
                                     <TableCell>{session.browser || 'Unknown'}</TableCell>
                                     <TableCell>{session.os || 'Unknown'}</TableCell>
+                                    <TableCell>
+                                      {session.latitude && session.longitude ? (
+                                        <div className="flex items-center gap-1 text-sm">
+                                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">
+                                            {session.latitude.toFixed(4)}, {session.longitude.toFixed(4)}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
                                     <TableCell className="text-muted-foreground">
                                       {format(new Date(session.last_active_at), 'dd MMM yyyy, HH:mm')}
                                     </TableCell>
