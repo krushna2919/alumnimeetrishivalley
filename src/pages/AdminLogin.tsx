@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Shield, Clock, KeyRound } from 'lucide-react';
+import { Loader2, Shield, Clock, KeyRound, MapPin } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { trackDeviceSession } from '@/lib/activityLogger';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -34,12 +36,14 @@ const AdminLogin = () => {
   
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
   
   const { signIn, isAdmin, isApproved, isPendingApproval, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-
+  const { getLocation, checkGeofence, checkUserIsSuperadmin } = useGeolocation();
   // Check for recovery/invite token in URL hash (Supabase redirects with token in hash)
   useEffect(() => {
     const handleRecoveryToken = async () => {
@@ -166,6 +170,7 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setLocationError(null);
     
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
@@ -179,8 +184,22 @@ const AdminLogin = () => {
     }
 
     setIsSubmitting(true);
+    setIsCheckingLocation(true);
 
     try {
+      // First, get location before authentication
+      const userLocation = await getLocation();
+      
+      if (!userLocation) {
+        setLocationError('Location access is required to log in. Please enable location services and try again.');
+        setIsSubmitting(false);
+        setIsCheckingLocation(false);
+        return;
+      }
+
+      setIsCheckingLocation(false);
+
+      // Authenticate the user
       const { error } = await signIn(email, password);
       
       if (error) {
@@ -190,6 +209,43 @@ const AdminLogin = () => {
           variant: 'destructive',
         });
         return;
+      }
+
+      // Get the current session to check if user is superadmin
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+
+      if (userId) {
+        // Check if user is superadmin (exempt from geofencing)
+        const isSuperadmin = await checkUserIsSuperadmin(userId);
+
+        if (!isSuperadmin) {
+          // Check geofence for non-superadmin users
+          const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
+
+          if (!geofenceResult.allowed) {
+            // Sign out the user immediately
+            await supabase.auth.signOut();
+            setLocationError(
+              `Access denied: You are ${geofenceResult.distance} km away from the authorized location. ` +
+              `Access is restricted to within ${geofenceResult.settings?.radius_km} km of the base location.`
+            );
+            toast({
+              title: 'Location Restricted',
+              description: 'You are outside the authorized access zone.',
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
+
+        // Track device session with location
+        await trackDeviceSession(
+          userId,
+          sessionData?.session?.user?.email || email,
+          userLocation.latitude,
+          userLocation.longitude
+        );
       }
 
       toast({
@@ -208,6 +264,7 @@ const AdminLogin = () => {
       });
     } finally {
       setIsSubmitting(false);
+      setIsCheckingLocation(false);
     }
   };
 
@@ -396,6 +453,15 @@ const AdminLogin = () => {
               )}
             </div>
 
+            {locationError && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-destructive">{locationError}</p>
+                </div>
+              </div>
+            )}
+
             <Button 
               type="submit" 
               className="w-full" 
@@ -404,7 +470,7 @@ const AdminLogin = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {isCheckingLocation ? 'Verifying location...' : 'Signing in...'}
                 </>
               ) : (
                 'Sign In'

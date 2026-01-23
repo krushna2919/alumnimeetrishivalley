@@ -92,46 +92,79 @@ export const parseUserAgent = (userAgent: string): { browser: string; os: string
   return { browser, os, deviceType };
 };
 
-export const trackDeviceSession = async (): Promise<void> => {
+export const trackDeviceSession = async (
+  userId?: string,
+  userEmail?: string,
+  latitude?: number,
+  longitude?: number
+): Promise<void> => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.user) {
+    let user: { id: string; email?: string | null } | null = null;
+    let accessToken: string | null = null;
+
+    if (userId && userEmail) {
+      user = { id: userId, email: userEmail };
+      // Get access token for session tracking
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token || null;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        return;
+      }
+      user = session.user;
+      accessToken = session.access_token;
+    }
+
+    if (!user) {
       return;
     }
 
-    const user = session.user;
     const userAgent = navigator.userAgent;
     const { browser, os, deviceType } = parseUserAgent(userAgent);
 
     // Check if this session already exists
+    const sessionId = accessToken ? accessToken.substring(0, 50) : `manual_${Date.now()}`;
     const { data: existingSession } = await supabase
       .from('user_device_sessions')
       .select('id')
       .eq('user_id', user.id)
-      .eq('session_id', session.access_token.substring(0, 50))
+      .eq('session_id', sessionId)
       .single();
 
     if (existingSession) {
-      // Update last active
+      // Update last active with location if provided
+      const updateData: Record<string, unknown> = { 
+        last_active_at: new Date().toISOString() 
+      };
+      
+      if (latitude !== undefined && longitude !== undefined) {
+        updateData.latitude = latitude;
+        updateData.longitude = longitude;
+      }
+
       await supabase
         .from('user_device_sessions')
-        .update({ last_active_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', existingSession.id);
     } else {
-      // Insert new session
+      // Insert new session with location if provided
+      const insertData = {
+        user_id: user.id,
+        user_email: user.email || userEmail || '',
+        user_agent: userAgent,
+        browser,
+        os,
+        device_type: deviceType,
+        session_id: sessionId,
+        device_info: { browser, os, deviceType, userAgent } as Json,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+      };
+
       await supabase
         .from('user_device_sessions')
-        .insert({
-          user_id: user.id,
-          user_email: user.email || '',
-          user_agent: userAgent,
-          browser,
-          os,
-          device_type: deviceType,
-          session_id: session.access_token.substring(0, 50),
-          device_info: { browser, os, deviceType, userAgent }
-        });
+        .insert(insertData);
     }
   } catch (err) {
     console.error('Error tracking device session:', err);

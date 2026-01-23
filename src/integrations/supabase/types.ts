@@ -125,6 +125,39 @@ export type Database = {
           },
         ]
       }
+      geofence_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          latitude: number
+          longitude: number
+          radius_km: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          latitude: number
+          longitude: number
+          radius_km?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          latitude?: number
+          longitude?: number
+          radius_km?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       hostel_rooms: {
         Row: {
           beds_count: number
@@ -351,6 +384,11 @@ export type Database = {
           id: string
           ip_address: string | null
           last_active_at: string
+          latitude: number | null
+          location_city: string | null
+          location_country: string | null
+          location_region: string | null
+          longitude: number | null
           os: string | null
           session_id: string | null
           user_agent: string | null
@@ -365,6 +403,11 @@ export type Database = {
           id?: string
           ip_address?: string | null
           last_active_at?: string
+          latitude?: number | null
+          location_city?: string | null
+          location_country?: string | null
+          location_region?: string | null
+          longitude?: number | null
           os?: string | null
           session_id?: string | null
           user_agent?: string | null
@@ -379,6 +422,11 @@ export type Database = {
           id?: string
           ip_address?: string | null
           last_active_at?: string
+          latitude?: number | null
+          location_city?: string | null
+          location_country?: string | null
+          location_region?: string | null
+          longitude?: number | null
           os?: string | null
           session_id?: string | null
           user_agent?: string | null
@@ -417,6 +465,15 @@ export type Database = {
     }
     Functions: {
       generate_application_id: { Args: never; Returns: string }
+      get_geofence_settings: {
+        Args: never
+        Returns: {
+          is_enabled: boolean
+          latitude: number
+          longitude: number
+          radius_km: number
+        }[]
+      }
       get_open_batch_configuration: {
         Args: never
         Returns: {
@@ -437,6 +494,7 @@ export type Database = {
       is_accounts_admin: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_superadmin: { Args: { _user_id: string }; Returns: boolean }
       is_registration_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_user_superadmin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "superadmin" | "admin" | "user" | "accounts_admin" | "reviewer"
