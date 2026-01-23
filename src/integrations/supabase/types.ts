@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_activity_logs: {
+        Row: {
+          action_type: string
+          admin_email: string | null
+          admin_user_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_application_id: string | null
+          target_registration_id: string | null
+        }
+        Insert: {
+          action_type: string
+          admin_email?: string | null
+          admin_user_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_application_id?: string | null
+          target_registration_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          admin_email?: string | null
+          admin_user_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_application_id?: string | null
+          target_registration_id?: string | null
+        }
+        Relationships: []
+      }
       batch_configuration: {
         Row: {
           created_at: string
@@ -308,6 +341,51 @@ export type Database = {
             referencedColumns: ["application_id"]
           },
         ]
+      }
+      user_device_sessions: {
+        Row: {
+          browser: string | null
+          created_at: string
+          device_info: Json
+          device_type: string | null
+          id: string
+          ip_address: string | null
+          last_active_at: string
+          os: string | null
+          session_id: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string
+        }
+        Insert: {
+          browser?: string | null
+          created_at?: string
+          device_info?: Json
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          last_active_at?: string
+          os?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id: string
+        }
+        Update: {
+          browser?: string | null
+          created_at?: string
+          device_info?: Json
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          last_active_at?: string
+          os?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

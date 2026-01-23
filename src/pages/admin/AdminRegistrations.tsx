@@ -42,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { logAdminActivity } from '@/lib/activityLogger';
 import { 
   Search, 
   Loader2, 
@@ -112,7 +113,7 @@ const AdminRegistrations = () => {
   const itemsPerPage = 20;
   
   const { toast } = useToast();
-  const { userRole } = useAuth();
+  const { userRole, user } = useAuth();
 
   const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
     try {
@@ -506,11 +507,24 @@ const AdminRegistrations = () => {
         .update({
           registration_status: 'approved',
           approved_at: new Date().toISOString(),
+          approved_by: user?.id,
           approval_email_sent: true,
         })
         .eq('id', registration.id);
 
       if (error) throw error;
+
+      // Log registration approval activity
+      await logAdminActivity({
+        actionType: 'registration_approval',
+        targetRegistrationId: registration.id,
+        targetApplicationId: registration.application_id,
+        details: { 
+          name: registration.name,
+          email: registration.email,
+          registrationFee: registration.registration_fee 
+        }
+      });
 
       toast({
         title: 'Registration Approved',
@@ -560,6 +574,17 @@ const AdminRegistrations = () => {
         .eq('id', selectedRegistration.id);
 
       if (error) throw error;
+
+      // Log registration rejection activity
+      await logAdminActivity({
+        actionType: 'registration_rejection',
+        targetRegistrationId: selectedRegistration.id,
+        targetApplicationId: selectedRegistration.application_id,
+        details: { 
+          name: selectedRegistration.name,
+          rejectionReason 
+        }
+      });
 
       toast({
         title: 'Registration Rejected',

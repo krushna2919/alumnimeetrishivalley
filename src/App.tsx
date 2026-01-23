@@ -13,6 +13,7 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminHostelManagement from "./pages/admin/AdminHostelManagement";
 import AdminAccountsReview from "./pages/admin/AdminAccountsReview";
+import AdminActivityDashboard from "./pages/admin/AdminActivityDashboard";
 import InstallApp from "./pages/InstallApp";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/hostels" element={<AdminHostelManagement />} />
             <Route path="/admin/accounts-review" element={<AdminAccountsReview />} />
+            <Route path="/admin/activity" element={<AdminActivityDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
