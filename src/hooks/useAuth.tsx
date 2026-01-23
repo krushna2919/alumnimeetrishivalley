@@ -12,6 +12,8 @@ interface AuthContextType {
   isApproved: boolean;
   isPendingApproval: boolean;
   userRole: UserRole;
+  allRoles: UserRole[];
+  switchRole: (role: UserRole) => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -26,6 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isApproved, setIsApproved] = useState(false);
   const [isPendingApproval, setIsPendingApproval] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>(null);
+  const [allRoles, setAllRoles] = useState<UserRole[]>([]);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -44,6 +47,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsApproved(false);
           setIsPendingApproval(false);
           setUserRole(null);
+          setAllRoles([]);
         }
       }
     );
@@ -63,7 +67,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAdminRole = async (userId: string) => {
     try {
-      // Check for all roles: admin, superadmin, reviewer
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('is_approved, role')
@@ -75,37 +78,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsApproved(false);
         setIsPendingApproval(false);
         setUserRole(null);
+        setAllRoles([]);
         return;
       }
 
-      // Find the highest priority approved role (cast role to string for new enum value)
-      const approvedSuperadmin = userRoles?.find(r => (r.role as string) === 'superadmin' && r.is_approved);
-      const approvedAdmin = userRoles?.find(r => (r.role as string) === 'admin' && r.is_approved);
-      const approvedReviewer = userRoles?.find(r => (r.role as string) === 'reviewer' && r.is_approved);
-      const approvedAccountsAdmin = userRoles?.find(r => (r.role as string) === 'accounts_admin' && r.is_approved);
-      
+      // Collect all approved roles
+      const approvedRoles: UserRole[] = [];
+      if (userRoles?.find(r => (r.role as string) === 'superadmin' && r.is_approved)) {
+        approvedRoles.push('superadmin');
+      }
+      if (userRoles?.find(r => (r.role as string) === 'admin' && r.is_approved)) {
+        approvedRoles.push('admin');
+      }
+      if (userRoles?.find(r => (r.role as string) === 'accounts_admin' && r.is_approved)) {
+        approvedRoles.push('accounts_admin');
+      }
+      if (userRoles?.find(r => (r.role as string) === 'reviewer' && r.is_approved)) {
+        approvedRoles.push('reviewer');
+      }
+
+      setAllRoles(approvedRoles);
+
       // Find any pending role
       const pendingRole = userRoles?.find(r => !r.is_approved);
       
-      // Determine the active role (priority: superadmin > admin > accounts_admin > reviewer)
-      if (approvedSuperadmin) {
-        setUserRole('superadmin');
+      if (approvedRoles.length > 0) {
+        // Set highest priority role as default (priority: superadmin > admin > accounts_admin > reviewer)
+        const defaultRole = approvedRoles[0]; // Already sorted by priority above
+        setUserRole(defaultRole);
         setIsAdmin(true);
-        setIsApproved(true);
-        setIsPendingApproval(false);
-      } else if (approvedAdmin) {
-        setUserRole('admin');
-        setIsAdmin(true);
-        setIsApproved(true);
-        setIsPendingApproval(false);
-      } else if (approvedAccountsAdmin) {
-        setUserRole('accounts_admin');
-        setIsAdmin(true); // Accounts admin can access admin panel
-        setIsApproved(true);
-        setIsPendingApproval(false);
-      } else if (approvedReviewer) {
-        setUserRole('reviewer');
-        setIsAdmin(true); // Reviewer can access admin panel
         setIsApproved(true);
         setIsPendingApproval(false);
       } else if (pendingRole) {
@@ -125,6 +126,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsApproved(false);
       setIsPendingApproval(false);
       setUserRole(null);
+      setAllRoles([]);
+    }
+  };
+
+  const switchRole = (role: UserRole) => {
+    if (role && allRoles.includes(role)) {
+      setUserRole(role);
     }
   };
 
@@ -142,10 +150,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsApproved(false);
     setIsPendingApproval(false);
     setUserRole(null);
+    setAllRoles([]);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isApproved, isPendingApproval, userRole, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, isApproved, isPendingApproval, userRole, allRoles, switchRole, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
