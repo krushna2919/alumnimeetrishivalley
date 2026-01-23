@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,6 +56,8 @@ interface Registration {
 
 const AdminHostelManagement = () => {
   const { toast } = useToast();
+  const { userRole } = useAuth();
+  const isSuperadmin = userRole === 'superadmin';
   const [hostels, setHostels] = useState<Hostel[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bedAssignments, setBedAssignments] = useState<BedAssignment[]>([]);
@@ -350,65 +353,67 @@ const AdminHostelManagement = () => {
             <h1 className="text-2xl font-bold text-foreground">Hostel Management</h1>
             <p className="text-muted-foreground">Manage hostels, rooms, and bed assignments</p>
           </div>
-          <Dialog open={isAddHostelOpen} onOpenChange={setIsAddHostelOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Hostel
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Hostel</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hostel-name">Hostel Name</Label>
-                  <Input
-                    id="hostel-name"
-                    value={newHostel.name}
-                    onChange={(e) => setNewHostel({ ...newHostel, name: e.target.value })}
-                    placeholder="Enter hostel name"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="total-rooms">Number of Rooms</Label>
-                    <Input
-                      id="total-rooms"
-                      type="number"
-                      min="0"
-                      value={newHostel.total_rooms}
-                      onChange={(e) => setNewHostel({ ...newHostel, total_rooms: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="beds-per-room">Beds per Room</Label>
-                    <Input
-                      id="beds-per-room"
-                      type="number"
-                      min="1"
-                      value={newHostel.beds_per_room}
-                      onChange={(e) => setNewHostel({ ...newHostel, beds_per_room: parseInt(e.target.value) || 1 })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="washrooms">Washrooms</Label>
-                    <Input
-                      id="washrooms"
-                      type="number"
-                      min="0"
-                      value={newHostel.washrooms}
-                      onChange={(e) => setNewHostel({ ...newHostel, washrooms: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddHostel} className="w-full">
+          {isSuperadmin && (
+            <Dialog open={isAddHostelOpen} onOpenChange={setIsAddHostelOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
                   Add Hostel
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Hostel</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="hostel-name">Hostel Name</Label>
+                    <Input
+                      id="hostel-name"
+                      value={newHostel.name}
+                      onChange={(e) => setNewHostel({ ...newHostel, name: e.target.value })}
+                      placeholder="Enter hostel name"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="total-rooms">Number of Rooms</Label>
+                      <Input
+                        id="total-rooms"
+                        type="number"
+                        min="0"
+                        value={newHostel.total_rooms}
+                        onChange={(e) => setNewHostel({ ...newHostel, total_rooms: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="beds-per-room">Beds per Room</Label>
+                      <Input
+                        id="beds-per-room"
+                        type="number"
+                        min="1"
+                        value={newHostel.beds_per_room}
+                        onChange={(e) => setNewHostel({ ...newHostel, beds_per_room: parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="washrooms">Washrooms</Label>
+                      <Input
+                        id="washrooms"
+                        type="number"
+                        min="0"
+                        value={newHostel.washrooms}
+                        onChange={(e) => setNewHostel({ ...newHostel, washrooms: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={handleAddHostel} className="w-full">
+                    Add Hostel
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Summary Cards */}
@@ -450,10 +455,12 @@ const AdminHostelManagement = () => {
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No hostels configured yet</p>
-              <Button className="mt-4" onClick={() => setIsAddHostelOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Hostel
-              </Button>
+              {isSuperadmin && (
+                <Button className="mt-4" onClick={() => setIsAddHostelOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Your First Hostel
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
