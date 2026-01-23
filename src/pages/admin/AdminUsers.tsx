@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle, X } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type AppRole = Database['public']['Enums']['app_role'];
@@ -52,6 +52,12 @@ interface UserRole {
   created_at: string;
   email?: string;
   is_approved: boolean;
+}
+
+interface GroupedUser {
+  user_id: string;
+  email: string;
+  roles: UserRole[];
 }
 
 const AdminUsers = () => {
@@ -270,6 +276,32 @@ const AdminUsers = () => {
     }
   };
 
+  // Group users by email for the approved admins view
+  const groupedUsers: GroupedUser[] = userRoles
+    .filter(r => r.is_approved)
+    .reduce((acc, role) => {
+      const existing = acc.find(u => u.user_id === role.user_id);
+      if (existing) {
+        existing.roles.push(role);
+      } else {
+        acc.push({
+          user_id: role.user_id,
+          email: role.email || role.user_id,
+          roles: [role]
+        });
+      }
+      return acc;
+    }, [] as GroupedUser[]);
+
+  // Get available roles that can be added to a user
+  const getAvailableRoles = (userId: string): AppRole[] => {
+    const existingRoles = userRoles
+      .filter(r => r.user_id === userId && r.is_approved)
+      .map(r => r.role);
+    const allAvailableRoles: AppRole[] = ['reviewer', 'accounts_admin', 'admin', 'superadmin'];
+    return allAvailableRoles.filter(r => !existingRoles.includes(r));
+  };
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -304,19 +336,19 @@ const AdminUsers = () => {
             User Management
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage admin and superadmin access
+            Manage admin roles and permissions. Users can have multiple roles.
           </p>
         </div>
 
-        {/* Add New User Card */}
+        {/* Add New User/Role Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
-              Add Admin User
+              Add User or Role
             </CardTitle>
             <CardDescription>
-              Add a new admin or superadmin. If the user doesn't exist, a new account will be created.
+              Add a new user or assign an additional role to an existing user.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -332,7 +364,7 @@ const AdminUsers = () => {
                 />
               </div>
               <div className="w-full sm:w-40 space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role">Role to Add</Label>
                 <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as AppRole)}>
                   <SelectTrigger id="role">
                     <SelectValue />
@@ -355,7 +387,7 @@ const AdminUsers = () => {
                   ) : (
                     <>
                       <UserPlus className="mr-2 h-4 w-4" />
-                      Add User
+                      Add Role
                     </>
                   )}
                 </Button>
@@ -449,79 +481,105 @@ const AdminUsers = () => {
           </Card>
         )}
 
-        {/* Approved Admins Table */}
+        {/* Approved Admins Table - Grouped by User */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Approved Admins
+              Approved Users
             </CardTitle>
             <CardDescription>
-              Users with active admin or superadmin access
+              Users with active roles. Each user can have multiple roles.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {userRoles.filter(r => r.is_approved).length === 0 ? (
+            {groupedUsers.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                No approved admin users found.
+                No approved users found.
               </p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Added</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead className="w-[200px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userRoles.filter(r => r.is_approved).map((role) => (
-                    <TableRow key={role.id}>
-                      <TableCell className="font-medium">{role.email}</TableCell>
+                  {groupedUsers.map((groupedUser) => (
+                    <TableRow key={groupedUser.user_id}>
+                      <TableCell className="font-medium">{groupedUser.email}</TableCell>
                       <TableCell>
-                        <Badge variant={getRoleBadgeVariant(role.role)}>
-                          {role.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(role.created_at).toLocaleDateString()}
+                        <div className="flex flex-wrap gap-1.5">
+                          {groupedUser.roles.map((role) => (
+                            <div key={role.id} className="flex items-center gap-1">
+                              <Badge variant={getRoleBadgeVariant(role.role)}>
+                                {role.role}
+                              </Badge>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                    disabled={deletingId === role.id}
+                                  >
+                                    {deletingId === role.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <X className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove Role</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Remove the <strong>{role.role}</strong> role from {groupedUser.email}? 
+                                      {groupedUser.roles.length === 1 && ' This is their only role - they will lose all admin access.'}
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteRole(role.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              disabled={deletingId === role.id}
-                            >
-                              {deletingId === role.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remove Role</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to remove the {role.role} role from {role.email}? 
-                                They will lose access to admin features.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteRole(role.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Remove
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        {getAvailableRoles(groupedUser.user_id).length > 0 && (
+                          <Select
+                            onValueChange={(role) => {
+                              setNewUserEmail(groupedUser.email);
+                              setNewUserRole(role as AppRole);
+                              // Trigger add immediately
+                              setTimeout(() => {
+                                const addBtn = document.querySelector('[data-add-role-trigger]') as HTMLButtonElement;
+                                if (addBtn) addBtn.click();
+                              }, 100);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[140px]">
+                              <SelectValue placeholder="Add role..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAvailableRoles(groupedUser.user_id).map((role) => (
+                                <SelectItem key={role} value={role}>
+                                  {role}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

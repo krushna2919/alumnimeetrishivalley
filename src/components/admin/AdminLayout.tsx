@@ -2,6 +2,13 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   LayoutDashboard, 
   Users, 
@@ -12,7 +19,8 @@ import {
   X,
   UserCog,
   Building2,
-  Receipt
+  Receipt,
+  RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -54,12 +62,22 @@ const getNavItems = (userRole: string | null) => {
 };
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { user, isAdmin, isApproved, isLoading, signOut, userRole } = useAuth();
+  const { user, isAdmin, isApproved, isLoading, signOut, userRole, allRoles, switchRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const navItems = getNavItems(userRole);
+
+  const getRoleLabel = (role: string | null) => {
+    switch (role) {
+      case 'superadmin': return 'Super Admin';
+      case 'admin': return 'Admin';
+      case 'accounts_admin': return 'Accounts Admin';
+      case 'reviewer': return 'Reviewer';
+      default: return 'User';
+    }
+  };
 
   useEffect(() => {
     if (!isLoading && (!user || !isAdmin || !isApproved)) {
@@ -145,14 +163,35 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             })}
           </nav>
 
-          <div className="p-4 border-t">
-            <div className="px-4 py-2 mb-2">
+          <div className="p-4 border-t space-y-3">
+            <div className="px-4 py-2">
               <p className="text-sm font-medium text-foreground truncate">
                 {user.email}
               </p>
-              <p className="text-xs text-muted-foreground capitalize">
-                {userRole || 'User'}
-              </p>
+              {allRoles.length > 1 ? (
+                <div className="mt-2">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                    <RefreshCw className="h-3 w-3" />
+                    Switch Role
+                  </div>
+                  <Select value={userRole || undefined} onValueChange={(v) => switchRole(v as any)}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allRoles.map((role) => (
+                        <SelectItem key={role} value={role!}>
+                          {getRoleLabel(role)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground capitalize">
+                  {getRoleLabel(userRole)}
+                </p>
+              )}
             </div>
             <Button 
               variant="ghost" 
