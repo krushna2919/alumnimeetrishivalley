@@ -69,6 +69,12 @@ const AdminUsers = () => {
   const [newUserRole, setNewUserRole] = useState<AppRole>('admin');
   const [isAdding, setIsAdding] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingRoleAssignment, setPendingRoleAssignment] = useState<{
+    userId: string;
+    email: string;
+    role: AppRole;
+  } | null>(null);
+  const [isAssigningRole, setIsAssigningRole] = useState(false);
 
   useEffect(() => {
     checkSuperadminAndFetchRoles();
@@ -258,6 +264,60 @@ const AdminUsers = () => {
       toast.error('Failed to remove role');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Handle adding a role to an existing user (no email sent)
+  const handleAddRoleToExistingUser = async () => {
+    if (!pendingRoleAssignment) return;
+
+    setIsAssigningRole(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      // Call edge function with sendInviteEmail: false for existing users with roles
+      const response = await supabase.functions.invoke('invite-admin-user', {
+        body: {
+          email: pendingRoleAssignment.email,
+          role: pendingRoleAssignment.role,
+          siteUrl: window.location.origin,
+          sendInviteEmail: false, // Don't send email for existing role holders
+        },
+      });
+
+      if (response.error) {
+        toast.error('Failed to assign role', {
+          description: response.error.message || 'Edge function invocation failed',
+        });
+        return;
+      }
+
+      const data = response.data as any;
+
+      if (data?.error) {
+        toast.error('Failed to assign role', {
+          description: String(data.error),
+        });
+        return;
+      }
+
+      toast.success(`Role assigned successfully`, {
+        description: `${pendingRoleAssignment.email} is now also ${pendingRoleAssignment.role === 'admin' ? 'an admin' : `a ${pendingRoleAssignment.role}`}.`,
+      });
+
+      await fetchUserRoles();
+    } catch (err: any) {
+      console.error('Error assigning role', err);
+      toast.error('Failed to assign role', {
+        description: err?.message || 'Unknown error',
+      });
+    } finally {
+      setIsAssigningRole(false);
+      setPendingRoleAssignment(null);
     }
   };
 
@@ -556,30 +616,63 @@ const AdminUsers = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getAvailableRoles(groupedUser.user_id).length > 0 && (
-                          <Select
-                            onValueChange={(role) => {
-                              setNewUserEmail(groupedUser.email);
-                              setNewUserRole(role as AppRole);
-                              // Trigger add immediately
-                              setTimeout(() => {
-                                const addBtn = document.querySelector('[data-add-role-trigger]') as HTMLButtonElement;
-                                if (addBtn) addBtn.click();
-                              }, 100);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 w-[140px]">
-                              <SelectValue placeholder="Add role..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getAvailableRoles(groupedUser.user_id).map((role) => (
-                                <SelectItem key={role} value={role}>
-                                  {role}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {getAvailableRoles(groupedUser.user_id).length > 0 && (
+                            <>
+                              {pendingRoleAssignment?.userId === groupedUser.user_id ? (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="bg-muted">
+                                    {pendingRoleAssignment.role}
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="h-7"
+                                    onClick={handleAddRoleToExistingUser}
+                                    disabled={isAssigningRole}
+                                  >
+                                    {isAssigningRole ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                    )}
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7"
+                                    onClick={() => setPendingRoleAssignment(null)}
+                                    disabled={isAssigningRole}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Select
+                                  onValueChange={(role) => {
+                                    setPendingRoleAssignment({
+                                      userId: groupedUser.user_id,
+                                      email: groupedUser.email,
+                                      role: role as AppRole,
+                                    });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 w-[140px]">
+                                    <SelectValue placeholder="Add role..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {getAvailableRoles(groupedUser.user_id).map((role) => (
+                                      <SelectItem key={role} value={role}>
+                                        {role}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
