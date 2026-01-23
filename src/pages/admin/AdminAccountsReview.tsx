@@ -215,7 +215,8 @@ const AdminAccountsReview = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (r) => r.application_id.toLowerCase().includes(query)
+        (r) => r.application_id.toLowerCase().includes(query) ||
+               r.name.toLowerCase().includes(query)
       );
     }
 
@@ -459,7 +460,7 @@ const AdminAccountsReview = () => {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by application ID..."
+                  placeholder="Search by application ID or name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={(e) => e.target.select()}
