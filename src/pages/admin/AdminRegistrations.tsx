@@ -57,8 +57,10 @@ import {
   CheckCheck,
   XOctagon,
   Building2,
-  ChevronLeft
+  ChevronLeft,
+  Pencil
 } from 'lucide-react';
+import EditRegistrationDialog from '@/components/admin/EditRegistrationDialog';
 import {
   Pagination,
   PaginationContent,
@@ -101,6 +103,9 @@ const AdminRegistrations = () => {
   const [selectedForHostel, setSelectedForHostel] = useState<Set<string>>(new Set());
   const [isBulkHostelDialogOpen, setIsBulkHostelDialogOpen] = useState(false);
   const [bulkHostelSelection, setBulkHostelSelection] = useState<string>('');
+  
+  // Edit registration dialog state (superadmin only)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -1372,15 +1377,28 @@ const AdminRegistrations = () => {
 
           <DialogFooter className="gap-2">
             {userRole === 'superadmin' && (
-              <Button
-                variant="destructive"
-                onClick={() => setIsDeleteDialogOpen(true)}
-                disabled={isProcessing}
-                className="mr-auto"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  disabled={isProcessing}
+                  className="mr-auto"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDetailOpen(false);
+                    setIsEditDialogOpen(true);
+                  }}
+                  disabled={isProcessing}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </>
             )}
 {selectedRegistration?.registration_status === 'pending' && (
               <>
@@ -1632,6 +1650,14 @@ const AdminRegistrations = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Registration Dialog (Superadmin only) */}
+      <EditRegistrationDialog
+        registration={selectedRegistration}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSuccess={fetchRegistrations}
+      />
     </AdminLayout>
   );
 };
