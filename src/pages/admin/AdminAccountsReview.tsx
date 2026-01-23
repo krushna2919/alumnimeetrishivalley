@@ -41,7 +41,9 @@ import {
   ChevronLeft,
   FileCheck,
   Receipt,
-  Upload
+  Upload,
+  Users,
+  ChevronRight
 } from 'lucide-react';
 import {
   Pagination,
@@ -67,6 +69,7 @@ interface AccountsRegistration {
   accounts_verified: boolean;
   accounts_verified_at: string | null;
   created_at: string;
+  parent_application_id: string | null;
 }
 
 const AdminAccountsReview = () => {
@@ -87,6 +90,9 @@ const AdminAccountsReview = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  
+  // Group view state
+  const [showGrouped, setShowGrouped] = useState(true);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -185,7 +191,7 @@ const AdminAccountsReview = () => {
       // Accounts admin only sees payment-related fields
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at')
+        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id')
         .eq('payment_status', 'submitted')
         .order('created_at', { ascending: false });
 
@@ -386,6 +392,52 @@ const AdminAccountsReview = () => {
     return <Badge variant="outline" className="border-accent text-accent">Pending Review</Badge>;
   };
 
+  // Group registrations by parent_application_id
+  const getGroupedRegistrations = (registrationsToGroup: AccountsRegistration[]) => {
+    const groups: Map<string, AccountsRegistration[]> = new Map();
+    const standalone: AccountsRegistration[] = [];
+
+    // First pass: identify primary registrants (those without parent_application_id)
+    registrationsToGroup.forEach(reg => {
+      if (!reg.parent_application_id) {
+        // This is a primary registrant
+        if (!groups.has(reg.application_id)) {
+          groups.set(reg.application_id, [reg]);
+        }
+      }
+    });
+
+    // Second pass: add dependent registrants to their groups
+    registrationsToGroup.forEach(reg => {
+      if (reg.parent_application_id) {
+        const parentGroup = groups.get(reg.parent_application_id);
+        if (parentGroup) {
+          parentGroup.push(reg);
+        } else {
+          // Parent not in filtered results, create a new group
+          if (!groups.has(reg.parent_application_id)) {
+            groups.set(reg.parent_application_id, []);
+          }
+          groups.get(reg.parent_application_id)!.push(reg);
+        }
+      }
+    });
+
+    // Identify standalone registrations (primary with no dependents in results)
+    groups.forEach((members, key) => {
+      if (members.length === 1 && !members[0].parent_application_id) {
+        // Check if there are any dependents for this registration
+        const hasDependents = registrationsToGroup.some(r => r.parent_application_id === key);
+        if (!hasDependents) {
+          standalone.push(members[0]);
+          groups.delete(key);
+        }
+      }
+    });
+
+    return { groups, standalone };
+  };
+
   // Pagination logic
   const totalItems = filteredRegistrations.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -419,10 +471,20 @@ const AdminAccountsReview = () => {
               Review and verify payment proofs before admin approval
             </p>
           </div>
-          <Button onClick={fetchRegistrations} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setShowGrouped(!showGrouped)} 
+              variant={showGrouped ? "default" : "outline"} 
+              size="sm"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              {showGrouped ? 'Grouped' : 'Flat'}
+            </Button>
+            <Button onClick={fetchRegistrations} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <Card className="shadow-card">
@@ -473,28 +535,125 @@ const AdminAccountsReview = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-mono text-sm font-medium">
-                            {registration.application_id}
-                          </TableCell>
-                          <TableCell>₹{registration.registration_fee}</TableCell>
-                          <TableCell>{registration.name}</TableCell>
-                          <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRegistration(registration);
-                                setIsDetailOpen(true);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {showGrouped ? (
+                        <>
+                          {/* Grouped registrations */}
+                          {(() => {
+                            const { groups, standalone } = getGroupedRegistrations(paginatedRegistrations);
+                            return (
+                              <>
+                                {Array.from(groups.entries()).map(([groupId, members]) => (
+                                  <React.Fragment key={groupId}>
+                                    {/* Group header row */}
+                                    <TableRow className="bg-primary/5 border-l-4 border-l-primary">
+                                      <TableCell colSpan={3} className="py-2">
+                                        <div className="flex items-center gap-2">
+                                          <Users className="h-4 w-4 text-primary" />
+                                          <span className="font-semibold text-primary">
+                                            Group: {groupId}
+                                          </span>
+                                          <Badge variant="secondary" className="ml-2">
+                                            {members.length} member{members.length > 1 ? 's' : ''}
+                                          </Badge>
+                                          <Badge variant="outline" className="ml-1">
+                                            ₹{members.reduce((sum, m) => sum + m.registration_fee, 0)}
+                                          </Badge>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell colSpan={2} className="text-right py-2">
+                                        {members.some(m => !m.accounts_verified) && (
+                                          <Badge variant="outline" className="border-accent text-accent">
+                                            {members.filter(m => !m.accounts_verified).length} pending
+                                          </Badge>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                    {/* Group members */}
+                                    {members.map((registration, index) => (
+                                      <TableRow 
+                                        key={registration.id}
+                                        className={`${index === 0 ? 'bg-primary/10' : 'bg-muted/30'} border-l-4 ${index === 0 ? 'border-l-primary' : 'border-l-muted-foreground/30'}`}
+                                      >
+                                        <TableCell className="font-mono text-sm">
+                                          <div className="flex items-center gap-2">
+                                            {index > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                                            {registration.application_id}
+                                            {index === 0 && (
+                                              <Badge variant="outline" className="text-xs">Primary</Badge>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>₹{registration.registration_fee}</TableCell>
+                                        <TableCell>{registration.name}</TableCell>
+                                        <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                                        <TableCell className="text-right">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                              setSelectedRegistration(registration);
+                                              setIsDetailOpen(true);
+                                            }}
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </React.Fragment>
+                                ))}
+                                {/* Standalone registrations */}
+                                {standalone.map((registration) => (
+                                  <TableRow key={registration.id}>
+                                    <TableCell className="font-mono text-sm font-medium">
+                                      {registration.application_id}
+                                    </TableCell>
+                                    <TableCell>₹{registration.registration_fee}</TableCell>
+                                    <TableCell>{registration.name}</TableCell>
+                                    <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedRegistration(registration);
+                                          setIsDetailOpen(true);
+                                        }}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </>
+                            );
+                          })()}
+                        </>
+                      ) : (
+                        // Flat view
+                        paginatedRegistrations.map((registration) => (
+                          <TableRow key={registration.id}>
+                            <TableCell className="font-mono text-sm font-medium">
+                              {registration.application_id}
+                            </TableCell>
+                            <TableCell>₹{registration.registration_fee}</TableCell>
+                            <TableCell>{registration.name}</TableCell>
+                            <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedRegistration(registration);
+                                  setIsDetailOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
