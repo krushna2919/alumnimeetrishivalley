@@ -139,7 +139,18 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
                     type="email" 
                     placeholder="attendee@example.com" 
                     {...field} 
-                    className="bg-background" 
+                    className="bg-background"
+                    onBlur={(e) => {
+                      field.onBlur();
+                      const value = e.target.value.toLowerCase().trim();
+                      if (value && value === primaryEmail.toLowerCase().trim()) {
+                        form.setValue(`attendees.${index}.secondaryEmail`, "");
+                        form.setError(`attendees.${index}.secondaryEmail`, {
+                          type: "manual",
+                          message: "Secondary email cannot be the same as the primary registrant's email"
+                        });
+                      }
+                    }}
                   />
                 </FormControl>
                 <p className="text-xs text-muted-foreground mt-1">
