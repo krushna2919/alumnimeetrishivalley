@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { sendEmail } from "../_shared/smtp-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 interface AttendeeInfo {
   name: string;
@@ -92,11 +90,6 @@ async function sendConsolidatedConfirmationEmail(
   allRegistrations: RegistrationInfo[],
   totalFee: number
 ): Promise<void> {
-  if (!RESEND_API_KEY) {
-    console.warn("RESEND_API_KEY not configured, skipping confirmation email");
-    return;
-  }
-
   try {
     // Build the registrations list HTML
     const registrationsHtml = allRegistrations.map((reg, index) => `
@@ -112,76 +105,68 @@ async function sendConsolidatedConfirmationEmail(
       ? `Registration Received - ${allRegistrations.length} Registrations (Primary: ${primaryApplicationId})`
       : `Registration Received - Application ID: ${primaryApplicationId}`;
 
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
-        to: [email],
-        subject: subject,
-        html: `
-          <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
-              Registration Received
-            </h1>
-            <p>Dear ${primaryName},</p>
-            <p>Thank you for registering for the Rishi Valley Alumni Meet! Your registration has been received along with your payment proof.</p>
-            
-            ${allRegistrations.length > 1 ? `
-              <p>You have registered <strong>${allRegistrations.length} people</strong> for the event. Here are the details:</p>
-            ` : ''}
-            
-            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0; overflow-x: auto;">
-              <table style="width: 100%; border-collapse: collapse; min-width: 500px;">
-                <thead>
-                  <tr style="background: #e8e4d8; border-bottom: 2px solid #b8860b;">
-                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Application ID</th>
-                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Name</th>
-                    <th style="padding: 12px; text-align: left; color: #5c4a3d;">Stay Type</th>
-                    <th style="padding: 12px; text-align: right; color: #5c4a3d;">Fee</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${registrationsHtml}
-                </tbody>
-                <tfoot>
-                  <tr style="background: #e8e4d8; font-weight: bold;">
-                    <td colspan="3" style="padding: 12px; text-align: right; color: #5c4a3d;">Total Amount Paid:</td>
-                    <td style="padding: 12px; text-align: right; color: #5c4a3d; font-size: 18px;">₹${totalFee.toLocaleString('en-IN')}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            
-            <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
-              <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
-                Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
-              </p>
-            </div>
-            
-            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please save your Primary Application ID (<strong>${primaryApplicationId}</strong>) for future reference.</p>
-            </div>
-            
-            <p style="margin-top: 30px;">
-              Best regards,<br>
-              <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
-            </p>
-          </div>
-        `,
-      }),
+    const htmlContent = `
+      <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+          Registration Received
+        </h1>
+        <p>Dear ${primaryName},</p>
+        <p>Thank you for registering for the Rishi Valley Alumni Meet! Your registration has been received along with your payment proof.</p>
+        
+        ${allRegistrations.length > 1 ? `
+          <p>You have registered <strong>${allRegistrations.length} people</strong> for the event. Here are the details:</p>
+        ` : ''}
+        
+        <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0; overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; min-width: 500px;">
+            <thead>
+              <tr style="background: #e8e4d8; border-bottom: 2px solid #b8860b;">
+                <th style="padding: 12px; text-align: left; color: #5c4a3d;">Application ID</th>
+                <th style="padding: 12px; text-align: left; color: #5c4a3d;">Name</th>
+                <th style="padding: 12px; text-align: left; color: #5c4a3d;">Stay Type</th>
+                <th style="padding: 12px; text-align: right; color: #5c4a3d;">Fee</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${registrationsHtml}
+            </tbody>
+            <tfoot>
+              <tr style="background: #e8e4d8; font-weight: bold;">
+                <td colspan="3" style="padding: 12px; text-align: right; color: #5c4a3d;">Total Amount Paid:</td>
+                <td style="padding: 12px; text-align: right; color: #5c4a3d; font-size: 18px;">₹${totalFee.toLocaleString('en-IN')}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
+          <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
+            Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
+          </p>
+        </div>
+        
+        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #856404;"><strong>⚠️ Important:</strong> Please save your Primary Application ID (<strong>${primaryApplicationId}</strong>) for future reference.</p>
+        </div>
+        
+        <p style="margin-top: 30px;">
+          Best regards,<br>
+          <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+        </p>
+      </div>
+    `;
+
+    const result = await sendEmail({
+      to: email,
+      subject: subject,
+      html: htmlContent,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Resend error:", errorData);
+    if (result.success) {
+      console.log("Consolidated confirmation email sent to:", email);
     } else {
-      const result = await response.json();
-      console.log("Consolidated confirmation email sent to:", email, result);
+      console.error("Failed to send consolidated email:", result.error);
     }
   } catch (error) {
     console.error("Error sending confirmation email:", error);
@@ -199,75 +184,62 @@ async function sendAttendeeConfirmationEmail(
   stayType: string,
   registrationFee: number
 ): Promise<void> {
-  if (!RESEND_API_KEY) {
-    console.warn("RESEND_API_KEY not configured, skipping attendee email");
-    return;
-  }
-
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
-        to: [attendeeEmail],
-        subject: `Registration Received - Application ID: ${attendeeApplicationId}`,
-        html: `
-          <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
-              Registration Received
-            </h1>
-            <p>Dear ${attendeeName},</p>
-            <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}. Your registration has been received along with payment proof.</p>
-            
-            <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #5c4a3d; margin-top: 0;">Your Registration Details</h3>
-              <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Application ID:</td>
-                  <td style="padding: 8px 0; font-family: monospace; font-weight: bold;">${attendeeApplicationId}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Stay Type:</td>
-                  <td style="padding: 8px 0;">${stayType === 'on-campus' ? 'On Campus' : 'Staying Outside'}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Registration Fee:</td>
-                  <td style="padding: 8px 0;">₹${registrationFee.toLocaleString('en-IN')}</td>
-                </tr>
-              </table>
-            </div>
-            
-            <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
-              <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
-                Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
-              </p>
-            </div>
-            
-            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
-              <p style="margin: 0; color: #856404;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
-              <p style="margin: 10px 0 0; color: #856404;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
-            </div>
-            
-            <p style="margin-top: 30px;">
-              Best regards,<br>
-              <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
-            </p>
-          </div>
-        `,
-      }),
+    const htmlContent = `
+      <div style="font-family: Georgia, serif; max-width: 700px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #5c4a3d; border-bottom: 2px solid #b8860b; padding-bottom: 10px;">
+          Registration Received
+        </h1>
+        <p>Dear ${attendeeName},</p>
+        <p>You have been registered for the Rishi Valley Alumni Meet by ${primaryName}. Your registration has been received along with payment proof.</p>
+        
+        <div style="background: #f5f5dc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #5c4a3d; margin-top: 0;">Your Registration Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Application ID:</td>
+              <td style="padding: 8px 0; font-family: monospace; font-weight: bold;">${attendeeApplicationId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Stay Type:</td>
+              <td style="padding: 8px 0;">${stayType === 'on-campus' ? 'On Campus' : 'Staying Outside'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #5c4a3d;">Registration Fee:</td>
+              <td style="padding: 8px 0;">₹${registrationFee.toLocaleString('en-IN')}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #155724;"><strong>✅ Payment Proof Submitted</strong></p>
+          <p style="margin: 10px 0 0; color: #155724; font-size: 14px;">
+            Your payment proof has been received. The organizing committee will verify and confirm your registration via email.
+          </p>
+        </div>
+        
+        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #856404;"><strong>ℹ️ Note:</strong> Your registration is part of a group registration managed by ${primaryName}.</p>
+          <p style="margin: 10px 0 0; color: #856404;">Primary Application ID: <strong>${primaryApplicationId}</strong></p>
+        </div>
+        
+        <p style="margin-top: 30px;">
+          Best regards,<br>
+          <strong>Rishi Valley Alumni Meet Organizing Committee</strong>
+        </p>
+      </div>
+    `;
+
+    const result = await sendEmail({
+      to: attendeeEmail,
+      subject: `Registration Received - Application ID: ${attendeeApplicationId}`,
+      html: htmlContent,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Resend error for attendee email:", errorData);
+    if (result.success) {
+      console.log("Individual confirmation email sent to attendee:", attendeeEmail);
     } else {
-      const result = await response.json();
-      console.log("Individual confirmation email sent to attendee:", attendeeEmail, result);
+      console.error("Failed to send attendee email:", result.error);
     }
   } catch (error) {
     console.error("Error sending attendee confirmation email:", error);
@@ -381,7 +353,16 @@ serve(async (req: Request): Promise<Response> => {
     }];
 
     // Process additional attendees if any
-    const additionalRegistrations: any[] = [];
+    const additionalRegistrations: {
+      applicationId: string;
+      name: string;
+      email: string;
+      secondaryEmail?: string;
+      stayType: string;
+      registrationFee: number;
+      hasSecondaryEmail: boolean;
+    }[] = [];
+
     if (data.additionalAttendees && data.additionalAttendees.length > 0) {
       console.log("Processing additional attendees...");
       
@@ -446,7 +427,7 @@ serve(async (req: Request): Promise<Response> => {
             secondaryEmail: attendee.secondaryEmail, // Store secondary email for sending individual notification
             stayType: attendeeReg.stay_type,
             registrationFee: attendeeReg.registration_fee,
-            hasSecondaryEmail, // Flag to determine if separate email should be sent
+            hasSecondaryEmail: !!hasSecondaryEmail, // Flag to determine if separate email should be sent
           });
 
           // Add to consolidated email list
