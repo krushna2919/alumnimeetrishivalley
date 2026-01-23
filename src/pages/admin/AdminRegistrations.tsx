@@ -487,24 +487,34 @@ const AdminRegistrations = () => {
   const handleApprove = async (registration: Registration) => {
     setIsProcessing(true);
     try {
+      // Send notification email FIRST before approving
+      const emailSent = await sendNotificationEmail(registration, 'approved');
+
+      if (!emailSent) {
+        toast({
+          title: 'Email Sending Failed',
+          description: `Could not send approval email to ${registration.email}. Registration was NOT approved. Please try again or check email configuration.`,
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Only approve if email was sent successfully
       const { error } = await supabase
         .from('registrations')
         .update({
           registration_status: 'approved',
           approved_at: new Date().toISOString(),
+          approval_email_sent: true,
         })
         .eq('id', registration.id);
 
       if (error) throw error;
 
-      // Send notification email
-      const emailSent = await sendNotificationEmail(registration, 'approved');
-
       toast({
         title: 'Registration Approved',
-        description: emailSent 
-          ? `${registration.name}'s registration has been approved and notification sent.`
-          : `${registration.name}'s registration has been approved.`,
+        description: `${registration.name}'s registration has been approved and notification email sent successfully.`,
       });
 
       fetchRegistrations();
@@ -526,24 +536,34 @@ const AdminRegistrations = () => {
 
     setIsProcessing(true);
     try {
+      // Send notification email FIRST before rejecting
+      const emailSent = await sendNotificationEmail(selectedRegistration, 'rejected', rejectionReason);
+
+      if (!emailSent) {
+        toast({
+          title: 'Email Sending Failed',
+          description: `Could not send rejection email to ${selectedRegistration.email}. Registration was NOT rejected. Please try again or check email configuration.`,
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Only reject if email was sent successfully
       const { error } = await supabase
         .from('registrations')
         .update({
           registration_status: 'rejected',
           rejection_reason: rejectionReason,
+          approval_email_sent: true,
         })
         .eq('id', selectedRegistration.id);
 
       if (error) throw error;
 
-      // Send notification email
-      const emailSent = await sendNotificationEmail(selectedRegistration, 'rejected', rejectionReason);
-
       toast({
         title: 'Registration Rejected',
-        description: emailSent
-          ? `${selectedRegistration.name}'s registration has been rejected and notification sent.`
-          : `${selectedRegistration.name}'s registration has been rejected.`,
+        description: `${selectedRegistration.name}'s registration has been rejected and notification email sent successfully.`,
       });
 
       fetchRegistrations();
@@ -646,27 +666,45 @@ const AdminRegistrations = () => {
 
     setIsProcessing(true);
     try {
-      const memberIds = approvableMembers.map(m => m.id);
-      const { error } = await supabase
-        .from('registrations')
-        .update({
-          registration_status: 'approved',
-          approved_at: new Date().toISOString(),
-        })
-        .in('id', memberIds);
-
-      if (error) throw error;
-
-      // Send notification emails to all approved members
-      const emailPromises = approvableMembers.map(member => 
-        sendNotificationEmail(member, 'approved')
+      // Send notification emails FIRST before approving
+      const emailResults = await Promise.all(
+        approvableMembers.map(async (member) => ({
+          member,
+          success: await sendNotificationEmail(member, 'approved'),
+        }))
       );
-      await Promise.all(emailPromises);
 
-      toast({
-        title: 'Group Approved',
-        description: `${approvableMembers.length} registration(s) have been approved.`,
-      });
+      const failedEmails = emailResults.filter(r => !r.success);
+      const successfulEmails = emailResults.filter(r => r.success);
+
+      if (failedEmails.length > 0) {
+        const failedNames = failedEmails.map(r => r.member.name).join(', ');
+        toast({
+          title: 'Email Sending Failed',
+          description: `Could not send approval emails to: ${failedNames}. These registrations were NOT approved.`,
+          variant: 'destructive',
+        });
+      }
+
+      // Only approve registrations where email was sent successfully
+      if (successfulEmails.length > 0) {
+        const successfulIds = successfulEmails.map(r => r.member.id);
+        const { error } = await supabase
+          .from('registrations')
+          .update({
+            registration_status: 'approved',
+            approved_at: new Date().toISOString(),
+            approval_email_sent: true,
+          })
+          .in('id', successfulIds);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Group Approved',
+          description: `${successfulEmails.length} registration(s) have been approved and notified.${failedEmails.length > 0 ? ` ${failedEmails.length} failed.` : ''}`,
+        });
+      }
 
       fetchRegistrations();
     } catch (error) {
@@ -697,32 +735,51 @@ const AdminRegistrations = () => {
 
     setIsProcessing(true);
     try {
-      const memberIds = pendingMembers.map(m => m.id);
-      const { error } = await supabase
-        .from('registrations')
-        .update({
-          registration_status: 'rejected',
-          rejection_reason: groupRejectionReason,
-        })
-        .in('id', memberIds);
-
-      if (error) throw error;
-
-      // Send notification emails to all rejected members
-      const emailPromises = pendingMembers.map(member => 
-        sendNotificationEmail(member, 'rejected', groupRejectionReason)
+      // Send notification emails FIRST before rejecting
+      const emailResults = await Promise.all(
+        pendingMembers.map(async (member) => ({
+          member,
+          success: await sendNotificationEmail(member, 'rejected', groupRejectionReason),
+        }))
       );
-      await Promise.all(emailPromises);
 
-      toast({
-        title: 'Group Rejected',
-        description: `${pendingMembers.length} registration(s) have been rejected.`,
-      });
+      const failedEmails = emailResults.filter(r => !r.success);
+      const successfulEmails = emailResults.filter(r => r.success);
+
+      if (failedEmails.length > 0) {
+        const failedNames = failedEmails.map(r => r.member.name).join(', ');
+        toast({
+          title: 'Email Sending Failed',
+          description: `Could not send rejection emails to: ${failedNames}. These registrations were NOT rejected.`,
+          variant: 'destructive',
+        });
+      }
+
+      // Only reject registrations where email was sent successfully
+      if (successfulEmails.length > 0) {
+        const successfulIds = successfulEmails.map(r => r.member.id);
+        const { error } = await supabase
+          .from('registrations')
+          .update({
+            registration_status: 'rejected',
+            rejection_reason: groupRejectionReason,
+            approval_email_sent: true,
+          })
+          .in('id', successfulIds);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Group Rejected',
+          description: `${successfulEmails.length} registration(s) have been rejected and notified.${failedEmails.length > 0 ? ` ${failedEmails.length} failed.` : ''}`,
+        });
+
+        setIsGroupRejectDialogOpen(false);
+        setSelectedGroup(null);
+        setGroupRejectionReason('');
+      }
 
       fetchRegistrations();
-      setIsGroupRejectDialogOpen(false);
-      setSelectedGroup(null);
-      setGroupRejectionReason('');
     } catch (error) {
       console.error('Error rejecting group:', error);
       toast({
@@ -1358,6 +1415,28 @@ const AdminRegistrations = () => {
                     )}
                   </div>
                 </div>
+                {/* Email Sent Status - Visible to superadmin for approved/rejected registrations */}
+                {userRole === 'superadmin' && (selectedRegistration.registration_status === 'approved' || selectedRegistration.registration_status === 'rejected') && (
+                  <div>
+                    <label className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      Email Notification
+                    </label>
+                    <div className="mt-1">
+                      {selectedRegistration.approval_email_sent ? (
+                        <Badge className="bg-green-600 text-white">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Sent
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Not Sent
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm text-muted-foreground">Registered On</label>
                   <p className="font-medium mt-1">
