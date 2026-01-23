@@ -284,32 +284,6 @@ const AdminAccountsReview = () => {
     }
   };
 
-  const sendAccountsNotification = async (registration: AccountsRegistration, verifiedAt: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // Fetch the email for this registration
-      const { data: regData } = await supabase
-        .from('registrations')
-        .select('email')
-        .eq('id', registration.id)
-        .single();
-
-      await supabase.functions.invoke('send-accounts-notification', {
-        body: {
-          applicationId: registration.application_id,
-          applicantName: registration.name,
-          applicantEmail: regData?.email || '',
-          registrationFee: registration.registration_fee,
-          verifiedAt: verifiedAt,
-        },
-      });
-    } catch (error) {
-      // Silently log the error - don't show to user
-      console.error('Failed to send accounts notification:', error);
-    }
-  };
 
   const handleVerifyPayment = async (registration: AccountsRegistration) => {
     if (!receiptFile && !registration.payment_receipt_url) {
@@ -348,9 +322,6 @@ const AdminAccountsReview = () => {
         title: 'Payment Verified',
         description: `Payment for ${registration.application_id} has been verified with receipt. Admin can now approve.`,
       });
-
-      // Send notification email to superuser (silently, no feedback to accounts admin)
-      sendAccountsNotification(registration, verifiedAt);
 
       // Clear receipt state
       setReceiptFile(null);
