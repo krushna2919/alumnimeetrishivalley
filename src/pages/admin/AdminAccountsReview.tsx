@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { logAdminActivity } from '@/lib/activityLogger';
 import { 
   Search, 
   Loader2, 
@@ -308,6 +309,14 @@ const AdminAccountsReview = () => {
       // Upload receipt if a new file was selected
       if (receiptFile) {
         receiptUrl = await uploadReceipt(registration);
+        
+        // Log receipt upload activity
+        await logAdminActivity({
+          actionType: 'receipt_upload',
+          targetRegistrationId: registration.id,
+          targetApplicationId: registration.application_id,
+          details: { receiptFileName: receiptFile.name }
+        });
       }
 
       const verifiedAt = new Date().toISOString();
@@ -323,6 +332,14 @@ const AdminAccountsReview = () => {
         .eq('id', registration.id);
 
       if (error) throw error;
+
+      // Log account approval activity
+      await logAdminActivity({
+        actionType: 'account_approval',
+        targetRegistrationId: registration.id,
+        targetApplicationId: registration.application_id,
+        details: { registrationFee: registration.registration_fee }
+      });
 
       toast({
         title: 'Payment Verified',
@@ -363,6 +380,14 @@ const AdminAccountsReview = () => {
         .eq('id', selectedRegistration.id);
 
       if (error) throw error;
+
+      // Log account rejection activity
+      await logAdminActivity({
+        actionType: 'account_rejection',
+        targetRegistrationId: selectedRegistration.id,
+        targetApplicationId: selectedRegistration.application_id,
+        details: { rejectionReason }
+      });
 
       toast({
         title: 'Payment Rejected',

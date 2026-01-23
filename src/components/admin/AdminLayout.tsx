@@ -20,10 +20,12 @@ import {
   UserCog,
   Building2,
   Receipt,
-  RefreshCw
+  RefreshCw,
+  Activity
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { trackDeviceSession } from '@/lib/activityLogger';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -51,6 +53,11 @@ const getNavItems = (userRole: string | null) => {
   // Only superadmin can access User Management
   if (userRole === 'superadmin') {
     items.push({ href: '/admin/users', label: 'User Management', icon: UserCog });
+  }
+  
+  // Only superadmin can access Activity Dashboard
+  if (userRole === 'superadmin') {
+    items.push({ href: '/admin/activity', label: 'Activity Logs', icon: Activity });
   }
   
   // Admin and superadmin can access Settings
@@ -84,6 +91,13 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       navigate('/admin/login', { replace: true });
     }
   }, [user, isAdmin, isApproved, isLoading, navigate]);
+
+  // Track device session when admin logs in
+  useEffect(() => {
+    if (user && isAdmin && isApproved) {
+      trackDeviceSession();
+    }
+  }, [user, isAdmin, isApproved]);
 
   const handleSignOut = async () => {
     await signOut();

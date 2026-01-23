@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Bed, Users, Building2, Edit, Loader2 } from 'lucide-react';
 import GroupedApplicantSelector from '@/components/admin/hostel/GroupedApplicantSelector';
 import BedAssignmentGrid from '@/components/admin/hostel/BedAssignmentGrid';
+import { logAdminActivity } from '@/lib/activityLogger';
 
 interface Hostel {
   id: string;
@@ -295,6 +296,17 @@ const AdminHostelManagement = () => {
           .eq('id', update.bedId);
 
         if (error) throw error;
+
+        // Log bed assignment activity
+        const registration = allRegistrations.find(r => r.id === update.registrationId);
+        if (registration) {
+          await logAdminActivity({
+            actionType: 'bed_assignment',
+            targetRegistrationId: update.registrationId,
+            targetApplicationId: registration.application_id,
+            details: { name: registration.name }
+          });
+        }
       }
 
       toast({
@@ -318,6 +330,15 @@ const AdminHostelManagement = () => {
   };
 
   const handleUnassignBed = async (bedId: string) => {
+    const bed = bedAssignments.find(b => b.id === bedId);
+    if (bed?.registration) {
+      await logAdminActivity({
+        actionType: 'bed_unassignment',
+        targetRegistrationId: bed.registration.id,
+        targetApplicationId: bed.registration.application_id,
+        details: { name: bed.registration.name }
+      });
+    }
     await handleAssignBed(bedId, null);
   };
 
