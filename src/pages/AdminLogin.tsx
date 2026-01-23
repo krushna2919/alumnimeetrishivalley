@@ -43,7 +43,7 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { getLocation, checkGeofence, checkUserIsSuperadmin } = useGeolocation();
+  const { getLocation, checkGeofence, checkUserIsSuperadmin, isGeofencingEnabled } = useGeolocation();
   // Check for recovery/invite token in URL hash (Supabase redirects with token in hash)
   useEffect(() => {
     const handleRecoveryToken = async () => {
@@ -184,22 +184,9 @@ const AdminLogin = () => {
     }
 
     setIsSubmitting(true);
-    setIsCheckingLocation(true);
 
     try {
-      // First, get location before authentication
-      const userLocation = await getLocation();
-      
-      if (!userLocation) {
-        setLocationError('Location access is required to log in. Please enable location services and try again.');
-        setIsSubmitting(false);
-        setIsCheckingLocation(false);
-        return;
-      }
-
-      setIsCheckingLocation(false);
-
-      // Authenticate the user
+      // First, authenticate the user
       const { error } = await signIn(email, password);
       
       if (error) {
@@ -208,6 +195,7 @@ const AdminLogin = () => {
           description: 'Invalid email or password. Please try again.',
           variant: 'destructive',
         });
+        setIsSubmitting(false);
         return;
       }
 
@@ -219,8 +207,25 @@ const AdminLogin = () => {
         // Check if user is superadmin (exempt from geofencing)
         const isSuperadmin = await checkUserIsSuperadmin(userId);
 
-        if (!isSuperadmin) {
-          // Check geofence for non-superadmin users
+        // Check if geofencing is enabled
+        const geofenceEnabled = await isGeofencingEnabled();
+
+        // Only check location if geofencing is enabled AND user is not superadmin
+        if (geofenceEnabled && !isSuperadmin) {
+          setIsCheckingLocation(true);
+          
+          const userLocation = await getLocation();
+          
+          if (!userLocation) {
+            // Sign out the user if location is not available
+            await supabase.auth.signOut();
+            setLocationError('Location access is required to log in. Please enable location services and try again.');
+            setIsSubmitting(false);
+            setIsCheckingLocation(false);
+            return;
+          }
+
+          // Check geofence
           const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
 
           if (!geofenceResult.allowed) {
@@ -235,17 +240,25 @@ const AdminLogin = () => {
               description: 'You are outside the authorized access zone.',
               variant: 'destructive',
             });
+            setIsSubmitting(false);
+            setIsCheckingLocation(false);
             return;
           }
-        }
 
-        // Track device session with location
-        await trackDeviceSession(
-          userId,
-          sessionData?.session?.user?.email || email,
-          userLocation.latitude,
-          userLocation.longitude
-        );
+          // Track device session with location
+          await trackDeviceSession(
+            userId,
+            sessionData?.session?.user?.email || email,
+            userLocation.latitude,
+            userLocation.longitude
+          );
+        } else {
+          // Track device session without location for superadmins or when geofencing is disabled
+          await trackDeviceSession(
+            userId,
+            sessionData?.session?.user?.email || email
+          );
+        }
       }
 
       toast({

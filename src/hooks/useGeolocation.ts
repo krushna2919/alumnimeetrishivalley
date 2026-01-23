@@ -166,11 +166,32 @@ export const useGeolocation = () => {
     }
   }, []);
 
+  const isGeofencingEnabled = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('get_geofence_settings');
+      
+      if (error) {
+        console.error('Error fetching geofence settings:', error);
+        return false; // If error, assume disabled
+      }
+
+      if (!data || data.length === 0) {
+        return false; // No settings configured
+      }
+
+      return data[0].is_enabled === true;
+    } catch (error) {
+      console.error('Error checking geofence status:', error);
+      return false;
+    }
+  }, []);
+
   return {
     ...state,
     getLocation,
     checkGeofence,
     checkUserIsSuperadmin,
+    isGeofencingEnabled,
     calculateDistance,
   };
 };
