@@ -186,6 +186,7 @@ export type Database = {
           address_line1: string
           address_line2: string | null
           application_id: string
+          approval_email_sent: boolean | null
           approved_at: string | null
           approved_by: string | null
           board_type: string
@@ -225,6 +226,7 @@ export type Database = {
           address_line1: string
           address_line2?: string | null
           application_id: string
+          approval_email_sent?: boolean | null
           approved_at?: string | null
           approved_by?: string | null
           board_type?: string
@@ -264,6 +266,7 @@ export type Database = {
           address_line1?: string
           address_line2?: string | null
           application_id?: string
+          approval_email_sent?: boolean | null
           approved_at?: string | null
           approved_by?: string | null
           board_type?: string
