@@ -56,6 +56,18 @@ export const registrantSchema = z.object({
 }, {
   message: "Please enter your board name (at least 2 characters)",
   path: ["customBoardType"],
+}).superRefine((data, ctx) => {
+  // Validate that secondary emails don't match the primary email
+  const primaryEmail = data.email.toLowerCase().trim();
+  data.attendees.forEach((attendee, index) => {
+    if (attendee.secondaryEmail && attendee.secondaryEmail.toLowerCase().trim() === primaryEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Secondary email cannot be the same as the primary registrant's email",
+        path: ["attendees", index, "secondaryEmail"],
+      });
+    }
+  });
 });
 
 export type RegistrantData = z.infer<typeof registrantSchema>;
