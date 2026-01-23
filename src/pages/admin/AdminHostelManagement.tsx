@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -6,30 +6,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Bed, Users, Building2, Edit, Loader2 } from 'lucide-react';
+import GroupedApplicantSelector from '@/components/admin/hostel/GroupedApplicantSelector';
+import BedAssignmentGrid from '@/components/admin/hostel/BedAssignmentGrid';
 
 interface Hostel {
   id: string;
@@ -62,6 +49,7 @@ interface Registration {
   id: string;
   name: string;
   application_id: string;
+  parent_application_id: string | null;
   hostel_name: string | null;
 }
 
@@ -70,17 +58,31 @@ const AdminHostelManagement = () => {
   const [hostels, setHostels] = useState<Hostel[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bedAssignments, setBedAssignments] = useState<BedAssignment[]>([]);
-  const [availableRegistrations, setAvailableRegistrations] = useState<Registration[]>([]);
+  const [allRegistrations, setAllRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddHostelOpen, setIsAddHostelOpen] = useState(false);
   const [isEditHostelOpen, setIsEditHostelOpen] = useState(false);
   const [editingHostel, setEditingHostel] = useState<Hostel | null>(null);
+  const [selectedApplicantIds, setSelectedApplicantIds] = useState<string[]>([]);
+  const [selectedBedIds, setSelectedBedIds] = useState<string[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
   const [newHostel, setNewHostel] = useState({
     name: '',
     total_rooms: 0,
     beds_per_room: 1,
     washrooms: 0,
   });
+
+  // Computed values
+  const assignedRegistrationIds = useMemo(() => {
+    return new Set(
+      bedAssignments.filter((a) => a.registration_id).map((a) => a.registration_id!)
+    );
+  }, [bedAssignments]);
+
+  const availableRegistrations = useMemo(() => {
+    return allRegistrations.filter((r) => !assignedRegistrationIds.has(r.id));
+  }, [allRegistrations, assignedRegistrationIds]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -89,7 +91,7 @@ const AdminHostelManagement = () => {
         supabase.from('hostels').select('*').order('name'),
         supabase.from('hostel_rooms').select('*').order('room_number'),
         supabase.from('bed_assignments').select('*, registration:registrations(id, name, application_id)'),
-        supabase.from('registrations').select('id, name, application_id, hostel_name')
+        supabase.from('registrations').select('id, name, application_id, parent_application_id, hostel_name')
           .eq('registration_status', 'approved')
           .eq('stay_type', 'on-campus'),
       ]);
@@ -102,14 +104,7 @@ const AdminHostelManagement = () => {
       setHostels(hostelsRes.data || []);
       setRooms(roomsRes.data || []);
       setBedAssignments(assignmentsRes.data || []);
-      
-      // Filter out already assigned registrations
-      const assignedRegIds = new Set((assignmentsRes.data || [])
-        .filter(a => a.registration_id)
-        .map(a => a.registration_id));
-      setAvailableRegistrations(
-        (registrationsRes.data || []).filter(r => !assignedRegIds.has(r.id))
-      );
+      setAllRegistrations(registrationsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -262,8 +257,68 @@ const AdminHostelManagement = () => {
     }
   };
 
+  // Bulk assign selected applicants to selected beds
+  const handleBulkAssign = async () => {
+    if (selectedApplicantIds.length === 0 || selectedBedIds.length === 0) {
+      toast({
+        title: 'Selection Required',
+        description: 'Please select both applicants and beds to assign',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (selectedApplicantIds.length > selectedBedIds.length) {
+      toast({
+        title: 'Not Enough Beds',
+        description: `Selected ${selectedApplicantIds.length} applicants but only ${selectedBedIds.length} beds`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      // Assign each applicant to a bed in order
+      const updates = selectedApplicantIds.map((regId, index) => ({
+        bedId: selectedBedIds[index],
+        registrationId: regId,
+      }));
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('bed_assignments')
+          .update({ registration_id: update.registrationId })
+          .eq('id', update.bedId);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Beds Assigned',
+        description: `Successfully assigned ${updates.length} applicant(s) to beds`,
+      });
+
+      setSelectedApplicantIds([]);
+      setSelectedBedIds([]);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error bulk assigning beds:', error);
+      toast({
+        title: 'Assignment Failed',
+        description: error.message || 'Failed to assign beds',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleUnassignBed = async (bedId: string) => {
+    await handleAssignBed(bedId, null);
+  };
+
   const getRoomsForHostel = (hostelId: string) => rooms.filter(r => r.hostel_id === hostelId);
-  const getBedsForRoom = (roomId: string) => bedAssignments.filter(b => b.room_id === roomId);
   const getOccupiedBeds = (hostelId: string) => {
     const hostelRoomIds = new Set(getRoomsForHostel(hostelId).map(r => r.id));
     return bedAssignments.filter(b => hostelRoomIds.has(b.room_id) && b.registration_id).length;
@@ -271,6 +326,10 @@ const AdminHostelManagement = () => {
   const getTotalBeds = (hostelId: string) => {
     const hostelRoomIds = new Set(getRoomsForHostel(hostelId).map(r => r.id));
     return bedAssignments.filter(b => hostelRoomIds.has(b.room_id)).length;
+  };
+  const getHostelBedAssignments = (hostelId: string) => {
+    const hostelRoomIds = new Set(getRoomsForHostel(hostelId).map(r => r.id));
+    return bedAssignments.filter(b => hostelRoomIds.has(b.room_id));
   };
 
   if (isLoading) {
@@ -414,10 +473,10 @@ const AdminHostelManagement = () => {
 
             {hostels.map((hostel) => (
               <TabsContent key={hostel.id} value={hostel.id} className="mt-0">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
+                <Card className="mb-4">
+                  <CardHeader className="flex flex-row items-center justify-between py-3">
                     <div>
-                      <CardTitle className="flex items-center gap-2">
+                      <CardTitle className="flex items-center gap-2 text-lg">
                         <Building2 className="h-5 w-5 text-primary" />
                         {hostel.name}
                       </CardTitle>
@@ -448,74 +507,29 @@ const AdminHostelManagement = () => {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Room</TableHead>
-                          <TableHead>Bed</TableHead>
-                          <TableHead>Assigned To</TableHead>
-                          <TableHead>Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {getRoomsForHostel(hostel.id).map((room) =>
-                          getBedsForRoom(room.id).map((bed, bedIndex) => (
-                            <TableRow key={bed.id}>
-                              {bedIndex === 0 && (
-                                <TableCell rowSpan={getBedsForRoom(room.id).length} className="font-medium">
-                                  Room {room.room_number}
-                                </TableCell>
-                              )}
-                              <TableCell>Bed {bed.bed_number}</TableCell>
-                              <TableCell>
-                                {bed.registration ? (
-                                  <span className="text-sm">
-                                    {bed.registration.name} ({bed.registration.application_id})
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">Unassigned</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={bed.registration_id || 'unassigned'}
-                                  onValueChange={(value) =>
-                                    handleAssignBed(bed.id, value === 'unassigned' ? null : value)
-                                  }
-                                >
-                                  <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Select attendee" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                                    {bed.registration && (
-                                      <SelectItem value={bed.registration.id}>
-                                        {bed.registration.name}
-                                      </SelectItem>
-                                    )}
-                                    {availableRegistrations.map((reg) => (
-                                      <SelectItem key={reg.id} value={reg.id}>
-                                        {reg.name} ({reg.application_id})
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                        {getRoomsForHostel(hostel.id).length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              No rooms configured for this hostel
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
                 </Card>
+
+                {/* Two-panel assignment layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Left: Grouped Applicants */}
+                  <GroupedApplicantSelector
+                    availableRegistrations={availableRegistrations}
+                    assignedRegistrationIds={assignedRegistrationIds}
+                    selectedIds={selectedApplicantIds}
+                    onSelectionChange={setSelectedApplicantIds}
+                    onAssignSelected={handleBulkAssign}
+                    isAssigning={isAssigning}
+                  />
+
+                  {/* Right: Bed Grid */}
+                  <BedAssignmentGrid
+                    rooms={getRoomsForHostel(hostel.id)}
+                    bedAssignments={getHostelBedAssignments(hostel.id)}
+                    selectedBedIds={selectedBedIds}
+                    onBedSelectionChange={setSelectedBedIds}
+                    onUnassignBed={handleUnassignBed}
+                  />
+                </div>
               </TabsContent>
             ))}
           </Tabs>
