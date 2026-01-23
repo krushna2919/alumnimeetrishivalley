@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendEmail, base64ToUint8Array } from "../_shared/smtp-email.ts";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +19,8 @@ interface EmailRequest {
   paymentReceiptUrl?: string;
 }
 
-// Helper function to fetch PDF and convert to Uint8Array
-async function fetchPdfAsUint8Array(url: string): Promise<{ content: Uint8Array; filename: string } | null> {
+// Helper function to fetch PDF and convert to base64
+async function fetchPdfAsBase64(url: string): Promise<{ content: string; filename: string } | null> {
   try {
     console.log(`Fetching PDF from: ${url}`);
     const response = await fetch(url);
@@ -30,12 +32,19 @@ async function fetchPdfAsUint8Array(url: string): Promise<{ content: Uint8Array;
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
+    // Convert to base64
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binary);
+    
     // Extract filename from URL
     const urlParts = url.split('/');
     const filename = urlParts[urlParts.length - 1] || 'payment-receipt.pdf';
     
     console.log(`Successfully fetched PDF, size: ${uint8Array.length} bytes`);
-    return { content: uint8Array, filename };
+    return { content: base64, filename };
   } catch (error) {
     console.error('Error fetching PDF:', error);
     return null;
@@ -224,16 +233,15 @@ const handler = async (req: Request): Promise<Response> => {
     const bccEmail = "superuseralumnimeet@rishivalley.org";
 
     // Prepare attachments for approved emails with PDF receipt
-    const attachments: Array<{ filename: string; content: Uint8Array; contentType: string }> = [];
+    const attachments: Array<{ filename: string; content: string }> = [];
     
     if (type === "approved" && receiptUrl && receiptUrl.toLowerCase().endsWith('.pdf')) {
       console.log("Fetching PDF receipt for attachment...");
-      const pdfData = await fetchPdfAsUint8Array(receiptUrl);
+      const pdfData = await fetchPdfAsBase64(receiptUrl);
       if (pdfData) {
         attachments.push({
           filename: `Payment-Receipt-${applicationId}.pdf`,
           content: pdfData.content,
-          contentType: "application/pdf",
         });
         console.log("PDF attachment prepared successfully");
       } else {
@@ -241,24 +249,40 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Send email via SMTP
-    const emailResult = await sendEmail({
-      to: to,
-      bcc: bccEmail,
+    // Send email via Resend API
+    const emailPayload: Record<string, unknown> = {
+      from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
+      to: [to],
+      bcc: [bccEmail],
       subject: subject,
       html: htmlContent,
-      attachments: attachments.length > 0 ? attachments : undefined,
+    };
+
+    // Add attachments if any
+    if (attachments.length > 0) {
+      emailPayload.attachments = attachments;
+    }
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify(emailPayload),
     });
 
-    if (!emailResult.success) {
-      console.error("SMTP error:", emailResult.error);
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error("Resend error:", errorData);
       return new Response(
-        JSON.stringify({ success: false, error: `Email error: ${emailResult.error}` }),
+        JSON.stringify({ success: false, error: `Email error: ${JSON.stringify(errorData)}` }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Email sent successfully via SMTP");
+    const result = await emailResponse.json();
+    console.log("Email sent successfully via Resend:", result);
 
     return new Response(JSON.stringify({ success: true, message: "Email sent successfully" }), {
       status: 200,

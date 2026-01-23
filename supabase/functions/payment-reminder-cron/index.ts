@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendEmail } from "../_shared/smtp-email.ts";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,19 +100,28 @@ async function sendPaymentReminderEmail(
       </div>
     `;
 
-    const result = await sendEmail({
-      to: email,
-      subject: `${urgencyText} - Payment Pending for Application ${applicationId}`,
-      html: htmlContent,
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
+        to: [email],
+        subject: `${urgencyText} - Payment Pending for Application ${applicationId}`,
+        html: htmlContent,
+      }),
     });
 
-    if (result.success) {
-      console.log(`Payment reminder email sent successfully to ${email}`);
-    } else {
-      console.error(`Failed to send payment reminder to ${email}:`, result.error);
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error("Resend error:", errorData);
+      return false;
     }
 
-    return result.success;
+    console.log(`Payment reminder email sent successfully to ${email}`);
+    return true;
   } catch (error) {
     console.error("Error sending payment reminder email:", error);
     return false;
@@ -153,19 +164,28 @@ async function sendAutoRejectionEmail(
       </div>
     `;
 
-    const result = await sendEmail({
-      to: email,
-      subject: `Registration Rejected - Application ${applicationId}`,
-      html: htmlContent,
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: `Rishi Valley Alumni Meet <${RESEND_FROM}>`,
+        to: [email],
+        subject: `Registration Rejected - Application ${applicationId}`,
+        html: htmlContent,
+      }),
     });
 
-    if (result.success) {
-      console.log(`Auto-rejection email sent successfully to ${email}`);
-    } else {
-      console.error(`Failed to send auto-rejection email to ${email}:`, result.error);
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error("Resend error:", errorData);
+      return false;
     }
 
-    return result.success;
+    console.log(`Auto-rejection email sent successfully to ${email}`);
+    return true;
   } catch (error) {
     console.error("Error sending auto-rejection email:", error);
     return false;
