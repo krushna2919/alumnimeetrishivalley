@@ -43,7 +43,7 @@ export const useGeolocation = () => {
     isLoading: false,
   });
 
-  const getCurrentPosition = useCallback((): Promise<GeolocationPosition> => {
+  const getCurrentPosition = useCallback((highAccuracy: boolean = true): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
         reject(new Error('Geolocation is not supported by your browser'));
@@ -51,9 +51,9 @@ export const useGeolocation = () => {
       }
 
       navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+        enableHighAccuracy: highAccuracy,
+        timeout: 30000, // Increased timeout to 30 seconds
+        maximumAge: 60000, // Allow cached position up to 1 minute old
       });
     });
   }, []);
@@ -62,7 +62,20 @@ export const useGeolocation = () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const position = await getCurrentPosition();
+      // First try with high accuracy
+      let position: GeolocationPosition;
+      try {
+        position = await getCurrentPosition(true);
+      } catch (highAccuracyError: any) {
+        // If high accuracy fails with timeout, try with lower accuracy
+        if (highAccuracyError.code === 3) {
+          console.log('High accuracy timed out, trying lower accuracy...');
+          position = await getCurrentPosition(false);
+        } else {
+          throw highAccuracyError;
+        }
+      }
+      
       const { latitude, longitude } = position.coords;
       setState({
         latitude,
@@ -74,12 +87,13 @@ export const useGeolocation = () => {
     } catch (error: any) {
       let errorMessage = 'Unable to get your location';
       if (error.code === 1) {
-        errorMessage = 'Location access denied. Please enable location services to continue.';
+        errorMessage = 'Location access denied. Please enable location services in your browser and system settings.';
       } else if (error.code === 2) {
-        errorMessage = 'Location unavailable. Please try again.';
+        errorMessage = 'Location unavailable. Please check your device location settings and try again.';
       } else if (error.code === 3) {
-        errorMessage = 'Location request timed out. Please try again.';
+        errorMessage = 'Location request timed out. Please check your connection and try again.';
       }
+      console.error('Geolocation error:', error.code, error.message);
       setState({
         latitude: null,
         longitude: null,
