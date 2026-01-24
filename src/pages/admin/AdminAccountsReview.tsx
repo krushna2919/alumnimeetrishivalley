@@ -107,19 +107,9 @@ const AdminAccountsReview = () => {
 
   const toPublicPaymentReceiptUrl = (value: string | null) => {
     if (!value) return null;
-    // If it's already a full URL, check if it points to old bucket and redirect to new
-    if (/^https?:\/\//i.test(value)) {
-      // Check if URL points to payment-proofs bucket (old location)
-      if (value.includes('/payment-proofs/')) {
-        // Extract filename and rebuild URL for new bucket
-        const fileName = value.split('/payment-proofs/').pop();
-        if (fileName) {
-          return supabase.storage.from('payment-receipts').getPublicUrl(fileName).data.publicUrl;
-        }
-      }
-      return value;
-    }
-    // If it's just a path, use the new bucket
+    // DB should store a public URL. For legacy/migrated records it might store just the storage path.
+    // IMPORTANT: do not rewrite existing URLs between buckets here; that must be handled by a migration.
+    if (/^https?:\/\//i.test(value)) return value;
     return supabase.storage.from('payment-receipts').getPublicUrl(value).data.publicUrl;
   };
 
