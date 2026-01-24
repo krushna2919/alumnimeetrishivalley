@@ -7,6 +7,7 @@ export type AdminActionType =
   | 'receipt_upload'
   | 'registration_approval'
   | 'registration_rejection'
+  | 'resend_approval_email'
   | 'bed_assignment'
   | 'bed_unassignment';
 
