@@ -1323,36 +1323,16 @@ const AdminRegistrations = () => {
                   <label className="text-sm text-muted-foreground">Registration Fee</label>
                   <p className="font-medium">₹{selectedRegistration.registration_fee}</p>
                 </div>
-                {/* Hostel Assignment - Only for approved on-campus registrations */}
+                {/* Hostel Assignment - Read-only display */}
                 {selectedRegistration.stay_type === 'on-campus' && (
                   <div>
                     <label className="text-sm text-muted-foreground flex items-center gap-1">
                       <Building2 className="h-3 w-3" />
                       Hostel Accommodation
                     </label>
-                    {selectedRegistration.registration_status === 'approved' ? (
-                      <Select
-                        value={selectedRegistration.hostel_name || ''}
-                        onValueChange={(value) => handleHostelAssign(selectedRegistration, value)}
-                      >
-                        <SelectTrigger className="w-full mt-1">
-                          <SelectValue placeholder="Select hostel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {HOSTEL_OPTIONS.map((hostel) => (
-                            <SelectItem key={hostel} value={hostel} className="capitalize">
-                              {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="font-medium text-muted-foreground mt-1">
-                        {selectedRegistration.hostel_name 
-                          ? selectedRegistration.hostel_name.charAt(0).toUpperCase() + selectedRegistration.hostel_name.slice(1)
-                          : 'Pending approval'}
-                      </p>
-                    )}
+                    <p className="font-medium mt-1">
+                      {selectedRegistration.hostel_name || 'Not yet assigned'}
+                    </p>
                   </div>
                 )}
                 <div className="col-span-2">
