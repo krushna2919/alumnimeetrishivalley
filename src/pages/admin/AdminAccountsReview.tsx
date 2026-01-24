@@ -304,13 +304,13 @@ const AdminAccountsReview = () => {
       const fileName = `receipt-${registration.application_id}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('payment-proofs')
+        .from('payment-receipts')
         .upload(fileName, receiptFile);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('payment-proofs')
+        .from('payment-receipts')
         .getPublicUrl(fileName);
 
       return publicUrl;
