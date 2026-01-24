@@ -144,12 +144,30 @@ const AdminAccountsReview = () => {
     const missing = rows.filter((r) => r.payment_status === 'submitted' && !r.payment_proof_url);
     if (missing.length === 0) return;
 
+    // Build a map of parent_application_id -> payment_proof_url for parents that have proofs
+    const parentProofMap: Record<string, string> = {};
+    rows.forEach((r) => {
+      if (!r.parent_application_id && r.payment_proof_url) {
+        parentProofMap[r.application_id] = r.payment_proof_url;
+      }
+    });
+
     // Keep this light: resolve only a handful per refresh to avoid hammering storage.
     const toResolve = missing.slice(0, 10);
 
+    let linkedCount = 0;
     await Promise.allSettled(
       toResolve.map(async (r) => {
-        const resolvedUrl = await resolvePaymentProofUrlFromStorage(r.application_id);
+        let resolvedUrl: string | null = null;
+
+        // First check if parent has a proof we can inherit
+        if (r.parent_application_id && parentProofMap[r.parent_application_id]) {
+          resolvedUrl = parentProofMap[r.parent_application_id];
+        } else {
+          // Fall back to searching storage
+          resolvedUrl = await resolvePaymentProofUrlFromStorage(r.application_id);
+        }
+
         if (!resolvedUrl) return;
 
         const { error } = await supabase
@@ -159,9 +177,15 @@ const AdminAccountsReview = () => {
 
         if (error) {
           console.error('Failed to backfill payment_proof_url:', error);
+        } else {
+          linkedCount++;
         }
       })
     );
+
+    if (linkedCount > 0) {
+      console.log(`Auto-linked ${linkedCount} missing payment proofs`);
+    }
   };
 
   useEffect(() => {
