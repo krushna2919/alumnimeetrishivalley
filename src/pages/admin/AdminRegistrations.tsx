@@ -179,13 +179,14 @@ const AdminRegistrations = () => {
   };
 
   // Sync all missing payment proofs from storage (superadmin only)
+  // Also links group members to their parent's combined payment proof
   const syncMissingProofs = async () => {
     setIsSyncingProofs(true);
     try {
-      // Fetch all registrations with pending payment status but no proof URL
+      // Fetch all registrations with missing proof URL
       const { data: pendingRecords, error: fetchError } = await supabase
         .from('registrations')
-        .select('id, application_id, payment_status, payment_proof_url')
+        .select('id, application_id, payment_status, payment_proof_url, parent_application_id')
         .is('payment_proof_url', null)
         .in('payment_status', ['pending', 'submitted']);
 
@@ -199,12 +200,42 @@ const AdminRegistrations = () => {
         return;
       }
 
+      // Fetch parent registrations that have proofs (for group linking)
+      const parentIds = [...new Set(pendingRecords
+        .filter(r => r.parent_application_id)
+        .map(r => r.parent_application_id as string))];
+
+      let parentProofMap: Record<string, string> = {};
+      if (parentIds.length > 0) {
+        const { data: parentData } = await supabase
+          .from('registrations')
+          .select('application_id, payment_proof_url')
+          .in('application_id', parentIds)
+          .not('payment_proof_url', 'is', null);
+
+        if (parentData) {
+          parentProofMap = parentData.reduce((acc, p) => {
+            if (p.payment_proof_url) acc[p.application_id] = p.payment_proof_url;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+
       let linkedCount = 0;
       
-      // Process in parallel but with a reasonable batch
+      // Process in parallel
       await Promise.allSettled(
         pendingRecords.map(async (record) => {
-          const resolvedUrl = await resolvePaymentProofUrlFromStorage(record.application_id);
+          let resolvedUrl: string | null = null;
+
+          // First check if this is a group member with a parent that has a proof
+          if (record.parent_application_id && parentProofMap[record.parent_application_id]) {
+            resolvedUrl = parentProofMap[record.parent_application_id];
+          } else {
+            // Try to find a proof directly from storage for this application
+            resolvedUrl = await resolvePaymentProofUrlFromStorage(record.application_id);
+          }
+
           if (!resolvedUrl) return;
 
           const { error: updateError } = await supabase
@@ -227,7 +258,7 @@ const AdminRegistrations = () => {
       toast({
         title: 'Sync Complete',
         description: linkedCount > 0
-          ? `Successfully linked ${linkedCount} payment proof(s) from storage.`
+          ? `Successfully linked ${linkedCount} payment proof(s) (including group members).`
           : 'No matching files found in storage.',
       });
 
