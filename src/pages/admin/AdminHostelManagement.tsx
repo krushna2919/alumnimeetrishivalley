@@ -291,7 +291,7 @@ const AdminHostelManagement = () => {
 
     // Get the active hostel name for syncing to registrations
     const activeHostel = hostels.find(h => h.id === activeHostelId);
-    const hostelName = activeHostel?.name?.toLowerCase() || null;
+    const hostelName = activeHostel?.name || null;
 
     setIsAssigning(true);
     try {
