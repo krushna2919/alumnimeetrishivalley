@@ -119,6 +119,13 @@ const AdminRegistrations = () => {
   const { toast } = useToast();
   const { userRole, user } = useAuth();
 
+  const toPublicPaymentProofUrl = (value: string | null) => {
+    if (!value) return null;
+    // DB normally stores a public URL, but older/migrated records may store just the storage path.
+    if (/^https?:\/\//i.test(value)) return value;
+    return supabase.storage.from('payment-proofs').getPublicUrl(value).data.publicUrl;
+  };
+
   const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
     try {
       const { data, error } = await supabase.storage
@@ -1343,9 +1350,12 @@ const AdminRegistrations = () => {
                   <label className="text-sm text-muted-foreground">Payment Proof</label>
                   {selectedRegistration.payment_proof_url ? (
                     <div className="mt-2">
-                      {selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
+                      {(() => {
+                        const proofUrl = toPublicPaymentProofUrl(selectedRegistration.payment_proof_url);
+                        if (!proofUrl) return null;
+                        return selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
                         <a 
-                          href={selectedRegistration.payment_proof_url} 
+                          href={proofUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 text-primary hover:underline"
@@ -1355,17 +1365,18 @@ const AdminRegistrations = () => {
                         </a>
                       ) : (
                         <a 
-                          href={selectedRegistration.payment_proof_url} 
+                          href={proofUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
                           <img 
-                            src={selectedRegistration.payment_proof_url} 
+                            src={proofUrl} 
                             alt="Payment proof" 
                             className="max-w-full max-h-64 rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
                           />
                         </a>
-                      )}
+                      );
+                      })()}
                     </div>
                   ) : (
                     <p className="font-medium text-muted-foreground">No proof uploaded</p>
