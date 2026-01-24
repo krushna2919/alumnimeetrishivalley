@@ -870,7 +870,7 @@ const AdminRegistrations = () => {
       default:
         // Show different pending status based on accounts verification
         if (accountsVerified) {
-          return <Badge className="bg-accent text-accent-foreground">Ready for Approval</Badge>;
+          return <Badge className="bg-accent text-accent-foreground">Ready for Final Approval</Badge>;
         }
         return <Badge variant="outline" className="border-accent text-accent">Pending Account Review</Badge>;
     }
