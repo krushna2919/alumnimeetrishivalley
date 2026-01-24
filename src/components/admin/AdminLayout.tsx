@@ -87,8 +87,16 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   };
 
   useEffect(() => {
+    // Only redirect if we're definitely not loading AND auth state is confirmed invalid
+    // Use a small delay to prevent flash during route transitions
     if (!isLoading && (!user || !isAdmin || !isApproved)) {
-      navigate('/admin/login', { replace: true });
+      const timeoutId = setTimeout(() => {
+        // Double-check the condition after the delay
+        if (!user || !isAdmin || !isApproved) {
+          navigate('/admin/login', { replace: true });
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [user, isAdmin, isApproved, isLoading, navigate]);
 
