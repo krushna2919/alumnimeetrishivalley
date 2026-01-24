@@ -3,6 +3,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DashboardStats {
   totalRegistrations: number;
@@ -14,6 +15,7 @@ interface DashboardStats {
 }
 
 const AdminDashboard = () => {
+  const { userRole } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -111,7 +113,7 @@ const AdminDashboard = () => {
               ))}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className={userRole === 'admin' ? '' : 'grid gap-4 md:grid-cols-2'}>
               <Card className="shadow-card">
                 <CardHeader>
                   <CardTitle className="font-serif">Payment Status</CardTitle>
@@ -130,33 +132,35 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-serif">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <a 
-                      href="/admin/registrations" 
-                      className="block p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-                    >
-                      <span className="font-medium">Review Registrations</span>
-                      <p className="text-sm text-muted-foreground">
-                        {stats?.pendingRegistrations || 0} awaiting review
-                      </p>
-                    </a>
-                    <a 
-                      href="/admin/settings" 
-                      className="block p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-                    >
-                      <span className="font-medium">Batch Settings</span>
-                      <p className="text-sm text-muted-foreground">
-                        Manage registration periods
-                      </p>
-                    </a>
-                  </div>
-                </CardContent>
-              </Card>
+              {userRole !== 'admin' && (
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="font-serif">Quick Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <a 
+                        href="/admin/registrations" 
+                        className="block p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                      >
+                        <span className="font-medium">Review Registrations</span>
+                        <p className="text-sm text-muted-foreground">
+                          {stats?.pendingRegistrations || 0} awaiting review
+                        </p>
+                      </a>
+                      <a 
+                        href="/admin/settings" 
+                        className="block p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                      >
+                        <span className="font-medium">Batch Settings</span>
+                        <p className="text-sm text-muted-foreground">
+                          Manage registration periods
+                        </p>
+                      </a>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </>
         )}
