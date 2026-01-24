@@ -70,6 +70,7 @@ const AdminHostelManagement = () => {
   const [selectedApplicantIds, setSelectedApplicantIds] = useState<string[]>([]);
   const [selectedBedIds, setSelectedBedIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [activeHostelId, setActiveHostelId] = useState<string | null>(null);
   const [newHostel, setNewHostel] = useState({
     name: '',
     total_rooms: 0,
@@ -124,6 +125,13 @@ const AdminHostelManagement = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Set initial active hostel when hostels are loaded
+  useEffect(() => {
+    if (hostels.length > 0 && !activeHostelId) {
+      setActiveHostelId(hostels[0].id);
+    }
+  }, [hostels, activeHostelId]);
 
   const handleAddHostel = async () => {
     if (!newHostel.name.trim()) {
@@ -281,6 +289,10 @@ const AdminHostelManagement = () => {
       return;
     }
 
+    // Get the active hostel name for syncing to registrations
+    const activeHostel = hostels.find(h => h.id === activeHostelId);
+    const hostelName = activeHostel?.name?.toLowerCase() || null;
+
     setIsAssigning(true);
     try {
       // Assign each applicant to a bed in order
@@ -290,12 +302,25 @@ const AdminHostelManagement = () => {
       }));
 
       for (const update of updates) {
-        const { error } = await supabase
+        // Update bed assignment
+        const { error: bedError } = await supabase
           .from('bed_assignments')
           .update({ registration_id: update.registrationId })
           .eq('id', update.bedId);
 
-        if (error) throw error;
+        if (bedError) throw bedError;
+
+        // Sync hostel_name to registrations table
+        if (hostelName) {
+          const { error: regError } = await supabase
+            .from('registrations')
+            .update({ hostel_name: hostelName })
+            .eq('id', update.registrationId);
+
+          if (regError) {
+            console.error('Failed to sync hostel_name to registration:', regError);
+          }
+        }
 
         // Log bed assignment activity
         const registration = allRegistrations.find(r => r.id === update.registrationId);
@@ -304,14 +329,14 @@ const AdminHostelManagement = () => {
             actionType: 'bed_assignment',
             targetRegistrationId: update.registrationId,
             targetApplicationId: registration.application_id,
-            details: { name: registration.name }
+            details: { name: registration.name, hostel: hostelName }
           });
         }
       }
 
       toast({
         title: 'Beds Assigned',
-        description: `Successfully assigned ${updates.length} applicant(s) to beds`,
+        description: `Successfully assigned ${updates.length} applicant(s) to beds${hostelName ? ` in ${activeHostel?.name}` : ''}`,
       });
 
       setSelectedApplicantIds([]);
@@ -338,6 +363,16 @@ const AdminHostelManagement = () => {
         targetApplicationId: bed.registration.application_id,
         details: { name: bed.registration.name }
       });
+
+      // Clear hostel_name from registration when unassigning
+      const { error: regError } = await supabase
+        .from('registrations')
+        .update({ hostel_name: null })
+        .eq('id', bed.registration.id);
+
+      if (regError) {
+        console.error('Failed to clear hostel_name from registration:', regError);
+      }
     }
     await handleAssignBed(bedId, null);
   };
@@ -485,7 +520,15 @@ const AdminHostelManagement = () => {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue={hostels[0]?.id} className="w-full">
+          <Tabs 
+            value={activeHostelId || hostels[0]?.id} 
+            onValueChange={(value) => {
+              setActiveHostelId(value);
+              // Clear selections when switching hostels
+              setSelectedBedIds([]);
+            }}
+            className="w-full"
+          >
             <TabsList className="flex flex-wrap h-auto p-1 mb-4 gap-1">
               {hostels.map((hostel) => (
                 <TabsTrigger
