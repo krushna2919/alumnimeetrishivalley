@@ -105,6 +105,24 @@ const AdminAccountsReview = () => {
     return supabase.storage.from('payment-proofs').getPublicUrl(value).data.publicUrl;
   };
 
+  const toPublicPaymentReceiptUrl = (value: string | null) => {
+    if (!value) return null;
+    // If it's already a full URL, check if it points to old bucket and redirect to new
+    if (/^https?:\/\//i.test(value)) {
+      // Check if URL points to payment-proofs bucket (old location)
+      if (value.includes('/payment-proofs/')) {
+        // Extract filename and rebuild URL for new bucket
+        const fileName = value.split('/payment-proofs/').pop();
+        if (fileName) {
+          return supabase.storage.from('payment-receipts').getPublicUrl(fileName).data.publicUrl;
+        }
+      }
+      return value;
+    }
+    // If it's just a path, use the new bucket
+    return supabase.storage.from('payment-receipts').getPublicUrl(value).data.publicUrl;
+  };
+
   const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
     // New uploads are named like: `${applicationId}-<timestamp>.<ext>`
     // Bulk uploads are named like: `combined-${applicationId}-<timestamp>.<ext>`
@@ -854,7 +872,7 @@ const AdminAccountsReview = () => {
                     <div className="mb-3 p-3 bg-secondary/30 rounded-lg">
                       <p className="text-sm text-muted-foreground mb-2">Current Receipt:</p>
                       <a 
-                        href={selectedRegistration.payment_receipt_url} 
+                        href={toPublicPaymentReceiptUrl(selectedRegistration.payment_receipt_url) || '#'} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
