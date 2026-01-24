@@ -126,6 +126,14 @@ const AdminRegistrations = () => {
     return supabase.storage.from('payment-proofs').getPublicUrl(value).data.publicUrl;
   };
 
+  const toPublicPaymentReceiptUrl = (value: string | null) => {
+    if (!value) return null;
+    // DB should store a public URL. For legacy/migrated records it might store just the storage path.
+    // IMPORTANT: do not rewrite existing URLs between buckets here; that must be handled by a migration.
+    if (/^https?:\/\//i.test(value)) return value;
+    return supabase.storage.from('payment-receipts').getPublicUrl(value).data.publicUrl;
+  };
+
   const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
     try {
       const { data, error } = await supabase.storage
@@ -1418,7 +1426,7 @@ const AdminRegistrations = () => {
                   {selectedRegistration.payment_receipt_url ? (
                     <div className="mt-2">
                       <a 
-                        href={selectedRegistration.payment_receipt_url} 
+                        href={toPublicPaymentReceiptUrl(selectedRegistration.payment_receipt_url) || '#'} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-primary hover:underline"
