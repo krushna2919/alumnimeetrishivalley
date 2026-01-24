@@ -108,6 +108,10 @@ const AdminRegistrations = () => {
   // Edit registration dialog state (superadmin only)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
+  // Resend approval email state (superadmin only)
+  const [isResendEmailDialogOpen, setIsResendEmailDialogOpen] = useState(false);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -1529,6 +1533,17 @@ const AdminRegistrations = () => {
                 Re-enable Registration
               </Button>
             )}
+            {/* Superadmin can resend approval email for approved registrations */}
+            {userRole === 'superadmin' && selectedRegistration?.registration_status === 'approved' && (
+              <Button
+                onClick={() => setIsResendEmailDialogOpen(true)}
+                disabled={isProcessing || isResendingEmail}
+                variant="outline"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Resend Approval Email
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1571,6 +1586,71 @@ const AdminRegistrations = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Resend Approval Email Confirmation Dialog */}
+      <AlertDialog open={isResendEmailDialogOpen} onOpenChange={setIsResendEmailDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resend Approval Email</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to resend the approval email to{' '}
+              <span className="font-semibold">{selectedRegistration?.email}</span>?
+              {selectedRegistration?.payment_receipt_url && (
+                <span className="block mt-2 text-sm">The payment receipt PDF will be attached to the email.</span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResendingEmail}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!selectedRegistration) return;
+                setIsResendingEmail(true);
+                try {
+                  const emailSent = await sendNotificationEmail(selectedRegistration, 'approved');
+                  if (emailSent) {
+                    toast({
+                      title: 'Email Sent',
+                      description: `Approval email resent successfully to ${selectedRegistration.email}`,
+                    });
+                    // Log the activity
+                    await logAdminActivity({
+                      actionType: 'resend_approval_email',
+                      targetRegistrationId: selectedRegistration.id,
+                      targetApplicationId: selectedRegistration.application_id,
+                      details: { email: selectedRegistration.email },
+                    });
+                  } else {
+                    toast({
+                      title: 'Email Failed',
+                      description: 'Failed to resend approval email. Please try again.',
+                      variant: 'destructive',
+                    });
+                  }
+                } catch (error) {
+                  console.error('Error resending email:', error);
+                  toast({
+                    title: 'Error',
+                    description: 'An error occurred while resending the email.',
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setIsResendingEmail(false);
+                  setIsResendEmailDialogOpen(false);
+                }
+              }}
+              disabled={isResendingEmail}
+            >
+              {isResendingEmail ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4 mr-2" />
+              )}
+              Resend Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
