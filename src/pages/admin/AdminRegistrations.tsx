@@ -1533,8 +1533,8 @@ const AdminRegistrations = () => {
                 Re-enable Registration
               </Button>
             )}
-            {/* Superadmin can resend approval email for approved registrations */}
-            {userRole === 'superadmin' && selectedRegistration?.registration_status === 'approved' && (
+            {/* Superadmin and admin can resend approval email for approved registrations */}
+            {(userRole === 'superadmin' || userRole === 'admin') && selectedRegistration?.registration_status === 'approved' && (
               <Button
                 onClick={() => setIsResendEmailDialogOpen(true)}
                 disabled={isProcessing || isResendingEmail}
