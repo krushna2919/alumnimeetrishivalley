@@ -10,6 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   LayoutDashboard, 
   Users, 
@@ -22,7 +27,9 @@ import {
   Building2,
   Receipt,
   RefreshCw,
-  Activity
+  Activity,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
@@ -86,6 +93,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [screenPermissions, setScreenPermissions] = useState<string[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   
@@ -209,22 +217,56 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 z-40 h-screen w-64 bg-card border-r transition-transform lg:translate-x-0",
+        "fixed top-0 left-0 z-40 h-screen bg-card border-r transition-all duration-300 lg:translate-x-0",
+        sidebarCollapsed ? "w-16" : "w-64",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b">
-            <Link to="/admin" className="font-serif text-xl font-semibold text-foreground">
-              Admin Panel
-            </Link>
-            <p className="text-sm text-muted-foreground mt-1">
-              Alumni Meet 2026
-            </p>
+          <div className={cn("border-b flex items-center", sidebarCollapsed ? "p-3 justify-center" : "p-6")}>
+            {sidebarCollapsed ? (
+              <Link to="/admin" className="font-serif text-lg font-bold text-foreground">
+                A
+              </Link>
+            ) : (
+              <div>
+                <Link to="/admin" className="font-serif text-xl font-semibold text-foreground">
+                  Admin Panel
+                </Link>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Alumni Meet 2026
+                </p>
+              </div>
+            )}
           </div>
 
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className={cn("flex-1 space-y-1", sidebarCollapsed ? "p-2" : "p-4")}>
             {navItems.map((item) => {
               const isActive = location.pathname === item.href;
+              
+              if (sidebarCollapsed) {
+                return (
+                  <Tooltip key={item.href} delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to={item.href}
+                        onClick={() => setSidebarOpen(false)}
+                        className={cn(
+                          "flex items-center justify-center p-3 rounded-lg transition-colors",
+                          isActive 
+                            ? "bg-primary text-primary-foreground" 
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {item.label}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+              
               return (
                 <Link
                   key={item.href}
@@ -244,50 +286,94 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             })}
           </nav>
 
-          <div className="p-4 border-t space-y-3">
-            <div className="px-4 py-2">
-              <p className="text-sm font-medium text-foreground truncate">
-                {user.email}
-              </p>
-              {allRoles.length > 1 ? (
-                <div className="mt-2">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                    <RefreshCw className="h-3 w-3" />
-                    Switch Role
-                  </div>
-                  <Select value={userRole || undefined} onValueChange={(v) => switchRole(v as any)}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allRoles.map((role) => (
-                        <SelectItem key={role} value={role!}>
-                          {getRoleLabel(role)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <div className={cn("border-t space-y-3", sidebarCollapsed ? "p-2" : "p-4")}>
+            {sidebarCollapsed ? (
+              <>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="w-full text-muted-foreground hover:text-foreground"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    Sign Out
+                  </TooltipContent>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                <div className="px-4 py-2">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user.email}
+                  </p>
+                  {allRoles.length > 1 ? (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                        <RefreshCw className="h-3 w-3" />
+                        Switch Role
+                      </div>
+                      <Select value={userRole || undefined} onValueChange={(v) => switchRole(v as any)}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allRoles.map((role) => (
+                            <SelectItem key={role} value={role!}>
+                              {getRoleLabel(role)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {getRoleLabel(userRole)}
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground capitalize">
-                  {getRoleLabel(userRole)}
-                </p>
-              )}
-            </div>
-            <Button 
-              variant="ghost" 
-              className="w-full justify-start text-muted-foreground hover:text-foreground"
-              onClick={handleSignOut}
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start text-muted-foreground hover:text-foreground"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="mr-3 h-5 w-5" />
+                  Sign Out
+                </Button>
+              </>
+            )}
+          </div>
+          
+          {/* Collapse toggle button - desktop only */}
+          <div className="hidden lg:block border-t p-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-center text-muted-foreground hover:text-foreground"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             >
-              <LogOut className="mr-3 h-5 w-5" />
-              Sign Out
+              {sidebarCollapsed ? (
+                <PanelLeft className="h-5 w-5" />
+              ) : (
+                <>
+                  <PanelLeftClose className="h-5 w-5 mr-2" />
+                  <span className="text-xs">Collapse</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
+      <main className={cn(
+        "pt-16 lg:pt-0 min-h-screen transition-all duration-300",
+        sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
+      )}>
         <div className="p-6 lg:p-8">
           {children}
         </div>
