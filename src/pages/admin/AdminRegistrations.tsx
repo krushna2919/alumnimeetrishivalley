@@ -88,7 +88,8 @@ const AdminRegistrations = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [yearFilter, setYearFilter] = useState<string>('all');
+  const [yearFromFilter, setYearFromFilter] = useState<string>('');
+  const [yearToFilter, setYearToFilter] = useState<string>('');
   const [stayTypeFilter, setStayTypeFilter] = useState<string>('all');
   const [genderFilter, setGenderFilter] = useState<string>('all');
   const [boardTypeFilter, setBoardTypeFilter] = useState<string>('all');
@@ -410,7 +411,7 @@ const AdminRegistrations = () => {
   useEffect(() => {
     filterRegistrations();
     setCurrentPage(1); // Reset to first page when filters change
-  }, [registrations, searchQuery, statusFilter, yearFilter, stayTypeFilter, genderFilter, boardTypeFilter, hostelFilter, paymentStatusFilter]);
+  }, [registrations, searchQuery, statusFilter, yearFromFilter, yearToFilter, stayTypeFilter, genderFilter, boardTypeFilter, hostelFilter, paymentStatusFilter]);
 
   const fetchRegistrations = async () => {
     setIsLoading(true);
@@ -457,8 +458,18 @@ const AdminRegistrations = () => {
       filtered = filtered.filter((r) => r.registration_status === statusFilter);
     }
 
-    if (yearFilter !== 'all') {
-      filtered = filtered.filter((r) => r.year_of_passing.toString() === yearFilter);
+    // Year range filter
+    if (yearFromFilter !== '') {
+      const fromYear = parseInt(yearFromFilter, 10);
+      if (!isNaN(fromYear)) {
+        filtered = filtered.filter((r) => r.year_of_passing >= fromYear);
+      }
+    }
+    if (yearToFilter !== '') {
+      const toYear = parseInt(yearToFilter, 10);
+      if (!isNaN(toYear)) {
+        filtered = filtered.filter((r) => r.year_of_passing <= toYear);
+      }
     }
 
     if (stayTypeFilter !== 'all') {
@@ -498,7 +509,8 @@ const AdminRegistrations = () => {
   const resetFilters = () => {
     setSearchQuery('');
     setStatusFilter('all');
-    setYearFilter('all');
+    setYearFromFilter('');
+    setYearToFilter('');
     setStayTypeFilter('all');
     setGenderFilter('all');
     setBoardTypeFilter('all');
@@ -510,7 +522,8 @@ const AdminRegistrations = () => {
   const hasActiveFilters = () => {
     return searchQuery !== '' || 
            statusFilter !== 'all' || 
-           yearFilter !== 'all' || 
+           yearFromFilter !== '' ||
+           yearToFilter !== '' ||
            stayTypeFilter !== 'all' || 
            genderFilter !== 'all' || 
            boardTypeFilter !== 'all' || 
@@ -1070,19 +1083,27 @@ const AdminRegistrations = () => {
 
               {/* Additional filters row */}
               <div className="flex flex-wrap gap-2">
-                <Select value={yearFilter} onValueChange={setYearFilter}>
-                  <SelectTrigger className="w-[130px]">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Years</SelectItem>
-                    {getUniqueYears().map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    placeholder="From Year"
+                    value={yearFromFilter}
+                    onChange={(e) => setYearFromFilter(e.target.value)}
+                    className="w-[100px]"
+                    min={1900}
+                    max={2100}
+                  />
+                  <span className="text-muted-foreground text-sm">to</span>
+                  <Input
+                    type="number"
+                    placeholder="To Year"
+                    value={yearToFilter}
+                    onChange={(e) => setYearToFilter(e.target.value)}
+                    className="w-[100px]"
+                    min={1900}
+                    max={2100}
+                  />
+                </div>
 
                 <Select value={stayTypeFilter} onValueChange={setStayTypeFilter}>
                   <SelectTrigger className="w-[130px]">
