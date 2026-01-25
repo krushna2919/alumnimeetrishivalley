@@ -76,11 +76,7 @@ import { Tables } from '@/integrations/supabase/types';
 
 type Registration = Tables<'registrations'>;
 
-const HOSTEL_OPTIONS = [
-  'takshila', 'silver', 'golden', 'raavi', 'neem', 'palm', 'green', 'red',
-  'amaltash', 'gulmohar', 'meru', 'nilgiri', 'krishna', 'cauvery', 'trishul',
-  'jacaranda', 'duranta', 'malli'
-] as const;
+// Hostel options fetched from database
 
 const AdminRegistrations = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -95,6 +91,7 @@ const AdminRegistrations = () => {
   const [boardTypeFilter, setBoardTypeFilter] = useState<string>('all');
   const [hostelFilter, setHostelFilter] = useState<string>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
+  const [hostelOptions, setHostelOptions] = useState<string[]>([]);
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -382,8 +379,24 @@ const AdminRegistrations = () => {
     }
   };
 
+  // Fetch hostels from database for filter dropdown
+  const fetchHostels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('hostels')
+        .select('name')
+        .order('name');
+      
+      if (error) throw error;
+      setHostelOptions((data || []).map(h => h.name));
+    } catch (error) {
+      console.error('Error fetching hostels:', error);
+    }
+  };
+
   useEffect(() => {
     fetchRegistrations();
+    fetchHostels();
 
     // Subscribe to real-time changes on registrations table
     const channel = supabase
@@ -1146,9 +1159,9 @@ const AdminRegistrations = () => {
                   <SelectContent>
                     <SelectItem value="all">All Hostels</SelectItem>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {HOSTEL_OPTIONS.map((hostel) => (
+                    {hostelOptions.map((hostel) => (
                       <SelectItem key={hostel} value={hostel}>
-                        {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                        {hostel}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2006,9 +2019,9 @@ const AdminRegistrations = () => {
                   <SelectValue placeholder="Choose a hostel..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {HOSTEL_OPTIONS.map((hostel) => (
-                    <SelectItem key={hostel} value={hostel} className="capitalize">
-                      {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                  {hostelOptions.map((hostel) => (
+                    <SelectItem key={hostel} value={hostel}>
+                      {hostel}
                     </SelectItem>
                   ))}
                 </SelectContent>
