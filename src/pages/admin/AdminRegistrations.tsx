@@ -88,6 +88,12 @@ const AdminRegistrations = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [yearFilter, setYearFilter] = useState<string>('all');
+  const [stayTypeFilter, setStayTypeFilter] = useState<string>('all');
+  const [genderFilter, setGenderFilter] = useState<string>('all');
+  const [boardTypeFilter, setBoardTypeFilter] = useState<string>('all');
+  const [hostelFilter, setHostelFilter] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -404,7 +410,7 @@ const AdminRegistrations = () => {
   useEffect(() => {
     filterRegistrations();
     setCurrentPage(1); // Reset to first page when filters change
-  }, [registrations, searchQuery, statusFilter]);
+  }, [registrations, searchQuery, statusFilter, yearFilter, stayTypeFilter, genderFilter, boardTypeFilter, hostelFilter, paymentStatusFilter]);
 
   const fetchRegistrations = async () => {
     setIsLoading(true);
@@ -451,7 +457,65 @@ const AdminRegistrations = () => {
       filtered = filtered.filter((r) => r.registration_status === statusFilter);
     }
 
+    if (yearFilter !== 'all') {
+      filtered = filtered.filter((r) => r.year_of_passing.toString() === yearFilter);
+    }
+
+    if (stayTypeFilter !== 'all') {
+      filtered = filtered.filter((r) => r.stay_type === stayTypeFilter);
+    }
+
+    if (genderFilter !== 'all') {
+      filtered = filtered.filter((r) => r.gender === genderFilter);
+    }
+
+    if (boardTypeFilter !== 'all') {
+      filtered = filtered.filter((r) => r.board_type === boardTypeFilter);
+    }
+
+    if (hostelFilter !== 'all') {
+      if (hostelFilter === 'unassigned') {
+        filtered = filtered.filter((r) => !r.hostel_name);
+      } else {
+        filtered = filtered.filter((r) => r.hostel_name === hostelFilter);
+      }
+    }
+
+    if (paymentStatusFilter !== 'all') {
+      filtered = filtered.filter((r) => r.payment_status === paymentStatusFilter);
+    }
+
     setFilteredRegistrations(filtered);
+  };
+
+  // Get unique years from registrations for filter dropdown
+  const getUniqueYears = () => {
+    const years = [...new Set(registrations.map(r => r.year_of_passing))].sort((a, b) => b - a);
+    return years;
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setYearFilter('all');
+    setStayTypeFilter('all');
+    setGenderFilter('all');
+    setBoardTypeFilter('all');
+    setHostelFilter('all');
+    setPaymentStatusFilter('all');
+  };
+
+  // Check if any filter is active
+  const hasActiveFilters = () => {
+    return searchQuery !== '' || 
+           statusFilter !== 'all' || 
+           yearFilter !== 'all' || 
+           stayTypeFilter !== 'all' || 
+           genderFilter !== 'all' || 
+           boardTypeFilter !== 'all' || 
+           hostelFilter !== 'all' || 
+           paymentStatusFilter !== 'all';
   };
 
   // Group registrations by parent_application_id (uses paginated data)
@@ -978,28 +1042,129 @@ const AdminRegistrations = () => {
 
         <Card className="shadow-card">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or application ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="space-y-4">
+              {/* Search and primary filters row */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, email, or application ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Filter status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Filter status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                </SelectContent>
-              </Select>
+
+              {/* Additional filters row */}
+              <div className="flex flex-wrap gap-2">
+                <Select value={yearFilter} onValueChange={setYearFilter}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {getUniqueYears().map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={stayTypeFilter} onValueChange={setStayTypeFilter}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue placeholder="Stay Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stay</SelectItem>
+                    <SelectItem value="on-campus">On-Campus</SelectItem>
+                    <SelectItem value="outside">Outside</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={genderFilter} onValueChange={setGenderFilter}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Gender</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={boardTypeFilter} onValueChange={setBoardTypeFilter}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Boards</SelectItem>
+                    <SelectItem value="ISC">ISC</SelectItem>
+                    <SelectItem value="ICSE">ICSE</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={hostelFilter} onValueChange={setHostelFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Hostel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Hostels</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {HOSTEL_OPTIONS.map((hostel) => (
+                      <SelectItem key={hostel} value={hostel}>
+                        {hostel.charAt(0).toUpperCase() + hostel.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Payment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {hasActiveFilters() && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+
+              {/* Active filters summary */}
+              {hasActiveFilters() && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Showing {filteredRegistrations.length} of {registrations.length} registrations</span>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
