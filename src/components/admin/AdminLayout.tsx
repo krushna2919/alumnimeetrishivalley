@@ -224,9 +224,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         {/* Chevron collapse toggle - desktop only */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className={cn(
-            "hidden lg:flex absolute -right-3 top-8 z-50 h-6 w-6 items-center justify-center rounded-full border bg-card shadow-sm hover:bg-muted transition-colors"
-          )}
+          className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-50 h-6 w-6 items-center justify-center rounded-full border bg-card shadow-sm hover:bg-muted transition-colors"
         >
           {sidebarCollapsed ? (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
