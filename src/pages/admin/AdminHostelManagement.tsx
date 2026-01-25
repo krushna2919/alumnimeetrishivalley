@@ -75,8 +75,8 @@ const AdminHostelManagement = () => {
     name: '',
     total_rooms: 0,
     beds_per_room: 1,
-    washrooms: 0,
   });
+  const [isUpdatingRooms, setIsUpdatingRooms] = useState(false);
 
   // Computed values
   const assignedRegistrationIds = useMemo(() => {
@@ -146,7 +146,6 @@ const AdminHostelManagement = () => {
           name: newHostel.name.trim(),
           total_rooms: newHostel.total_rooms,
           beds_per_room: newHostel.beds_per_room,
-          washrooms: newHostel.washrooms,
         })
         .select()
         .single();
@@ -187,7 +186,7 @@ const AdminHostelManagement = () => {
 
       toast({ title: 'Success', description: 'Hostel added successfully' });
       setIsAddHostelOpen(false);
-      setNewHostel({ name: '', total_rooms: 0, beds_per_room: 1, washrooms: 0 });
+      setNewHostel({ name: '', total_rooms: 0, beds_per_room: 1 });
       fetchData();
     } catch (error: any) {
       console.error('Error adding hostel:', error);
@@ -207,7 +206,6 @@ const AdminHostelManagement = () => {
         .from('hostels')
         .update({
           name: editingHostel.name,
-          washrooms: editingHostel.washrooms,
         })
         .eq('id', editingHostel.id);
 
@@ -224,6 +222,216 @@ const AdminHostelManagement = () => {
         description: error.message || 'Failed to update hostel',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleAddRooms = async (count: number) => {
+    if (!editingHostel || count <= 0) return;
+
+    setIsUpdatingRooms(true);
+    try {
+      const existingRooms = getRoomsForHostel(editingHostel.id);
+      const maxRoomNumber = existingRooms.length > 0 
+        ? Math.max(...existingRooms.map(r => parseInt(r.room_number) || 0))
+        : 0;
+
+      const roomsToCreate = Array.from({ length: count }, (_, i) => ({
+        hostel_id: editingHostel.id,
+        room_number: `${maxRoomNumber + i + 1}`,
+        beds_count: editingHostel.beds_per_room,
+      }));
+
+      const { data: roomsData, error: roomsError } = await supabase
+        .from('hostel_rooms')
+        .insert(roomsToCreate)
+        .select();
+
+      if (roomsError) throw roomsError;
+
+      // Create beds for each new room
+      const bedsToCreate = roomsData.flatMap(room =>
+        Array.from({ length: editingHostel.beds_per_room }, (_, i) => ({
+          room_id: room.id,
+          bed_number: i + 1,
+        }))
+      );
+
+      if (bedsToCreate.length > 0) {
+        const { error: bedsError } = await supabase
+          .from('bed_assignments')
+          .insert(bedsToCreate);
+
+        if (bedsError) throw bedsError;
+      }
+
+      // Update total_rooms in hostel
+      await supabase
+        .from('hostels')
+        .update({ total_rooms: existingRooms.length + count })
+        .eq('id', editingHostel.id);
+
+      toast({ title: 'Success', description: `Added ${count} room(s) with ${editingHostel.beds_per_room} bed(s) each` });
+      fetchData();
+    } catch (error: any) {
+      console.error('Error adding rooms:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to add rooms',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingRooms(false);
+    }
+  };
+
+  const handleRemoveEmptyRooms = async (count: number) => {
+    if (!editingHostel || count <= 0) return;
+
+    setIsUpdatingRooms(true);
+    try {
+      const hostelRooms = getRoomsForHostel(editingHostel.id);
+      const hostelBedAssignments = getHostelBedAssignments(editingHostel.id);
+      
+      // Find rooms that have no assigned beds
+      const emptyRooms = hostelRooms.filter(room => {
+        const roomBeds = hostelBedAssignments.filter(b => b.room_id === room.id);
+        return roomBeds.every(b => !b.registration_id);
+      });
+
+      if (emptyRooms.length === 0) {
+        toast({
+          title: 'No Empty Rooms',
+          description: 'All rooms have assigned beds. Unassign beds first to remove rooms.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const roomsToRemove = emptyRooms.slice(0, count);
+      
+      // Delete beds first, then rooms
+      for (const room of roomsToRemove) {
+        await supabase
+          .from('bed_assignments')
+          .delete()
+          .eq('room_id', room.id);
+
+        await supabase
+          .from('hostel_rooms')
+          .delete()
+          .eq('id', room.id);
+      }
+
+      // Update total_rooms in hostel
+      await supabase
+        .from('hostels')
+        .update({ total_rooms: hostelRooms.length - roomsToRemove.length })
+        .eq('id', editingHostel.id);
+
+      toast({ title: 'Success', description: `Removed ${roomsToRemove.length} empty room(s)` });
+      fetchData();
+    } catch (error: any) {
+      console.error('Error removing rooms:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove rooms',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingRooms(false);
+    }
+  };
+
+  const handleAddBedsToRoom = async (roomId: string, count: number) => {
+    if (count <= 0) return;
+
+    setIsUpdatingRooms(true);
+    try {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room) return;
+
+      const existingBeds = bedAssignments.filter(b => b.room_id === roomId);
+      const maxBedNumber = existingBeds.length > 0 
+        ? Math.max(...existingBeds.map(b => b.bed_number))
+        : 0;
+
+      const bedsToCreate = Array.from({ length: count }, (_, i) => ({
+        room_id: roomId,
+        bed_number: maxBedNumber + i + 1,
+      }));
+
+      const { error: bedsError } = await supabase
+        .from('bed_assignments')
+        .insert(bedsToCreate);
+
+      if (bedsError) throw bedsError;
+
+      // Update beds_count in room
+      await supabase
+        .from('hostel_rooms')
+        .update({ beds_count: existingBeds.length + count })
+        .eq('id', roomId);
+
+      toast({ title: 'Success', description: `Added ${count} bed(s) to Room ${room.room_number}` });
+      fetchData();
+    } catch (error: any) {
+      console.error('Error adding beds:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to add beds',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingRooms(false);
+    }
+  };
+
+  const handleRemoveEmptyBeds = async (roomId: string, count: number) => {
+    if (count <= 0) return;
+
+    setIsUpdatingRooms(true);
+    try {
+      const room = rooms.find(r => r.id === roomId);
+      if (!room) return;
+
+      const roomBeds = bedAssignments.filter(b => b.room_id === roomId);
+      const emptyBeds = roomBeds.filter(b => !b.registration_id);
+
+      if (emptyBeds.length === 0) {
+        toast({
+          title: 'No Empty Beds',
+          description: 'All beds are assigned. Unassign beds first to remove them.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const bedsToRemove = emptyBeds.slice(0, count);
+
+      for (const bed of bedsToRemove) {
+        await supabase
+          .from('bed_assignments')
+          .delete()
+          .eq('id', bed.id);
+      }
+
+      // Update beds_count in room
+      await supabase
+        .from('hostel_rooms')
+        .update({ beds_count: roomBeds.length - bedsToRemove.length })
+        .eq('id', roomId);
+
+      toast({ title: 'Success', description: `Removed ${bedsToRemove.length} empty bed(s) from Room ${room.room_number}` });
+      fetchData();
+    } catch (error: any) {
+      console.error('Error removing beds:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove beds',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingRooms(false);
     }
   };
 
@@ -431,7 +639,7 @@ const AdminHostelManagement = () => {
                       placeholder="Enter hostel name"
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="total-rooms">Number of Rooms</Label>
                       <Input
@@ -450,16 +658,6 @@ const AdminHostelManagement = () => {
                         min="1"
                         value={newHostel.beds_per_room}
                         onChange={(e) => setNewHostel({ ...newHostel, beds_per_room: parseInt(e.target.value) || 1 })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="washrooms">Washrooms</Label>
-                      <Input
-                        id="washrooms"
-                        type="number"
-                        min="0"
-                        value={newHostel.washrooms}
-                        onChange={(e) => setNewHostel({ ...newHostel, washrooms: parseInt(e.target.value) || 0 })}
                       />
                     </div>
                   </div>
@@ -552,7 +750,7 @@ const AdminHostelManagement = () => {
                         {hostel.name}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {getRoomsForHostel(hostel.id).length} rooms • {getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)} beds occupied • {hostel.washrooms} washrooms
+                        {getRoomsForHostel(hostel.id).length} rooms • {getOccupiedBeds(hostel.id)}/{getTotalBeds(hostel.id)} beds occupied
                       </p>
                     </div>
                     {isSuperadmin && (
@@ -610,12 +808,12 @@ const AdminHostelManagement = () => {
 
         {/* Edit Hostel Dialog */}
         <Dialog open={isEditHostelOpen} onOpenChange={setIsEditHostelOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Hostel</DialogTitle>
             </DialogHeader>
             {editingHostel && (
-              <div className="space-y-4 pt-4">
+              <div className="space-y-6 pt-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-hostel-name">Hostel Name</Label>
                   <Input
@@ -624,21 +822,94 @@ const AdminHostelManagement = () => {
                     onChange={(e) => setEditingHostel({ ...editingHostel, name: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-washrooms">Washrooms</Label>
-                  <Input
-                    id="edit-washrooms"
-                    type="number"
-                    min="0"
-                    value={editingHostel.washrooms}
-                    onChange={(e) => setEditingHostel({ ...editingHostel, washrooms: parseInt(e.target.value) || 0 })}
-                  />
+
+                {/* Current Stats */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-2">Current Configuration</p>
+                  <p className="text-sm text-muted-foreground">
+                    {getRoomsForHostel(editingHostel.id).length} rooms • {editingHostel.beds_per_room} beds per room • {getTotalBeds(editingHostel.id)} total beds
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Note: Rooms and beds cannot be edited after creation to preserve assignments.
-                </p>
+
+                {/* Room Management */}
+                <div className="space-y-3">
+                  <Label>Manage Rooms</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddRooms(1)}
+                      disabled={isUpdatingRooms}
+                    >
+                      {isUpdatingRooms ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+                      Add 1 Room
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddRooms(5)}
+                      disabled={isUpdatingRooms}
+                    >
+                      Add 5 Rooms
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRemoveEmptyRooms(1)}
+                      disabled={isUpdatingRooms}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remove Empty Room
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    New rooms will have {editingHostel.beds_per_room} bed(s). Only empty rooms can be removed.
+                  </p>
+                </div>
+
+                {/* Bed Management per Room */}
+                <div className="space-y-3">
+                  <Label>Manage Beds by Room</Label>
+                  <div className="max-h-48 overflow-y-auto border rounded-md">
+                    {getRoomsForHostel(editingHostel.id).map((room) => {
+                      const roomBeds = bedAssignments.filter(b => b.room_id === room.id);
+                      const occupiedBeds = roomBeds.filter(b => b.registration_id).length;
+                      return (
+                        <div key={room.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
+                          <span className="text-sm">
+                            Room {room.room_number}: {roomBeds.length} beds ({occupiedBeds} occupied)
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAddBedsToRoom(room.id, 1)}
+                              disabled={isUpdatingRooms}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveEmptyBeds(room.id, 1)}
+                              disabled={isUpdatingRooms}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {getRoomsForHostel(editingHostel.id).length === 0 && (
+                      <p className="text-sm text-muted-foreground p-4 text-center">No rooms configured</p>
+                    )}
+                  </div>
+                </div>
+
                 <Button onClick={handleEditHostel} className="w-full">
-                  Save Changes
+                  Save Name Changes
                 </Button>
               </div>
             )}
