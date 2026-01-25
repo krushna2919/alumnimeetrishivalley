@@ -1,6 +1,7 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -23,9 +24,21 @@ import {
   RefreshCw,
   Activity
 } from 'lucide-react';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
+
+interface AdminLayoutProps {
+  children: ReactNode;
+}
+
+// Screen key mapping for permission checking
+const SCREEN_KEY_MAP: Record<string, string> = {
+  '/admin': 'dashboard',
+  '/admin/registrations': 'registrations',
+  '/admin/hostels': 'hostels',
+  '/admin/accounts-review': 'accounts_review',
+  '/admin/settings': 'settings',
+};
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -73,8 +86,54 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [screenPermissions, setScreenPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   
-  const navItems = getNavItems(userRole);
+  // Fetch user's screen permissions
+  useEffect(() => {
+    const fetchScreenPermissions = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_screen_permissions')
+          .select('screen_key')
+          .eq('user_id', user.id);
+        
+        if (error) {
+          console.error('Error fetching screen permissions:', error);
+        } else {
+          setScreenPermissions(data?.map(p => p.screen_key) || []);
+        }
+      } catch (err) {
+        console.error('Error fetching screen permissions:', err);
+      } finally {
+        setPermissionsLoaded(true);
+      }
+    };
+    
+    fetchScreenPermissions();
+  }, [user]);
+
+  // Filter nav items based on screen permissions (only applies to non-superadmin)
+  const getFilteredNavItems = () => {
+    const baseItems = getNavItems(userRole);
+    
+    // Superadmins always see all items, or if no permissions configured use role defaults
+    if (userRole === 'superadmin' || screenPermissions.length === 0) {
+      return baseItems;
+    }
+    
+    // Filter based on configured screen permissions
+    return baseItems.filter(item => {
+      const screenKey = SCREEN_KEY_MAP[item.href];
+      // If no screen key mapping exists (like user management), keep it based on role
+      if (!screenKey) return true;
+      return screenPermissions.includes(screenKey);
+    });
+  };
+  
+  const navItems = getFilteredNavItems();
 
   const getRoleLabel = (role: string | null) => {
     switch (role) {
@@ -112,7 +171,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     navigate('/admin/login', { replace: true });
   };
 
-  if (isLoading) {
+  if (isLoading || !permissionsLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

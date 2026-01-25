@@ -40,8 +40,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle, X } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle, X, Monitor } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
+import ScreenPermissionsDialog from '@/components/admin/ScreenPermissionsDialog';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -75,6 +76,10 @@ const AdminUsers = () => {
     role: AppRole;
   } | null>(null);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
+  const [screenPermissionsUser, setScreenPermissionsUser] = useState<{
+    userId: string;
+    email: string;
+  } | null>(null);
 
   useEffect(() => {
     checkSuperadminAndFetchRoles();
@@ -617,6 +622,19 @@ const AdminUsers = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            onClick={() => setScreenPermissionsUser({
+                              userId: groupedUser.user_id,
+                              email: groupedUser.email,
+                            })}
+                            title="Configure screen access"
+                          >
+                            <Monitor className="h-3.5 w-3.5 mr-1" />
+                            Screens
+                          </Button>
                           {getAvailableRoles(groupedUser.user_id).length > 0 && (
                             <>
                               {pendingRoleAssignment?.userId === groupedUser.user_id ? (
@@ -681,6 +699,14 @@ const AdminUsers = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Screen Permissions Dialog */}
+        <ScreenPermissionsDialog
+          open={!!screenPermissionsUser}
+          onOpenChange={(open) => !open && setScreenPermissionsUser(null)}
+          userId={screenPermissionsUser?.userId || ''}
+          userEmail={screenPermissionsUser?.email || ''}
+        />
       </div>
     </AdminLayout>
   );
