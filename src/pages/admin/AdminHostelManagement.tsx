@@ -69,6 +69,7 @@ const AdminHostelManagement = () => {
   const [editingHostel, setEditingHostel] = useState<Hostel | null>(null);
   const [selectedApplicantIds, setSelectedApplicantIds] = useState<string[]>([]);
   const [selectedBedIds, setSelectedBedIds] = useState<string[]>([]);
+  const [selectedUnassignBedIds, setSelectedUnassignBedIds] = useState<string[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [activeHostelId, setActiveHostelId] = useState<string | null>(null);
   const [newHostel, setNewHostel] = useState({
@@ -619,6 +620,55 @@ const AdminHostelManagement = () => {
     await handleAssignBed(bedId, null);
   };
 
+  // Bulk unassign multiple beds
+  const handleBulkUnassign = async (bedIds: string[]) => {
+    if (bedIds.length === 0) return;
+
+    setIsAssigning(true);
+    try {
+      for (const bedId of bedIds) {
+        const bed = bedAssignments.find(b => b.id === bedId);
+        if (bed?.registration) {
+          await logAdminActivity({
+            actionType: 'bed_unassignment',
+            targetRegistrationId: bed.registration.id,
+            targetApplicationId: bed.registration.application_id,
+            details: { name: bed.registration.name, bulk: true }
+          });
+
+          // Clear hostel_name from registration
+          await supabase
+            .from('registrations')
+            .update({ hostel_name: null })
+            .eq('id', bed.registration.id);
+        }
+
+        // Unassign the bed
+        await supabase
+          .from('bed_assignments')
+          .update({ registration_id: null })
+          .eq('id', bedId);
+      }
+
+      toast({
+        title: 'Beds Unassigned',
+        description: `Successfully unassigned ${bedIds.length} bed(s)`,
+      });
+
+      setSelectedUnassignBedIds([]);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error bulk unassigning beds:', error);
+      toast({
+        title: 'Unassignment Failed',
+        description: error.message || 'Failed to unassign beds',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   const getRoomsForHostel = (hostelId: string) => rooms.filter(r => r.hostel_id === hostelId);
   const getOccupiedBeds = (hostelId: string) => {
     const hostelRoomIds = new Set(getRoomsForHostel(hostelId).map(r => r.id));
@@ -859,6 +909,9 @@ const AdminHostelManagement = () => {
                     selectedBedIds={selectedBedIds}
                     onBedSelectionChange={setSelectedBedIds}
                     onUnassignBed={handleUnassignBed}
+                    onBulkUnassign={handleBulkUnassign}
+                    selectedUnassignBedIds={selectedUnassignBedIds}
+                    onUnassignSelectionChange={setSelectedUnassignBedIds}
                   />
                 </div>
               </TabsContent>
