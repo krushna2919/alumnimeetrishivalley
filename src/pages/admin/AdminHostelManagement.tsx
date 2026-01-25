@@ -76,6 +76,7 @@ const AdminHostelManagement = () => {
     total_rooms: 0,
     beds_per_room: 1,
   });
+  const [roomBedCounts, setRoomBedCounts] = useState<number[]>([]);
   const [isUpdatingRooms, setIsUpdatingRooms] = useState(false);
 
   // Computed values
@@ -133,6 +134,38 @@ const AdminHostelManagement = () => {
     }
   }, [hostels, activeHostelId]);
 
+  const handleRoomCountChange = (count: number) => {
+    const validCount = Math.max(0, count);
+    setNewHostel({ ...newHostel, total_rooms: validCount });
+    
+    // Adjust roomBedCounts array
+    setRoomBedCounts(prev => {
+      if (validCount > prev.length) {
+        // Add new rooms with default bed count
+        return [...prev, ...Array(validCount - prev.length).fill(newHostel.beds_per_room)];
+      } else {
+        // Trim extra rooms
+        return prev.slice(0, validCount);
+      }
+    });
+  };
+
+  const handleDefaultBedsChange = (defaultBeds: number) => {
+    const validBeds = Math.max(1, defaultBeds);
+    setNewHostel({ ...newHostel, beds_per_room: validBeds });
+    // Update all rooms that still have the old default
+    setRoomBedCounts(prev => prev.map(() => validBeds));
+  };
+
+  const handleRoomBedCountChange = (roomIndex: number, beds: number) => {
+    const validBeds = Math.max(1, beds);
+    setRoomBedCounts(prev => {
+      const updated = [...prev];
+      updated[roomIndex] = validBeds;
+      return updated;
+    });
+  };
+
   const handleAddHostel = async () => {
     if (!newHostel.name.trim()) {
       toast({ title: 'Error', description: 'Hostel name is required', variant: 'destructive' });
@@ -152,12 +185,12 @@ const AdminHostelManagement = () => {
 
       if (hostelError) throw hostelError;
 
-      // Create rooms and beds
-      if (newHostel.total_rooms > 0) {
-        const roomsToCreate = Array.from({ length: newHostel.total_rooms }, (_, i) => ({
+      // Create rooms and beds with individual bed counts
+      if (newHostel.total_rooms > 0 && roomBedCounts.length > 0) {
+        const roomsToCreate = roomBedCounts.map((bedCount, i) => ({
           hostel_id: hostelData.id,
           room_number: `${i + 1}`,
-          beds_count: newHostel.beds_per_room,
+          beds_count: bedCount,
         }));
 
         const { data: roomsData, error: roomsError } = await supabase
@@ -167,9 +200,9 @@ const AdminHostelManagement = () => {
 
         if (roomsError) throw roomsError;
 
-        // Create beds for each room
-        const bedsToCreate = roomsData.flatMap(room =>
-          Array.from({ length: newHostel.beds_per_room }, (_, i) => ({
+        // Create beds for each room based on individual counts
+        const bedsToCreate = roomsData.flatMap((room, index) =>
+          Array.from({ length: roomBedCounts[index] }, (_, i) => ({
             room_id: room.id,
             bed_number: i + 1,
           }))
@@ -187,6 +220,7 @@ const AdminHostelManagement = () => {
       toast({ title: 'Success', description: 'Hostel added successfully' });
       setIsAddHostelOpen(false);
       setNewHostel({ name: '', total_rooms: 0, beds_per_room: 1 });
+      setRoomBedCounts([]);
       fetchData();
     } catch (error: any) {
       console.error('Error adding hostel:', error);
@@ -647,20 +681,46 @@ const AdminHostelManagement = () => {
                         type="number"
                         min="0"
                         value={newHostel.total_rooms}
-                        onChange={(e) => setNewHostel({ ...newHostel, total_rooms: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => handleRoomCountChange(parseInt(e.target.value) || 0)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="beds-per-room">Beds per Room</Label>
+                      <Label htmlFor="beds-per-room">Default Beds per Room</Label>
                       <Input
                         id="beds-per-room"
                         type="number"
                         min="1"
                         value={newHostel.beds_per_room}
-                        onChange={(e) => setNewHostel({ ...newHostel, beds_per_room: parseInt(e.target.value) || 1 })}
+                        onChange={(e) => handleDefaultBedsChange(parseInt(e.target.value) || 1)}
                       />
                     </div>
                   </div>
+                  
+                  {/* Individual Room Bed Configuration */}
+                  {roomBedCounts.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Beds per Room (customize individually)</Label>
+                      <div className="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2">
+                        {roomBedCounts.map((beds, index) => (
+                          <div key={index} className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium min-w-[80px]">Room {index + 1}</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={beds}
+                              onChange={(e) => handleRoomBedCountChange(index, parseInt(e.target.value) || 1)}
+                              className="w-24 h-8"
+                            />
+                            <span className="text-xs text-muted-foreground">bed{beds > 1 ? 's' : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total beds: {roomBedCounts.reduce((sum, count) => sum + count, 0)}
+                      </p>
+                    </div>
+                  )}
+                  
                   <Button onClick={handleAddHostel} className="w-full">
                     Add Hostel
                   </Button>
