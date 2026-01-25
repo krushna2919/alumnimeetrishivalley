@@ -7,11 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Shield, Clock, KeyRound, MapPin } from 'lucide-react';
+import { Loader2, Shield, Clock, KeyRound, MapPin, Settings } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { trackDeviceSession } from '@/lib/activityLogger';
+import LocationHelperDialog from '@/components/admin/LocationHelperDialog';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -38,6 +39,7 @@ const AdminLogin = () => {
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
+  const [showLocationHelper, setShowLocationHelper] = useState(false);
   
   const { signIn, isAdmin, isApproved, isPendingApproval, user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -467,13 +469,34 @@ const AdminLogin = () => {
             </div>
 
             {locationError && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 space-y-2">
                 <div className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-destructive">{locationError}</p>
                 </div>
+                {locationError.includes('Location access is required') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowLocationHelper(true)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    How to Enable Location
+                  </Button>
+                )}
               </div>
             )}
+
+            <LocationHelperDialog
+              open={showLocationHelper}
+              onOpenChange={setShowLocationHelper}
+              onRetry={() => {
+                setShowLocationHelper(false);
+                setLocationError(null);
+              }}
+            />
 
             <Button 
               type="submit" 
