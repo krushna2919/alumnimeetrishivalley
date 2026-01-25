@@ -28,8 +28,8 @@ import {
   Receipt,
   RefreshCw,
   Activity,
-  PanelLeftClose,
-  PanelLeft
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
@@ -221,6 +221,20 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
         sidebarCollapsed ? "w-16" : "w-64",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
+        {/* Chevron collapse toggle - desktop only */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className={cn(
+            "hidden lg:flex absolute -right-3 top-8 z-50 h-6 w-6 items-center justify-center rounded-full border bg-card shadow-sm hover:bg-muted transition-colors"
+          )}
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+
         <div className="flex flex-col h-full">
           <div className={cn("border-b flex items-center", sidebarCollapsed ? "p-3 justify-center" : "p-6")}>
             {sidebarCollapsed ? (
@@ -346,25 +360,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
                 </Button>
               </>
             )}
-          </div>
-          
-          {/* Collapse toggle button - desktop only */}
-          <div className="hidden lg:block border-t p-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-center text-muted-foreground hover:text-foreground"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeft className="h-5 w-5" />
-              ) : (
-                <>
-                  <PanelLeftClose className="h-5 w-5 mr-2" />
-                  <span className="text-xs">Collapse</span>
-                </>
-              )}
-            </Button>
           </div>
         </div>
       </aside>
