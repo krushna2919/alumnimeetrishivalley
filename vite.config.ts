@@ -47,6 +47,11 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Force new service worker to take control immediately
+        skipWaiting: true,
+        clientsClaim: true,
+        // Clean up old caches
+        cleanupOutdatedCaches: true,
         // Ensure installed app routes (React Router) always resolve to the SPA shell
         navigateFallback: "/index.html",
         navigateFallbackAllowlist: [/^\/$/, /^\/admin(\/.*)?$/, /^\/install(\/.*)?$/],
