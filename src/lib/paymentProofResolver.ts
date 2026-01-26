@@ -28,55 +28,84 @@ export async function resolveLatestPaymentProofUrlFromStorage(
 ): Promise<string | null> {
   const bucket = opts?.bucket ?? "payment-proofs";
   const pageSize = Math.min(Math.max(opts?.pageSize ?? 200, 50), 1000);
-  const maxPages = Math.min(Math.max(opts?.maxPages ?? 10, 1), 50);
+  const maxPages = Math.min(Math.max(opts?.maxPages ?? 20, 1), 50);
 
   const isMatch = (name: string) =>
     name.startsWith(`${applicationId}-`) || name.startsWith(`combined-${applicationId}-`);
 
   try {
-    // 1) Fast path: try server-side search first (if supported / effective)
+    // Collect ALL matching files across all pages, then pick the newest
+    const allMatches: StorageFile[] = [];
+
+    // 1) Try server-side search first (can help narrow down)
     try {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .list("", { limit: 50, search: applicationId });
+        .list("", { limit: 100, search: applicationId });
 
       if (!error && data?.length) {
-        const matches = (data as StorageFile[])
-          .filter((f) => isMatch(f.name))
-          .sort((a, b) => getFileTime(b) - getFileTime(a));
-
-        const latest = matches[0];
-        if (latest) {
-          const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(latest.name);
-          return publicData.publicUrl ?? null;
+        for (const f of data as StorageFile[]) {
+          if (isMatch(f.name)) allMatches.push(f);
         }
       }
     } catch {
       // ignore and fall back to paginated scan
     }
 
-    // 2) Robust path: paginated scan
-    let best: StorageFile | null = null;
-    for (let page = 0; page < maxPages; page++) {
-      // eslint-disable-next-line no-await-in-loop
+    // 2) Also try search with "combined-" prefix
+    try {
       const { data, error } = await supabase.storage
         .from(bucket)
-        .list("", { limit: pageSize, offset: page * pageSize });
+        .list("", { limit: 100, search: `combined-${applicationId}` });
 
-      if (error) throw error;
-      const files = (data ?? []) as StorageFile[];
-      if (files.length === 0) break;
-
-      for (const f of files) {
-        if (!isMatch(f.name)) continue;
-        if (!best || getFileTime(f) > getFileTime(best)) best = f;
+      if (!error && data?.length) {
+        for (const f of data as StorageFile[]) {
+          if (isMatch(f.name) && !allMatches.some(m => m.name === f.name)) {
+            allMatches.push(f);
+          }
+        }
       }
-
-      // If we got fewer than a full page, we've reached the end.
-      if (files.length < pageSize) break;
+    } catch {
+      // ignore
     }
 
-    if (!best) return null;
+    // 3) If still no matches, do a full paginated scan
+    if (allMatches.length === 0) {
+      for (let page = 0; page < maxPages; page++) {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .list("", { limit: pageSize, offset: page * pageSize });
+
+        if (error) {
+          console.error(`Storage list page ${page} error:`, error);
+          break;
+        }
+        
+        const files = (data ?? []) as StorageFile[];
+        if (files.length === 0) break;
+
+        for (const f of files) {
+          if (isMatch(f.name) && !allMatches.some(m => m.name === f.name)) {
+            allMatches.push(f);
+          }
+        }
+
+        // If we got fewer than a full page, we've reached the end.
+        if (files.length < pageSize) break;
+      }
+    }
+
+    if (allMatches.length === 0) {
+      console.log(`No payment proof found for ${applicationId} after scanning storage`);
+      return null;
+    }
+
+    // Sort by newest first and pick the best
+    allMatches.sort((a, b) => getFileTime(b) - getFileTime(a));
+    const best = allMatches[0];
+    
+    console.log(`Found ${allMatches.length} proof(s) for ${applicationId}, using: ${best.name}`);
+    
     const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(best.name);
     return publicData.publicUrl ?? null;
   } catch (err) {
