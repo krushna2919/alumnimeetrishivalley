@@ -73,6 +73,7 @@ import {
 } from '@/components/ui/pagination';
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
+import { resolveLatestPaymentProofUrlFromStorage } from '@/lib/paymentProofResolver';
 
 type Registration = Tables<'registrations'>;
 
@@ -138,38 +139,8 @@ const AdminRegistrations = () => {
     return supabase.storage.from('payment-receipts').getPublicUrl(value).data.publicUrl;
   };
 
-  const resolvePaymentProofUrlFromStorage = async (applicationId: string): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('payment-proofs')
-        .list('', { limit: 50, search: applicationId });
-
-      if (error) throw error;
-
-      const matches = (data ?? [])
-        .filter((f) =>
-          f.name.startsWith(`${applicationId}-`) ||
-          f.name.startsWith(`combined-${applicationId}-`)
-        )
-        .sort((a, b) => {
-          const aTime = new Date((a.updated_at || a.created_at) as string).getTime();
-          const bTime = new Date((b.updated_at || b.created_at) as string).getTime();
-          return bTime - aTime;
-        });
-
-      const latest = matches[0];
-      if (!latest) return null;
-
-      const { data: publicData } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(latest.name);
-
-      return publicData.publicUrl ?? null;
-    } catch (err) {
-      console.error('Failed to resolve payment proof from storage:', err);
-      return null;
-    }
-  };
+  const resolvePaymentProofUrlFromStorage = (applicationId: string) =>
+    resolveLatestPaymentProofUrlFromStorage(applicationId, { bucket: 'payment-proofs' });
 
   const backfillMissingPaymentProofUrls = async (rows: Registration[]) => {
     const missing = rows.filter((r) => r.payment_status === 'submitted' && !r.payment_proof_url);
