@@ -117,6 +117,9 @@ const AdminRegistrations = () => {
   const [isResendEmailDialogOpen, setIsResendEmailDialogOpen] = useState(false);
   const [isResendingEmail, setIsResendingEmail] = useState(false);
   
+  // Single application sync state
+  const [isSyncingSingleProof, setIsSyncingSingleProof] = useState(false);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -257,6 +260,64 @@ const AdminRegistrations = () => {
       });
     } finally {
       setIsSyncingProofs(false);
+    }
+  };
+
+  // Sync payment proof for a single application (and its group members)
+  const syncSingleApplicationProof = async (applicationId: string) => {
+    setIsSyncingSingleProof(true);
+    try {
+      // Get all registrations for this application (parent + dependents)
+      const { data: records, error: fetchError } = await supabase
+        .from('registrations')
+        .select('id, application_id, payment_proof_url, parent_application_id')
+        .or(`application_id.eq.${applicationId},parent_application_id.eq.${applicationId}`);
+
+      if (fetchError) throw fetchError;
+      if (!records || records.length === 0) {
+        toast({ title: 'Not Found', description: 'No records found for this application ID.', variant: 'destructive' });
+        return;
+      }
+
+      // Try to find the proof from storage
+      const resolvedUrl = await resolvePaymentProofUrlFromStorage(applicationId);
+      
+      if (!resolvedUrl) {
+        toast({ title: 'No Proof Found', description: `No payment proof file found in storage for ${applicationId}. Check that the file name starts with "${applicationId}-" or "combined-${applicationId}-".`, variant: 'destructive' });
+        return;
+      }
+
+      // Update all records (parent + dependents) with the resolved URL
+      let updatedCount = 0;
+      for (const record of records) {
+        const { error: updateError } = await supabase
+          .from('registrations')
+          .update({
+            payment_proof_url: resolvedUrl,
+            payment_status: 'submitted',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', record.id);
+
+        if (!updateError) updatedCount++;
+      }
+
+      toast({
+        title: 'Proof Linked',
+        description: `Successfully linked payment proof to ${updatedCount} record(s).`,
+      });
+
+      fetchRegistrations();
+      
+      // Update selected registration if still open
+      if (selectedRegistration && (selectedRegistration.application_id === applicationId || selectedRegistration.parent_application_id === applicationId)) {
+        setSelectedRegistration(prev => prev ? { ...prev, payment_proof_url: resolvedUrl, payment_status: 'submitted' } : null);
+      }
+    } catch (error) {
+      console.error('Error syncing single proof:', error);
+      toast({ title: 'Sync Failed', description: 'Failed to sync payment proof.', variant: 'destructive' });
+    } finally {
+      setIsSyncingSingleProof(false);
     }
   };
 
@@ -1588,7 +1649,27 @@ const AdminRegistrations = () => {
                       })()}
                     </div>
                   ) : (
-                    <p className="font-medium text-muted-foreground">No proof uploaded</p>
+                    <div className="flex items-center gap-3">
+                      <p className="font-medium text-muted-foreground">No proof uploaded</p>
+                      {userRole === 'superadmin' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isSyncingSingleProof}
+                          onClick={() => {
+                            const appId = selectedRegistration.parent_application_id || selectedRegistration.application_id;
+                            syncSingleApplicationProof(appId);
+                          }}
+                        >
+                          {isSyncingSingleProof ? (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          ) : (
+                            <Link2 className="h-3 w-3 mr-1" />
+                          )}
+                          Sync from Storage
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="col-span-2">
