@@ -1167,8 +1167,8 @@ const AdminRegistrations = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Gender</SelectItem>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="M">Male</SelectItem>
+                    <SelectItem value="F">Female</SelectItem>
                   </SelectContent>
                 </Select>
 
