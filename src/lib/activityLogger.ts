@@ -131,7 +131,7 @@ export const trackDeviceSession = async (
       .select('id')
       .eq('user_id', user.id)
       .eq('session_id', sessionId)
-      .single();
+      .maybeSingle();
 
     if (existingSession) {
       // Update last active with location if provided
