@@ -124,49 +124,30 @@ export const trackDeviceSession = async (
     const userAgent = navigator.userAgent;
     const { browser, os, deviceType } = parseUserAgent(userAgent);
 
-    // Check if this session already exists
     const sessionId = accessToken ? accessToken.substring(0, 50) : `manual_${Date.now()}`;
-    const { data: existingSession } = await supabase
+    
+    // Use upsert to handle concurrent requests and prevent duplicates
+    // The unique constraint on (user_id, session_id) ensures only one record per session
+    const upsertData = {
+      user_id: user.id,
+      user_email: user.email || userEmail || '',
+      user_agent: userAgent,
+      browser,
+      os,
+      device_type: deviceType,
+      session_id: sessionId,
+      device_info: { browser, os, deviceType, userAgent } as Json,
+      last_active_at: new Date().toISOString(),
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
+    };
+
+    await supabase
       .from('user_device_sessions')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId)
-      .maybeSingle();
-
-    if (existingSession) {
-      // Update last active with location if provided
-      const updateData: Record<string, unknown> = { 
-        last_active_at: new Date().toISOString() 
-      };
-      
-      if (latitude !== undefined && longitude !== undefined) {
-        updateData.latitude = latitude;
-        updateData.longitude = longitude;
-      }
-
-      await supabase
-        .from('user_device_sessions')
-        .update(updateData)
-        .eq('id', existingSession.id);
-    } else {
-      // Insert new session with location if provided
-      const insertData = {
-        user_id: user.id,
-        user_email: user.email || userEmail || '',
-        user_agent: userAgent,
-        browser,
-        os,
-        device_type: deviceType,
-        session_id: sessionId,
-        device_info: { browser, os, deviceType, userAgent } as Json,
-        latitude: latitude ?? null,
-        longitude: longitude ?? null,
-      };
-
-      await supabase
-        .from('user_device_sessions')
-        .insert(insertData);
-    }
+      .upsert(upsertData, { 
+        onConflict: 'user_id,session_id',
+        ignoreDuplicates: false 
+      });
   } catch (err) {
     console.error('Error tracking device session:', err);
   }
