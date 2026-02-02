@@ -1,11 +1,36 @@
+/**
+ * Footer.tsx - Site Footer Component
+ * 
+ * The footer section containing:
+ * - About section with school description
+ * - Contact information (email, address)
+ * - Event details summary (dates, deadline, venue)
+ * - Copyright notice
+ * 
+ * Design:
+ * - Dark theme with inverted colors (bg-foreground, text-background)
+ * - Three-column responsive grid layout
+ * - Clear visual separation from main content
+ */
+
 import { Mail, Phone, MapPin } from "lucide-react";
 
+/**
+ * Footer Component
+ * 
+ * Renders the site footer with contact information and event details.
+ * Uses a responsive grid that collapses to single column on mobile.
+ * 
+ * @returns Footer section with contact info and event details
+ */
 const Footer = () => {
   return (
     <footer className="bg-foreground text-background py-16">
       <div className="container max-w-6xl px-4">
+        {/* Three-column grid: About | Contact | Event Details */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-          {/* About */}
+          
+          {/* About Section - School and event description */}
           <div>
             <h3 className="font-serif text-2xl font-bold mb-4">Rishi Valley School</h3>
             <p className="text-background/70 leading-relaxed">
@@ -14,10 +39,11 @@ const Footer = () => {
             </p>
           </div>
 
-          {/* Contact */}
+          {/* Contact Section - Email and physical address */}
           <div>
             <h3 className="font-serif text-xl font-semibold mb-4">Contact Us</h3>
             <div className="space-y-3">
+              {/* Email link - clickable mailto */}
               <a 
                 href="mailto:alumnimeet@rishivalley.org" 
                 className="flex items-center gap-3 text-background/70 hover:text-background transition-colors"
@@ -25,6 +51,8 @@ const Footer = () => {
                 <Mail className="w-5 h-5" />
                 alumnimeet@rishivalley.org
               </a>
+              
+              {/* Physical address - not clickable */}
               <div className="flex items-start gap-3 text-background/70">
                 <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <span>
@@ -36,7 +64,7 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* Event Details */}
+          {/* Event Details Section - Quick reference */}
           <div>
             <h3 className="font-serif text-xl font-semibold mb-4">Event Details</h3>
             <div className="space-y-2 text-background/70">
@@ -47,6 +75,7 @@ const Footer = () => {
           </div>
         </div>
 
+        {/* Copyright Section - Bottom border separator */}
         <div className="border-t border-background/10 mt-12 pt-8 text-center text-background/50">
           <p>&copy; 2026 Rishi Valley School Alumni Association. All rights reserved.</p>
         </div>

@@ -1,6 +1,28 @@
+/**
+ * ImportantNotes.tsx - Key Information Section
+ * 
+ * Displays critical information that alumni need to know before registering.
+ * Uses a card-based layout with icons for easy scanning and comprehension.
+ * 
+ * Information Categories:
+ * - Registration deadline and capacity limits
+ * - Check-in/check-out timing
+ * - Accommodation priority rules
+ * - Hostel grouping policy
+ * - T-shirt sizing guide
+ * 
+ * Animation:
+ * - Staggered card entrance animations for visual interest
+ * - Smooth scroll-triggered animations via Framer Motion viewport detection
+ */
+
 import { motion } from "framer-motion";
 import { CalendarCheck, Home, Shirt, Clock, Users } from "lucide-react";
 
+/**
+ * Important notes data array
+ * Each note has an icon, title, and description
+ */
 const notes = [
   {
     icon: CalendarCheck,
@@ -29,10 +51,21 @@ const notes = [
   },
 ];
 
+/**
+ * ImportantNotes Component
+ * 
+ * Renders a grid of important information cards with:
+ * - Eligibility criteria notice
+ * - Hard refresh reminder for form functionality
+ * - Individual note cards with icons
+ * 
+ * @returns Important notes section with animated cards
+ */
 const ImportantNotes = () => {
   return (
     <section className="py-20 bg-background">
       <div className="container max-w-6xl px-4">
+        {/* Section header with entrance animation */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -46,7 +79,7 @@ const ImportantNotes = () => {
           </p>
         </motion.div>
 
-        {/* Hard Refresh Notice */}
+        {/* Hard Refresh Notice - Technical reminder for users */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -58,11 +91,12 @@ const ImportantNotes = () => {
             ⚠️ Hard refresh the browser before proceeding to fill the Registration Form
           </p>
           <p className="text-amber-600 dark:text-amber-500 text-sm mt-1">
+            {/* Keyboard shortcuts for different operating systems */}
             <span className="font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">Ctrl + Shift + R</span> (Windows/Linux) or <span className="font-mono bg-amber-500/20 px-1.5 py-0.5 rounded">Cmd + Shift + R</span> (Mac)
           </p>
         </motion.div>
 
-        {/* Eligibility Note */}
+        {/* Eligibility Criteria - Who can register */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -79,6 +113,7 @@ const ImportantNotes = () => {
           </p>
         </motion.div>
 
+        {/* Notes Grid - Responsive card layout */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {notes.map((note, index) => (
             <motion.div
@@ -86,9 +121,11 @@ const ImportantNotes = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
+              // Staggered animation: each card appears 0.1s after the previous
               transition={{ duration: 0.6, delay: index * 0.1 }}
               className="gradient-card rounded-xl p-6 border border-border shadow-soft hover:shadow-card transition-shadow"
             >
+              {/* Icon container with primary color accent */}
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <note.icon className="w-6 h-6 text-primary" />
               </div>
