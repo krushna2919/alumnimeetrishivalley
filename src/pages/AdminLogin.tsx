@@ -230,9 +230,14 @@ const AdminLogin = () => {
           if (!userLocation) {
             // Sign out and block access
             await supabase.auth.signOut();
-            setLocationError('Location access is required to log in. Please enable location services and try again.');
-            setIsSubmitting(false);
             setIsCheckingLocation(false);
+            setIsSubmitting(false);
+            setLocationError('Location access is required to log in. Please enable location services and try again.');
+            toast({
+              title: 'Location Required',
+              description: 'Please enable location access in your browser settings to log in.',
+              variant: 'destructive',
+            });
             return;
           }
 
