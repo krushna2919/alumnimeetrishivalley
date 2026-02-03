@@ -43,6 +43,7 @@ import { toast } from 'sonner';
 import { Loader2, UserPlus, Trash2, ShieldAlert, CheckCircle, XCircle, X, Monitor } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 import ScreenPermissionsDialog from '@/components/admin/ScreenPermissionsDialog';
+import GeofenceSettings from '@/components/admin/GeofenceSettings';
 
 type AppRole = Database['public']['Enums']['app_role'];
 
@@ -699,6 +700,9 @@ const AdminUsers = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Geofence Settings - Superadmin Only */}
+        <GeofenceSettings />
 
         {/* Screen Permissions Dialog */}
         <ScreenPermissionsDialog
