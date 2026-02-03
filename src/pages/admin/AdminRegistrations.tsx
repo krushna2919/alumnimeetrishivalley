@@ -576,10 +576,19 @@ const AdminRegistrations = () => {
            paymentStatusFilter !== 'all';
   };
 
-  // Group registrations by parent_application_id (uses paginated data)
-  const getGroupedRegistrations = (registrationsToGroup: Registration[]) => {
+  /**
+   * Groups registrations by parent_application_id and returns them sorted by date.
+   * Returns an array of items that can be either a group (with members) or a standalone registration.
+   * All items are sorted by the created_at date of the primary/standalone registration (descending).
+   */
+  type GroupedItem = 
+    | { type: 'group'; groupId: string; members: Registration[]; sortDate: string }
+    | { type: 'standalone'; registration: Registration; sortDate: string };
+
+  const getGroupedRegistrations = (registrationsToGroup: Registration[]): GroupedItem[] => {
     const groups: Map<string, Registration[]> = new Map();
-    const standalone: Registration[] = [];
+    const groupSortDates: Map<string, string> = new Map();
+    const standaloneList: Registration[] = [];
 
     // First pass: identify primary registrants (those without parent_application_id)
     registrationsToGroup.forEach(reg => {
@@ -587,6 +596,8 @@ const AdminRegistrations = () => {
         // This is a primary registrant
         if (!groups.has(reg.application_id)) {
           groups.set(reg.application_id, [reg]);
+          // Use the primary registrant's created_at for sorting
+          groupSortDates.set(reg.application_id, reg.created_at);
         }
       }
     });
@@ -598,9 +609,11 @@ const AdminRegistrations = () => {
         if (parentGroup) {
           parentGroup.push(reg);
         } else {
-          // Parent not in filtered results, create a new group
+          // Parent not in filtered results, create a new group with this dependent
           if (!groups.has(reg.parent_application_id)) {
             groups.set(reg.parent_application_id, []);
+            // Use the dependent's created_at as fallback for sorting
+            groupSortDates.set(reg.parent_application_id, reg.created_at);
           }
           groups.get(reg.parent_application_id)!.push(reg);
         }
@@ -613,13 +626,39 @@ const AdminRegistrations = () => {
         // Check if there are any dependents for this registration
         const hasDependents = registrationsToGroup.some(r => r.parent_application_id === key);
         if (!hasDependents) {
-          standalone.push(members[0]);
+          standaloneList.push(members[0]);
           groups.delete(key);
+          groupSortDates.delete(key);
         }
       }
     });
 
-    return { groups, standalone };
+    // Build unified list of grouped items
+    const items: GroupedItem[] = [];
+
+    // Add groups
+    groups.forEach((members, groupId) => {
+      items.push({
+        type: 'group',
+        groupId,
+        members,
+        sortDate: groupSortDates.get(groupId) || members[0]?.created_at || ''
+      });
+    });
+
+    // Add standalones
+    standaloneList.forEach(reg => {
+      items.push({
+        type: 'standalone',
+        registration: reg,
+        sortDate: reg.created_at
+      });
+    });
+
+    // Sort all items by date descending (newest first)
+    items.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime());
+
+    return items;
   };
 
   const sendNotificationEmail = async (
@@ -1269,13 +1308,12 @@ const AdminRegistrations = () => {
                   <TableBody>
                     {showGrouped ? (
                       <>
-                        {/* Grouped registrations */}
-                        {(() => {
-                          const { groups, standalone } = getGroupedRegistrations(paginatedRegistrations);
-                          return (
-                            <>
-                              {Array.from(groups.entries()).map(([groupId, members]) => (
-                                <React.Fragment key={groupId}>
+                        {/* Grouped registrations - sorted by date descending */}
+                        {getGroupedRegistrations(paginatedRegistrations).map((item) => {
+                          if (item.type === 'group') {
+                            const { groupId, members } = item;
+                            return (
+                              <React.Fragment key={groupId}>
                                   {/* Group header row */}
                                   <TableRow className="bg-primary/5 border-l-4 border-l-primary">
                                     <TableCell className="py-2" />
@@ -1387,10 +1425,11 @@ const AdminRegistrations = () => {
                                       </TableCell>
                                     </TableRow>
                                   )})}
-                                </React.Fragment>
-                              ))}
-                              {/* Standalone registrations */}
-                              {standalone.map((registration) => {
+                              </React.Fragment>
+                            );
+                          } else {
+                            // Standalone registration
+                            const registration = item.registration;
                                 const isHostelEligible = registration.registration_status === 'approved' && registration.stay_type === 'on-campus';
                                 return (
                                 <TableRow key={registration.id}>
@@ -1438,10 +1477,9 @@ const AdminRegistrations = () => {
                                     </Button>
                                   </TableCell>
                                 </TableRow>
-                              )})}
-                            </>
-                          );
-                        })()}
+                            );
+                          }
+                        })}
                       </>
                     ) : (
                       /* Flat view - original behavior */
