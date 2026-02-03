@@ -188,7 +188,48 @@ const AdminLogin = () => {
     setIsSubmitting(true);
 
     try {
-      // First, authenticate the user
+      // Check if geofencing is enabled BEFORE login
+      const geofenceEnabled = await isGeofencingEnabled();
+
+      // If geofencing is enabled, get location BEFORE authentication
+      let userLocation: { latitude: number; longitude: number } | null = null;
+      
+      if (geofenceEnabled) {
+        setIsCheckingLocation(true);
+        
+        userLocation = await getLocation();
+        
+        if (!userLocation) {
+          // Don't proceed with login if location is not available
+          setLocationError('Location access is required to log in. Please enable location services and try again.');
+          setIsSubmitting(false);
+          setIsCheckingLocation(false);
+          return;
+        }
+
+        // Pre-check geofence BEFORE authentication
+        const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
+
+        if (!geofenceResult.allowed) {
+          // Block login without authenticating
+          setLocationError(
+            `Access denied: You are ${geofenceResult.distance} km away from the authorized location. ` +
+            `Access is restricted to within ${geofenceResult.settings?.radius_km} km of the base location.`
+          );
+          toast({
+            title: 'Location Restricted',
+            description: 'You are outside the authorized access zone.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          setIsCheckingLocation(false);
+          return;
+        }
+        
+        setIsCheckingLocation(false);
+      }
+
+      // Now proceed with authentication after location is verified
       const { error } = await signIn(email, password);
       
       if (error) {
@@ -209,25 +250,10 @@ const AdminLogin = () => {
         // Check if user is superadmin (exempt from geofencing)
         const isSuperadmin = await checkUserIsSuperadmin(userId);
 
-        // Check if geofencing is enabled
-        const geofenceEnabled = await isGeofencingEnabled();
-
-        // Only check location if geofencing is enabled AND user is not superadmin
-        if (geofenceEnabled && !isSuperadmin) {
-          setIsCheckingLocation(true);
-          
-          const userLocation = await getLocation();
-          
-          if (!userLocation) {
-            // Sign out the user if location is not available
-            await supabase.auth.signOut();
-            setLocationError('Location access is required to log in. Please enable location services and try again.');
-            setIsSubmitting(false);
-            setIsCheckingLocation(false);
-            return;
-          }
-
-          // Check geofence
+        // If geofencing is enabled and user is NOT superadmin, verify location again
+        // (in case they manipulated the initial check)
+        if (geofenceEnabled && !isSuperadmin && userLocation) {
+          // Re-verify geofence with authenticated session
           const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
 
           if (!geofenceResult.allowed) {
@@ -243,7 +269,6 @@ const AdminLogin = () => {
               variant: 'destructive',
             });
             setIsSubmitting(false);
-            setIsCheckingLocation(false);
             return;
           }
 
