@@ -40,6 +40,8 @@ const AdminLogin = () => {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
   const [showLocationHelper, setShowLocationHelper] = useState(false);
+  const [showLocationRequired, setShowLocationRequired] = useState(false);
+  const [isCheckingEmailLocation, setIsCheckingEmailLocation] = useState(false);
   
   const { signIn, isAdmin, isApproved, isPendingApproval, user, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -166,8 +168,46 @@ const AdminLogin = () => {
           </CardContent>
         </Card>
       </div>
-    );
+  );
   }
+
+  // Check location when email is entered and user tabs out
+  const handleEmailBlur = async () => {
+    if (!email || !email.includes('@')) return;
+    
+    setIsCheckingEmailLocation(true);
+    setShowLocationRequired(false);
+    setLocationError(null);
+    
+    try {
+      // Check if geofencing is enabled globally
+      const geofenceEnabled = await isGeofencingEnabled();
+      
+      if (geofenceEnabled) {
+        // Try to get location
+        const userLocation = await getLocation();
+        
+        if (!userLocation) {
+          // Location access denied - show instructions
+          setShowLocationRequired(true);
+        } else {
+          // Location is available, check if within geofence
+          const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
+          
+          if (!geofenceResult.allowed) {
+            setLocationError(
+              `You are ${geofenceResult.distance} km away from the authorized location. ` +
+              `Access is restricted to within ${geofenceResult.settings?.radius_km} km.`
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error checking location on email blur:', err);
+    } finally {
+      setIsCheckingEmailLocation(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -465,10 +505,21 @@ const AdminLogin = () => {
                 type="email"
                 placeholder="admin@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setShowLocationRequired(false);
+                  setLocationError(null);
+                }}
+                onBlur={handleEmailBlur}
                 disabled={isSubmitting}
                 className={errors.email ? 'border-destructive' : ''}
               />
+              {isCheckingEmailLocation && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Checking location requirements...
+                </div>
+              )}
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email}</p>
               )}
@@ -489,6 +540,30 @@ const AdminLogin = () => {
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
             </div>
+
+            {showLocationRequired && (
+              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-3">
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-amber-700 dark:text-amber-400">Location Access Required</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">
+                      This portal requires location access for security. Please enable location in your browser settings to continue.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-amber-500/50 hover:bg-amber-500/10"
+                  onClick={() => setShowLocationHelper(true)}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  How to Enable Location
+                </Button>
+              </div>
+            )}
 
             {locationError && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 space-y-2">
