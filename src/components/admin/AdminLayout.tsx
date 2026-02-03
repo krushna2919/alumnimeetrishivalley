@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   LayoutDashboard, 
   Users, 
@@ -29,10 +36,13 @@ import {
   RefreshCw,
   Activity,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  MapPinOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { useToast } from '@/hooks/use-toast';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -92,10 +102,81 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { user, isAdmin, isApproved, isLoading, signOut, userRole, allRoles, switchRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
+  const { isGeofencingEnabled, checkUserIsSuperadmin, getLocation, checkGeofence } = useGeolocation();
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [screenPermissions, setScreenPermissions] = useState<string[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [showLocationAlert, setShowLocationAlert] = useState(false);
+  const [locationAlertMessage, setLocationAlertMessage] = useState('');
+  
+  // Monitor location access for non-superadmin users when geofencing is enabled
+  const checkLocationAccess = useCallback(async () => {
+    if (!user) return;
+    
+    // Check if user is superadmin (exempt from geofencing)
+    const isSuperadmin = await checkUserIsSuperadmin(user.id);
+    if (isSuperadmin) return;
+    
+    // Check if geofencing is enabled
+    const geofenceEnabled = await isGeofencingEnabled();
+    if (!geofenceEnabled) return;
+    
+    // Try to get location
+    const userLocation = await getLocation();
+    
+    if (!userLocation) {
+      // Location access was denied or unavailable
+      setLocationAlertMessage('Location access is required to use this portal. Please enable location services to continue.');
+      setShowLocationAlert(true);
+      return;
+    }
+    
+    // Verify still within geofence
+    const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
+    
+    if (!geofenceResult.allowed) {
+      setLocationAlertMessage(
+        `You are ${geofenceResult.distance} km away from the authorized location. ` +
+        `Access is restricted to within ${geofenceResult.settings?.radius_km} km of the base location.`
+      );
+      setShowLocationAlert(true);
+    }
+  }, [user, checkUserIsSuperadmin, isGeofencingEnabled, getLocation, checkGeofence]);
+  
+  // Periodically check location access (every 2 minutes)
+  useEffect(() => {
+    if (!user || !isAdmin || !isApproved) return;
+    
+    // Initial check after component mounts
+    const initialCheckTimeout = setTimeout(() => {
+      checkLocationAccess();
+    }, 5000); // Wait 5 seconds before first check
+    
+    // Set up periodic checks
+    const intervalId = setInterval(() => {
+      checkLocationAccess();
+    }, 120000); // Check every 2 minutes
+    
+    return () => {
+      clearTimeout(initialCheckTimeout);
+      clearInterval(intervalId);
+    };
+  }, [user, isAdmin, isApproved, checkLocationAccess]);
+  
+  // Handle location alert dismissal - sign out user
+  const handleLocationAlertDismiss = async () => {
+    setShowLocationAlert(false);
+    toast({
+      title: 'Session Ended',
+      description: 'You have been signed out due to location access requirements.',
+      variant: 'destructive',
+    });
+    await signOut();
+    navigate('/admin/login', { replace: true });
+  };
   
   // Fetch user's screen permissions
   useEffect(() => {
@@ -371,6 +452,28 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           {children}
         </div>
       </main>
+
+      {/* Location Access Required Alert */}
+      <AlertDialog open={showLocationAlert}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+              <MapPinOff className="h-6 w-6 text-destructive" />
+            </div>
+            <AlertDialogTitle className="text-center">
+              Location Access Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              {locationAlertMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex justify-center mt-4">
+            <Button onClick={handleLocationAlertDismiss}>
+              Sign Out
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
