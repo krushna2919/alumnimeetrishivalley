@@ -31,8 +31,14 @@ interface EditRegistrationDialogProps {
   onSuccess: () => void;
 }
 
-const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'] as const;
-const GENDER_OPTIONS = ['male', 'female', 'other'] as const;
+// T-shirt sizes must match the registration form exactly
+const TSHIRT_SIZES = [
+  'S (Chest: 36")',
+  'M (Chest: 38-40")',
+  'L (Chest: 42")',
+  'XL (Chest: 44")'
+] as const;
+const GENDER_OPTIONS = ['M', 'F'] as const;
 const STAY_TYPES = ['on-campus', 'outside'] as const;
 const BOARD_TYPES = ['ISC', 'ICSE', 'Other'] as const;
 
