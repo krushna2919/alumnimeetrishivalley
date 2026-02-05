@@ -242,8 +242,8 @@ const EditRegistrationDialog = ({
               </SelectTrigger>
               <SelectContent>
                 {GENDER_OPTIONS.map((gender) => (
-                  <SelectItem key={gender} value={gender} className="capitalize">
-                    {gender.charAt(0).toUpperCase() + gender.slice(1)}
+                  <SelectItem key={gender} value={gender}>
+                    {gender === 'M' ? 'Male' : 'Female'}
                   </SelectItem>
                 ))}
               </SelectContent>

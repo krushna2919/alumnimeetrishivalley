@@ -44,7 +44,8 @@ import {
   Receipt,
   Upload,
   Users,
-  ChevronRight
+  ChevronRight,
+  Edit3
 } from 'lucide-react';
 import {
   Pagination,
@@ -72,6 +73,10 @@ interface AccountsRegistration {
   accounts_verified_at: string | null;
   created_at: string;
   parent_application_id: string | null;
+  // Edit mode fields
+  edit_mode_enabled: boolean;
+  edit_mode_reason: string | null;
+  stay_type: string | null;
 }
 
 const AdminAccountsReview = () => {
@@ -197,11 +202,12 @@ const AdminAccountsReview = () => {
   const fetchRegistrations = async () => {
     setIsLoading(true);
     try {
-      // Accounts admin only sees payment-related fields
+      // Accounts admin sees payment-related fields
+      // Also include edit_mode_enabled registrations that need new payment proof
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id')
-        .eq('payment_status', 'submitted')
+        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_reason, stay_type')
+        .or('payment_status.eq.submitted,edit_mode_enabled.eq.true')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -320,23 +326,34 @@ const AdminAccountsReview = () => {
         
         // Log receipt upload activity
         await logAdminActivity({
-          actionType: 'receipt_upload',
+          actionType: registration.edit_mode_enabled ? 'edit_mode_proof_upload' : 'receipt_upload',
           targetRegistrationId: registration.id,
           targetApplicationId: registration.application_id,
-          details: { receiptFileName: receiptFile.name }
+          details: { 
+            receiptFileName: receiptFile.name,
+            isEditMode: registration.edit_mode_enabled 
+          }
         });
       }
 
       const verifiedAt = new Date().toISOString();
 
+      // For edit mode registrations, set pending_admin_approval to true
+      // so admin can do final approval and send notification
+      const updateData: Record<string, unknown> = {
+        accounts_verified: true,
+        accounts_verified_at: verifiedAt,
+        accounts_verified_by: user?.id,
+        payment_receipt_url: receiptUrl,
+      };
+
+      if (registration.edit_mode_enabled) {
+        updateData.pending_admin_approval = true;
+      }
+
       const { error } = await supabase
         .from('registrations')
-        .update({
-          accounts_verified: true,
-          accounts_verified_at: verifiedAt,
-          accounts_verified_by: user?.id,
-          payment_receipt_url: receiptUrl,
-        })
+        .update(updateData)
         .eq('id', registration.id);
 
       if (error) throw error;
@@ -346,12 +363,17 @@ const AdminAccountsReview = () => {
         actionType: 'account_approval',
         targetRegistrationId: registration.id,
         targetApplicationId: registration.application_id,
-        details: { registrationFee: registration.registration_fee }
+        details: { 
+          registrationFee: registration.registration_fee,
+          isEditMode: registration.edit_mode_enabled 
+        }
       });
 
       toast({
-        title: 'Payment Verified',
-        description: `Payment for ${registration.application_id} has been verified with receipt. Admin can now approve.`,
+        title: registration.edit_mode_enabled ? 'Edit Mode Payment Verified' : 'Payment Verified',
+        description: registration.edit_mode_enabled 
+          ? `Payment for ${registration.application_id} verified. Waiting for admin final approval.`
+          : `Payment for ${registration.application_id} has been verified with receipt. Admin can now approve.`,
       });
 
       // Clear receipt state
@@ -418,8 +440,11 @@ const AdminAccountsReview = () => {
     }
   };
 
-  const getVerificationBadge = (verified: boolean) => {
-    if (verified) {
+  const getVerificationBadge = (registration: AccountsRegistration) => {
+    if (registration.edit_mode_enabled) {
+      return <Badge className="bg-accent text-accent-foreground">Edit Mode</Badge>;
+    }
+    if (registration.accounts_verified) {
       return <Badge className="bg-secondary text-secondary-foreground">Verified</Badge>;
     }
     return <Badge variant="outline" className="border-accent text-accent">Pending Review</Badge>;
@@ -618,7 +643,7 @@ const AdminAccountsReview = () => {
                                         </TableCell>
                                         <TableCell>₹{registration.registration_fee}</TableCell>
                                         <TableCell>{registration.name}</TableCell>
-                                        <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                                        <TableCell>{getVerificationBadge(registration)}</TableCell>
                                         <TableCell className="text-right">
                                           <Button
                                             variant="ghost"
@@ -643,7 +668,7 @@ const AdminAccountsReview = () => {
                                     </TableCell>
                                     <TableCell>₹{registration.registration_fee}</TableCell>
                                     <TableCell>{registration.name}</TableCell>
-                                    <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                                    <TableCell>{getVerificationBadge(registration)}</TableCell>
                                     <TableCell className="text-right">
                                       <Button
                                         variant="ghost"
@@ -671,7 +696,7 @@ const AdminAccountsReview = () => {
                             </TableCell>
                             <TableCell>₹{registration.registration_fee}</TableCell>
                             <TableCell>{registration.name}</TableCell>
-                            <TableCell>{getVerificationBadge(registration.accounts_verified)}</TableCell>
+                            <TableCell>{getVerificationBadge(registration)}</TableCell>
                             <TableCell className="text-right">
                               <Button
                                 variant="ghost"
@@ -751,6 +776,26 @@ const AdminAccountsReview = () => {
 
           {selectedRegistration && (
             <div className="space-y-6">
+              {/* Edit Mode Banner */}
+              {selectedRegistration.edit_mode_enabled && (
+                <div className="p-4 rounded-lg bg-accent/20 border border-accent/50">
+                  <div className="flex items-start gap-2">
+                    <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-accent-foreground">Edit Mode Active</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {selectedRegistration.edit_mode_reason || 'Registration changes pending'}
+                      </p>
+                      {selectedRegistration.stay_type && (
+                        <p className="text-sm font-medium mt-2">
+                          Stay Type: <span className="capitalize">{selectedRegistration.stay_type === 'on-campus' ? 'On-Campus' : 'Outside'}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Registration Fee</label>
@@ -813,17 +858,21 @@ const AdminAccountsReview = () => {
 
               <div>
                 <label className="text-sm text-muted-foreground">Verification Status</label>
-                <div className="mt-1">{getVerificationBadge(selectedRegistration.accounts_verified)}</div>
+                <div className="mt-1">{getVerificationBadge(selectedRegistration)}</div>
               </div>
 
-              {/* Receipt Upload Section - Only show if not already verified */}
-              {!selectedRegistration.accounts_verified && (
+              {/* Receipt Upload Section - Show if not verified OR if edit mode is enabled */}
+              {(!selectedRegistration.accounts_verified || selectedRegistration.edit_mode_enabled) && (
                 <div className="border-t pt-4">
                   <label className="text-sm font-medium text-foreground">
-                    Upload Payment Receipt PDF (Required)
+                    {selectedRegistration.edit_mode_enabled 
+                      ? 'Upload New Payment Receipt PDF (Required for Edit Mode)'
+                      : 'Upload Payment Receipt PDF (Required)'}
                   </label>
                   <p className="text-xs text-muted-foreground mt-1 mb-3">
-                    Upload a PDF receipt that will be attached to the approval email
+                    {selectedRegistration.edit_mode_enabled 
+                      ? 'Upload a new receipt reflecting any payment adjustments'
+                      : 'Upload a PDF receipt that will be attached to the approval email'}
                   </p>
                   
                   {/* Show existing receipt if any */}
@@ -891,7 +940,7 @@ const AdminAccountsReview = () => {
           )}
 
           <DialogFooter className="gap-2">
-            {selectedRegistration && !selectedRegistration.accounts_verified && (
+            {selectedRegistration && (!selectedRegistration.accounts_verified || selectedRegistration.edit_mode_enabled) && (
               <>
                 <Button
                   variant="outline"
@@ -911,11 +960,15 @@ const AdminAccountsReview = () => {
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
-                  {isUploadingReceipt ? 'Uploading...' : 'Approve Payment'}
+                  {isUploadingReceipt 
+                    ? 'Uploading...' 
+                    : selectedRegistration.edit_mode_enabled 
+                      ? 'Verify & Submit for Admin Approval'
+                      : 'Approve Payment'}
                 </Button>
               </>
             )}
-            {selectedRegistration?.accounts_verified && (
+            {selectedRegistration?.accounts_verified && !selectedRegistration.edit_mode_enabled && (
               <Badge className="bg-secondary text-secondary-foreground">
                 Already Verified
               </Badge>

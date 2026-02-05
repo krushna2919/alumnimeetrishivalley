@@ -59,9 +59,11 @@ import {
   XOctagon,
   Building2,
   ChevronLeft,
-  Pencil
+  Pencil,
+  Edit3
 } from 'lucide-react';
 import EditRegistrationDialog from '@/components/admin/EditRegistrationDialog';
+import EnableEditModeDialog from '@/components/admin/EnableEditModeDialog';
 import {
   Pagination,
   PaginationContent,
@@ -116,6 +118,9 @@ const AdminRegistrations = () => {
   // Resend approval email state (superadmin only)
   const [isResendEmailDialogOpen, setIsResendEmailDialogOpen] = useState(false);
   const [isResendingEmail, setIsResendingEmail] = useState(false);
+  
+  // Enable edit mode dialog state (superadmin only)
+  const [isEnableEditModeDialogOpen, setIsEnableEditModeDialogOpen] = useState(false);
   
   // Single application sync state
   const [isSyncingSingleProof, setIsSyncingSingleProof] = useState(false);
@@ -883,6 +888,72 @@ const AdminRegistrations = () => {
     }
   };
 
+  // Handle final approval for edit mode registrations
+  // This sends a notification email about the changes made
+  const handleEditModeFinalApproval = async (registration: Registration) => {
+    setIsProcessing(true);
+    try {
+      // Build change summary from edit_mode_reason
+      const changeSummary = registration.edit_mode_reason || 'Registration details updated';
+
+      // Send notification email about the changes
+      const emailSent = await sendNotificationEmail(registration, 'approved');
+
+      if (!emailSent) {
+        toast({
+          title: 'Email Sending Failed',
+          description: `Could not send notification email to ${registration.email}. Please try again.`,
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Clear edit mode flags after successful email
+      const { error } = await supabase
+        .from('registrations')
+        .update({
+          edit_mode_enabled: false,
+          pending_admin_approval: false,
+          edit_changes_summary: changeSummary,
+          approval_email_sent: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', registration.id);
+
+      if (error) throw error;
+
+      // Log the activity
+      await logAdminActivity({
+        actionType: 'edit_mode_final_approval',
+        targetRegistrationId: registration.id,
+        targetApplicationId: registration.application_id,
+        details: { 
+          changeSummary,
+          name: registration.name,
+          email: registration.email,
+        }
+      });
+
+      toast({
+        title: 'Changes Approved & Notification Sent',
+        description: `${registration.name} has been notified about the registration changes.`,
+      });
+
+      fetchRegistrations();
+      setIsDetailOpen(false);
+    } catch (error) {
+      console.error('Error finalizing edit mode approval:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to complete final approval',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Check if group has approvable registrations (pending + payment submitted + accounts verified)
   const hasGroupApprovableRegistrations = (members: Registration[]) => {
     return members.some(m => m.registration_status === 'pending' && m.payment_status === 'submitted' && m.accounts_verified);
@@ -1601,6 +1672,28 @@ const AdminRegistrations = () => {
 
           {selectedRegistration && (
             <div className="space-y-6">
+              {/* Edit Mode Banner */}
+              {selectedRegistration.edit_mode_enabled && (
+                <div className="p-4 rounded-lg bg-accent/20 border border-accent/50">
+                  <div className="flex items-start gap-2">
+                    <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-accent-foreground">Edit Mode Active</p>
+                      {selectedRegistration.edit_mode_reason && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <strong>Reason:</strong> {selectedRegistration.edit_mode_reason}
+                        </p>
+                      )}
+                      {selectedRegistration.pending_admin_approval && (
+                        <p className="text-sm font-medium text-primary mt-2">
+                          Accounts admin has verified - Ready for final approval
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Name</label>
@@ -1763,6 +1856,29 @@ const AdminRegistrations = () => {
                     )}
                   </div>
                 </div>
+                {/* Edit Mode Status */}
+                {selectedRegistration.edit_mode_enabled && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Edit Mode</label>
+                    <div className="mt-1">
+                      <Badge className="bg-accent text-accent-foreground">
+                        <Edit3 className="h-3 w-3 mr-1" />
+                        Active
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                {/* Pending Admin Approval for Edit Mode */}
+                {selectedRegistration.pending_admin_approval && (
+                  <div>
+                    <label className="text-sm text-muted-foreground">Final Approval</label>
+                    <div className="mt-1">
+                      <Badge className="bg-accent text-accent-foreground">
+                        Awaiting Admin
+                      </Badge>
+                    </div>
+                  </div>
+                )}
                 {/* Email Sent Status - Visible to superadmin for approved/rejected registrations */}
                 {userRole === 'superadmin' && (selectedRegistration.registration_status === 'approved' || selectedRegistration.registration_status === 'rejected') && (
                   <div>
@@ -1772,7 +1888,7 @@ const AdminRegistrations = () => {
                     </label>
                     <div className="mt-1">
                       {selectedRegistration.approval_email_sent ? (
-                        <Badge className="bg-green-600 text-white">
+                        <Badge className="bg-secondary text-secondary-foreground">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Sent
                         </Badge>
@@ -1882,6 +1998,40 @@ const AdminRegistrations = () => {
                 <Mail className="h-4 w-4 mr-2" />
                 Resend Approval Email
               </Button>
+            )}
+            {/* Superadmin can enable edit mode for approved registrations to allow changes */}
+            {userRole === 'superadmin' && selectedRegistration?.registration_status === 'approved' && !selectedRegistration?.edit_mode_enabled && (
+              <Button
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  setIsEnableEditModeDialogOpen(true);
+                }}
+                disabled={isProcessing}
+                variant="outline"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Enable Edit Mode
+              </Button>
+            )}
+            {/* Final Approval for Edit Mode registrations - Admin can approve and send notification */}
+            {(userRole === 'superadmin' || userRole === 'admin') && selectedRegistration?.pending_admin_approval && selectedRegistration?.edit_mode_enabled && (
+              <Button
+                onClick={() => selectedRegistration && handleEditModeFinalApproval(selectedRegistration)}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                )}
+                Final Approve & Notify
+              </Button>
+            )}
+            {/* Show edit mode status badge (only if not pending approval) */}
+            {selectedRegistration?.edit_mode_enabled && !selectedRegistration?.pending_admin_approval && (
+              <Badge className="bg-accent text-accent-foreground">
+                Edit Mode Active - Awaiting Accounts Review
+              </Badge>
             )}
           </DialogFooter>
         </DialogContent>
@@ -2159,6 +2309,14 @@ const AdminRegistrations = () => {
         registration={selectedRegistration}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
+        onSuccess={fetchRegistrations}
+      />
+
+      {/* Enable Edit Mode Dialog (Superadmin only) */}
+      <EnableEditModeDialog
+        registration={selectedRegistration}
+        open={isEnableEditModeDialogOpen}
+        onOpenChange={setIsEnableEditModeDialogOpen}
         onSuccess={fetchRegistrations}
       />
     </AdminLayout>

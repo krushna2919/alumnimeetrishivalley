@@ -36,7 +36,10 @@ export type AdminActionType =
   | 'registration_rejection'// Rejected a registration
   | 'resend_approval_email' // Resent approval notification email
   | 'bed_assignment'        // Assigned a bed to a registrant
-  | 'bed_unassignment';     // Removed bed assignment
+  | 'bed_unassignment'      // Removed bed assignment
+  | 'edit_mode_enabled'     // Superadmin enabled edit mode for a registration
+  | 'edit_mode_proof_upload'// Accounts admin uploaded new proof in edit mode
+  | 'edit_mode_final_approval'; // Admin final approval after edit mode changes
 
 /**
  * Parameters for logging admin activity

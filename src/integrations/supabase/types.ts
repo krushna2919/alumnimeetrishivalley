@@ -261,6 +261,11 @@ export type Database = {
           country: string
           created_at: string
           district: string
+          edit_changes_summary: string | null
+          edit_mode_enabled: boolean | null
+          edit_mode_enabled_at: string | null
+          edit_mode_enabled_by: string | null
+          edit_mode_reason: string | null
           email: string
           gender: string
           hostel_name: string | null
@@ -273,6 +278,7 @@ export type Database = {
           payment_receipt_url: string | null
           payment_reference: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          pending_admin_approval: boolean | null
           phone: string
           postal_code: string
           qr_code_data: string | null
@@ -301,6 +307,11 @@ export type Database = {
           country?: string
           created_at?: string
           district: string
+          edit_changes_summary?: string | null
+          edit_mode_enabled?: boolean | null
+          edit_mode_enabled_at?: string | null
+          edit_mode_enabled_by?: string | null
+          edit_mode_reason?: string | null
           email: string
           gender: string
           hostel_name?: string | null
@@ -313,6 +324,7 @@ export type Database = {
           payment_receipt_url?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_admin_approval?: boolean | null
           phone: string
           postal_code: string
           qr_code_data?: string | null
@@ -341,6 +353,11 @@ export type Database = {
           country?: string
           created_at?: string
           district?: string
+          edit_changes_summary?: string | null
+          edit_mode_enabled?: boolean | null
+          edit_mode_enabled_at?: string | null
+          edit_mode_enabled_by?: string | null
+          edit_mode_reason?: string | null
           email?: string
           gender?: string
           hostel_name?: string | null
@@ -353,6 +370,7 @@ export type Database = {
           payment_receipt_url?: string | null
           payment_reference?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_admin_approval?: boolean | null
           phone?: string
           postal_code?: string
           qr_code_data?: string | null
