@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
-import ApplicationLookup from "./ApplicationLookup";
+
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
 import AdditionalAttendeesSection from "./registration/AdditionalAttendeesSection";
@@ -36,7 +36,7 @@ import {
   RegistrationData,
   MAX_ATTENDEES,
 } from "./registration/types";
-import { usePostalCodeLookup } from "@/hooks/usePostalCodeLookup";
+
 
 type ViewState = "form" | "success" | "payment";
 
@@ -103,22 +103,7 @@ const RegistrationFormLegacy = () => {
 
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
-  const postalCode = useWatch({ control: form.control, name: "postalCode" });
   const primaryEmail = useWatch({ control: form.control, name: "email" }) || "";
-
-  const { isLoading: isLookingUpPostal, lookupPostalCode } = usePostalCodeLookup();
-
-  const handlePostalCodeBlur = async () => {
-    if (postalCode && postalCode.length >= 5) {
-      const data = await lookupPostalCode(postalCode);
-      if (data) {
-        if (data.city) form.setValue("city", data.city);
-        if (data.district) form.setValue("district", data.district);
-        if (data.state) form.setValue("state", data.state);
-        form.setValue("country", "India");
-      }
-    }
-  };
 
   const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
@@ -347,10 +332,6 @@ const RegistrationFormLegacy = () => {
     }
   };
 
-  const handleApplicationFound = (application: RegistrationData) => {
-    setCurrentApplication(application);
-    setViewState("payment");
-  };
 
   const handlePaymentComplete = (updatedApplication: RegistrationData) => {
     setCurrentApplication(updatedApplication);
@@ -424,17 +405,6 @@ const RegistrationFormLegacy = () => {
             />
           ) : (
             <>
-              <ApplicationLookup onApplicationFound={handleApplicationFound} />
-
-              <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or register as new applicant</span>
-                </div>
-              </div>
-
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   {/* Honeypot field */}
@@ -695,19 +665,10 @@ const RegistrationFormLegacy = () => {
                           <FormItem>
                             <FormLabel>Postal Code *</FormLabel>
                             <FormControl>
-                              <div className="relative">
-                                <Input
-                                  placeholder="Enter postal code"
-                                  {...field}
-                                  onBlur={(e) => {
-                                    field.onBlur();
-                                    handlePostalCodeBlur();
-                                  }}
-                                />
-                                {isLookingUpPostal && (
-                                  <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
-                                )}
-                              </div>
+                              <Input
+                                placeholder="Enter postal code"
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
