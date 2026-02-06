@@ -43,11 +43,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { logAdminActivity } from '@/lib/activityLogger';
-import { 
-  Search, 
-  Loader2, 
-  Eye, 
-  CheckCircle, 
+import {
+  Search,
+  Loader2,
+  Eye,
+  CheckCircle,
   XCircle,
   RefreshCw,
   Link2,
@@ -76,6 +76,8 @@ import {
 import { format } from 'date-fns';
 import { Tables } from '@/integrations/supabase/types';
 import { resolveLatestPaymentProofUrlFromStorage } from '@/lib/paymentProofResolver';
+
+// ... keep existing code (rest of file)
 
 type Registration = Tables<'registrations'>;
 
@@ -390,8 +392,15 @@ const AdminRegistrations = () => {
     }
   };
 
+  // Ensure receipts are fetched whenever the details dialog opens for a selection.
+  // (Relying on Dialog's onOpenChange is not enough because programmatic opens may not trigger it.)
+  useEffect(() => {
+    if (!isDetailOpen || !selectedRegistration) return;
+    fetchAllReceipts(selectedRegistration.application_id, selectedRegistration.payment_receipt_url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDetailOpen, selectedRegistration?.id]);
 
-  // Handle hostel assignment
+
   const handleHostelAssign = async (registration: Registration, hostelName: string) => {
     try {
       const { error } = await supabase
@@ -1728,10 +1737,6 @@ const AdminRegistrations = () => {
       {/* Registration Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={(open) => {
         setIsDetailOpen(open);
-        if (open && selectedRegistration) {
-          // Fetch all receipts when dialog opens
-          fetchAllReceipts(selectedRegistration.application_id, selectedRegistration.payment_receipt_url);
-        }
         if (!open) {
           setAllReceipts([]);
         }
