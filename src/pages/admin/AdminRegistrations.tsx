@@ -339,77 +339,102 @@ const AdminRegistrations = () => {
 
     try {
       const matches: { name: string; url: string; created_at?: string; source: "storage" | "db" }[] = [];
-      const bucket = 'payment-receipts' as const;
+      const bucket = "payment-receipts" as const;
 
-      // Prefer exact-ish patterns to avoid accidental matches with similar IDs
-      const isMatch = (name: string) =>
-        name.includes(applicationId) ||
-        name.includes(`receipt-${applicationId}-`) ||
-        name.includes(`/${applicationId}/`) ||
-        name.includes(`/${applicationId}-`);
+      // A receipt can be stored either flat ("receipt-<appId>-<ts>.pdf") or under legacy folders.
+      // Keep the matcher conservative to avoid pulling in other applicants.
+      const isMatch = (nameOrPath: string) => {
+        const n = nameOrPath.toLowerCase();
+        const id = applicationId.toLowerCase();
+        return (
+          n.startsWith(`receipt-${id}-`) ||
+          n.includes(`/receipt-${id}-`) ||
+          n.includes(`/${id}/`) ||
+          n.includes(`receipt-${id}-`) // fallback for odd legacy paths
+        );
+      };
 
-      const addMatch = (fileName: string, created_at?: string | null) => {
-        if (!fileName) return;
-        if (!isMatch(fileName)) return;
-        if (matches.some((m) => m.name === fileName)) return;
+      const addMatch = (fullPath: string, created_at?: string | null) => {
+        if (!fullPath) return;
+        if (!isMatch(fullPath)) return;
+        if (matches.some((m) => m.name === fullPath)) return;
 
-        const publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
+        const publicUrl = supabase.storage.from(bucket).getPublicUrl(fullPath).data.publicUrl;
         matches.push({
-          name: fileName,
+          name: fullPath,
           url: publicUrl,
           created_at: created_at ?? undefined,
           source: "storage",
         });
       };
 
-      // Strategy A: Scan the bucket root (non-recursive)
-      const pageSize = 200;
-      const maxPages = 10;
-      for (let page = 0; page < maxPages; page++) {
-        const { data: files, error } = await supabase.storage.from(bucket).list('', {
-          limit: pageSize,
-          offset: page * pageSize,
-        });
+      // Helpers
+      const listPaged = async (prefix: string) => {
+        const pageSize = 200;
+        const maxPages = 25; // up to 5000 items per prefix
 
-        if (error) {
-          console.error('Error listing receipts page', page, error);
-          break;
-        }
-        if (!files || files.length === 0) break;
-
-        for (const file of files) {
-          addMatch(file.name, (file as any).created_at);
-        }
-
-        if (files.length < pageSize) break;
-      }
-
-      // Strategy B: Some legacy uploads may have been placed in an applicationId folder.
-      // Scan that folder as well (also non-recursive).
-      try {
         for (let page = 0; page < maxPages; page++) {
-          const { data: files, error } = await supabase.storage.from(bucket).list(applicationId, {
+          const { data: files, error } = await supabase.storage.from(bucket).list(prefix, {
             limit: pageSize,
             offset: page * pageSize,
           });
 
-          if (error) break;
+          if (error) {
+            console.error("Error listing receipts", { prefix, page, error });
+            break;
+          }
           if (!files || files.length === 0) break;
 
           for (const file of files) {
-            // When listing a folder, file.name is relative to that folder, so reconstruct the path.
-            const fullPath = `${applicationId}/${file.name}`;
+            // file.name is relative to the prefix
+            const fullPath = prefix ? `${prefix}/${file.name}` : file.name;
             addMatch(fullPath, (file as any).created_at);
           }
 
           if (files.length < pageSize) break;
         }
-      } catch {
-        // ignore folder scan failures
+      };
+
+      const listSearch = async (prefix: string, search: string) => {
+        // Server-side search is significantly faster and avoids the “only newest shown” symptom
+        // when older receipts are buried deeper in the bucket.
+        const { data: files, error } = await supabase.storage.from(bucket).list(prefix, {
+          limit: 1000,
+          search,
+        });
+
+        if (error) {
+          console.error("Error searching receipts", { prefix, search, error });
+          return;
+        }
+
+        for (const file of files ?? []) {
+          const fullPath = prefix ? `${prefix}/${file.name}` : file.name;
+          addMatch(fullPath, (file as any).created_at);
+        }
+      };
+
+      // Strategy A: Fast searches in known prefixes
+      // - "" (root)
+      // - "payment-receipts" (legacy nested folder)
+      // - "<appId>" (legacy per-app folder)
+      // - "payment-receipts/<appId>" (both combined)
+      await Promise.all([
+        listSearch("", applicationId),
+        listSearch("payment-receipts", applicationId),
+        listSearch(applicationId, "receipt-"),
+        listSearch(`payment-receipts/${applicationId}`, "receipt-"),
+      ]);
+
+      // Strategy B: If searches found nothing (or miss due to provider quirks), do paged scans of the same prefixes.
+      if (matches.length === 0) {
+        await listPaged("");
+        await listPaged("payment-receipts");
+        await listPaged(applicationId);
+        await listPaged(`payment-receipts/${applicationId}`);
       }
 
       // Strategy C: Always include the DB-linked receipt (if any) so we don't “lose” it.
-      // This also covers cases where one receipt is referenced in DB but stored under a legacy path.
       if (dbReceiptUrl) {
         const resolved = toPublicPaymentReceiptUrl(dbReceiptUrl);
         if (resolved && !matches.some((m) => m.url === resolved)) {
@@ -432,7 +457,7 @@ const AdminRegistrations = () => {
       console.log(`Found ${matches.length} receipts for ${applicationId}`);
       setAllReceipts(matches);
     } catch (error) {
-      console.error('Error fetching receipts:', error);
+      console.error("Error fetching receipts:", error);
     } finally {
       setIsLoadingReceipts(false);
     }
