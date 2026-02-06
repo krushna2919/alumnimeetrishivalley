@@ -125,6 +125,10 @@ const AdminRegistrations = () => {
   // Single application sync state
   const [isSyncingSingleProof, setIsSyncingSingleProof] = useState(false);
   
+  // All receipts for selected application
+  const [allReceipts, setAllReceipts] = useState<{ name: string; url: string }[]>([]);
+  const [isLoadingReceipts, setIsLoadingReceipts] = useState(false);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -323,6 +327,38 @@ const AdminRegistrations = () => {
       toast({ title: 'Sync Failed', description: 'Failed to sync payment proof.', variant: 'destructive' });
     } finally {
       setIsSyncingSingleProof(false);
+    }
+  };
+
+  // Fetch all payment receipts from storage for an application
+  const fetchAllReceipts = async (applicationId: string) => {
+    setIsLoadingReceipts(true);
+    setAllReceipts([]);
+    try {
+      // List all files in payment-receipts bucket that match this application
+      const { data: files, error } = await supabase.storage
+        .from('payment-receipts')
+        .list('', { 
+          limit: 100,
+          search: `receipt-${applicationId}`
+        });
+
+      if (error) throw error;
+
+      // Filter and build URLs for matching files
+      const matchingReceipts = (files || [])
+        .filter(file => file.name.includes(applicationId))
+        .map(file => ({
+          name: file.name,
+          url: supabase.storage.from('payment-receipts').getPublicUrl(file.name).data.publicUrl
+        }))
+        .sort((a, b) => b.name.localeCompare(a.name)); // Sort by name descending (newest first)
+
+      setAllReceipts(matchingReceipts);
+    } catch (error) {
+      console.error('Error fetching receipts:', error);
+    } finally {
+      setIsLoadingReceipts(false);
     }
   };
 
@@ -1661,7 +1697,16 @@ const AdminRegistrations = () => {
       </div>
 
       {/* Registration Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      <Dialog open={isDetailOpen} onOpenChange={(open) => {
+        setIsDetailOpen(open);
+        if (open && selectedRegistration) {
+          // Fetch all receipts when dialog opens
+          fetchAllReceipts(selectedRegistration.application_id);
+        }
+        if (!open) {
+          setAllReceipts([]);
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif">Registration Details</DialogTitle>
@@ -1804,8 +1849,35 @@ const AdminRegistrations = () => {
                   )}
                 </div>
                 <div className="col-span-2">
-                  <label className="text-sm text-muted-foreground">Payment Receipt (Accounts Admin)</label>
-                  {selectedRegistration.payment_receipt_url ? (
+                  <label className="text-sm text-muted-foreground">
+                    Payment Receipts (Accounts Admin)
+                    {allReceipts.length > 0 && <span className="ml-1 text-xs">({allReceipts.length} found)</span>}
+                  </label>
+                  {isLoadingReceipts ? (
+                    <div className="flex items-center gap-2 mt-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading receipts...</span>
+                    </div>
+                  ) : allReceipts.length > 0 ? (
+                    <div className="mt-2 space-y-2">
+                      {allReceipts.map((receipt, index) => (
+                        <div key={receipt.name} className="flex items-center gap-2">
+                          <a 
+                            href={receipt.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Receipt {allReceipts.length - index}
+                            <span className="text-xs text-muted-foreground">
+                              ({receipt.name.split('-').pop()?.replace('.pdf', '')})
+                            </span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : selectedRegistration.payment_receipt_url ? (
                     <div className="mt-2">
                       <a 
                         href={toPublicPaymentReceiptUrl(selectedRegistration.payment_receipt_url) || '#'} 
@@ -1919,29 +1991,32 @@ const AdminRegistrations = () => {
           )}
 
           <DialogFooter className="gap-2">
+            {/* Delete button - Superadmin only */}
             {userRole === 'superadmin' && (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  disabled={isProcessing}
-                  className="mr-auto"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsDetailOpen(false);
-                    setIsEditDialogOpen(true);
-                  }}
-                  disabled={isProcessing}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              </>
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                disabled={isProcessing}
+                className="mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
+            {/* Edit button - Superadmin always, Admin when in edit mode pending approval */}
+            {(userRole === 'superadmin' || 
+              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled && selectedRegistration?.pending_admin_approval)) && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  setIsEditDialogOpen(true);
+                }}
+                disabled={isProcessing}
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
             )}
 {selectedRegistration?.registration_status === 'pending' && (
               <>
