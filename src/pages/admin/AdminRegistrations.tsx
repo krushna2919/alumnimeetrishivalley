@@ -126,9 +126,11 @@ const AdminRegistrations = () => {
   const [isSyncingSingleProof, setIsSyncingSingleProof] = useState(false);
   
   // All receipts for selected application
-  const [allReceipts, setAllReceipts] = useState<{ name: string; url: string }[]>([]);
+  const [allReceipts, setAllReceipts] = useState<
+    { name: string; url: string; created_at?: string; source?: "storage" | "db" }[]
+  >([]);
   const [isLoadingReceipts, setIsLoadingReceipts] = useState(false);
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -331,61 +333,111 @@ const AdminRegistrations = () => {
   };
 
   // Fetch all payment receipts from storage for an application
-  const fetchAllReceipts = async (applicationId: string) => {
+  const fetchAllReceipts = async (applicationId: string, dbReceiptUrl?: string | null) => {
     setIsLoadingReceipts(true);
     setAllReceipts([]);
+
     try {
-      const allMatchingReceipts: { name: string; url: string; created_at?: string }[] = [];
+      const matches: { name: string; url: string; created_at?: string; source: "storage" | "db" }[] = [];
+      const bucket = 'payment-receipts' as const;
+
+      // Prefer exact-ish patterns to avoid accidental matches with similar IDs
+      const isMatch = (name: string) =>
+        name.includes(applicationId) ||
+        name.includes(`receipt-${applicationId}-`) ||
+        name.includes(`/${applicationId}/`) ||
+        name.includes(`/${applicationId}-`);
+
+      const addMatch = (fileName: string, created_at?: string | null) => {
+        if (!fileName) return;
+        if (!isMatch(fileName)) return;
+        if (matches.some((m) => m.name === fileName)) return;
+
+        const publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName).data.publicUrl;
+        matches.push({
+          name: fileName,
+          url: publicUrl,
+          created_at: created_at ?? undefined,
+          source: "storage",
+        });
+      };
+
+      // Strategy A: Scan the bucket root (non-recursive)
       const pageSize = 200;
-      let offset = 0;
       const maxPages = 10;
-      
-      // Paginate through storage to find all matching receipts
       for (let page = 0; page < maxPages; page++) {
-        const { data: files, error } = await supabase.storage
-          .from('payment-receipts')
-          .list('', { limit: pageSize, offset });
-        
+        const { data: files, error } = await supabase.storage.from(bucket).list('', {
+          limit: pageSize,
+          offset: page * pageSize,
+        });
+
         if (error) {
           console.error('Error listing receipts page', page, error);
           break;
         }
-        
         if (!files || files.length === 0) break;
-        
-        // Filter files matching this application ID pattern: receipt-{applicationId}-{timestamp}.pdf
+
         for (const file of files) {
-          if (file.name.includes(applicationId)) {
-            const publicUrl = supabase.storage.from('payment-receipts').getPublicUrl(file.name).data.publicUrl;
-            allMatchingReceipts.push({
-              name: file.name,
-              url: publicUrl,
-              created_at: file.created_at || undefined
-            });
-          }
+          addMatch(file.name, (file as any).created_at);
         }
-        
-        // If we got fewer than a full page, we've reached the end
+
         if (files.length < pageSize) break;
-        offset += pageSize;
       }
-      
-      // Sort by created_at descending (newest first), fallback to name
-      allMatchingReceipts.sort((a, b) => {
-        if (a.created_at && b.created_at) {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
+      // Strategy B: Some legacy uploads may have been placed in an applicationId folder.
+      // Scan that folder as well (also non-recursive).
+      try {
+        for (let page = 0; page < maxPages; page++) {
+          const { data: files, error } = await supabase.storage.from(bucket).list(applicationId, {
+            limit: pageSize,
+            offset: page * pageSize,
+          });
+
+          if (error) break;
+          if (!files || files.length === 0) break;
+
+          for (const file of files) {
+            // When listing a folder, file.name is relative to that folder, so reconstruct the path.
+            const fullPath = `${applicationId}/${file.name}`;
+            addMatch(fullPath, (file as any).created_at);
+          }
+
+          if (files.length < pageSize) break;
         }
+      } catch {
+        // ignore folder scan failures
+      }
+
+      // Strategy C: Always include the DB-linked receipt (if any) so we don't “lose” it.
+      // This also covers cases where one receipt is referenced in DB but stored under a legacy path.
+      if (dbReceiptUrl) {
+        const resolved = toPublicPaymentReceiptUrl(dbReceiptUrl);
+        if (resolved && !matches.some((m) => m.url === resolved)) {
+          matches.push({
+            name: dbReceiptUrl,
+            url: resolved,
+            source: "db",
+          });
+        }
+      }
+
+      // Sort newest first when timestamps exist; otherwise keep deterministic ordering.
+      matches.sort((a, b) => {
+        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (at !== bt) return bt - at;
         return b.name.localeCompare(a.name);
       });
-      
-      console.log(`Found ${allMatchingReceipts.length} receipts for ${applicationId}`);
-      setAllReceipts(allMatchingReceipts);
+
+      console.log(`Found ${matches.length} receipts for ${applicationId}`);
+      setAllReceipts(matches);
     } catch (error) {
       console.error('Error fetching receipts:', error);
     } finally {
       setIsLoadingReceipts(false);
     }
   };
+
 
   // Handle hostel assignment
   const handleHostelAssign = async (registration: Registration, hostelName: string) => {
@@ -1726,7 +1778,7 @@ const AdminRegistrations = () => {
         setIsDetailOpen(open);
         if (open && selectedRegistration) {
           // Fetch all receipts when dialog opens
-          fetchAllReceipts(selectedRegistration.application_id);
+          fetchAllReceipts(selectedRegistration.application_id, selectedRegistration.payment_receipt_url);
         }
         if (!open) {
           setAllReceipts([]);
