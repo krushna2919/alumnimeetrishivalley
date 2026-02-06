@@ -335,26 +335,51 @@ const AdminRegistrations = () => {
     setIsLoadingReceipts(true);
     setAllReceipts([]);
     try {
-      // List all files in payment-receipts bucket that match this application
-      const { data: files, error } = await supabase.storage
-        .from('payment-receipts')
-        .list('', { 
-          limit: 100,
-          search: `receipt-${applicationId}`
-        });
-
-      if (error) throw error;
-
-      // Filter and build URLs for matching files
-      const matchingReceipts = (files || [])
-        .filter(file => file.name.includes(applicationId))
-        .map(file => ({
-          name: file.name,
-          url: supabase.storage.from('payment-receipts').getPublicUrl(file.name).data.publicUrl
-        }))
-        .sort((a, b) => b.name.localeCompare(a.name)); // Sort by name descending (newest first)
-
-      setAllReceipts(matchingReceipts);
+      const allMatchingReceipts: { name: string; url: string; created_at?: string }[] = [];
+      const pageSize = 200;
+      let offset = 0;
+      const maxPages = 10;
+      
+      // Paginate through storage to find all matching receipts
+      for (let page = 0; page < maxPages; page++) {
+        const { data: files, error } = await supabase.storage
+          .from('payment-receipts')
+          .list('', { limit: pageSize, offset });
+        
+        if (error) {
+          console.error('Error listing receipts page', page, error);
+          break;
+        }
+        
+        if (!files || files.length === 0) break;
+        
+        // Filter files matching this application ID pattern: receipt-{applicationId}-{timestamp}.pdf
+        for (const file of files) {
+          if (file.name.includes(applicationId)) {
+            const publicUrl = supabase.storage.from('payment-receipts').getPublicUrl(file.name).data.publicUrl;
+            allMatchingReceipts.push({
+              name: file.name,
+              url: publicUrl,
+              created_at: file.created_at || undefined
+            });
+          }
+        }
+        
+        // If we got fewer than a full page, we've reached the end
+        if (files.length < pageSize) break;
+        offset += pageSize;
+      }
+      
+      // Sort by created_at descending (newest first), fallback to name
+      allMatchingReceipts.sort((a, b) => {
+        if (a.created_at && b.created_at) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return b.name.localeCompare(a.name);
+      });
+      
+      console.log(`Found ${allMatchingReceipts.length} receipts for ${applicationId}`);
+      setAllReceipts(allMatchingReceipts);
     } catch (error) {
       console.error('Error fetching receipts:', error);
     } finally {
