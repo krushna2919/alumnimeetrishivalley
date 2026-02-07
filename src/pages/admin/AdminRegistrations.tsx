@@ -64,6 +64,7 @@ import {
 } from 'lucide-react';
 import EditRegistrationDialog from '@/components/admin/EditRegistrationDialog';
 import EnableEditModeDialog from '@/components/admin/EnableEditModeDialog';
+import EditModePaymentProofUpload from '@/components/admin/EditModePaymentProofUpload';
 import {
   Pagination,
   PaginationContent,
@@ -132,6 +133,9 @@ const AdminRegistrations = () => {
     { name: string; url: string; created_at?: string; source?: "storage" | "db" }[]
   >([]);
   const [isLoadingReceipts, setIsLoadingReceipts] = useState(false);
+  
+  // Edit mode payment proof upload
+  const [editModeProofUrl, setEditModeProofUrl] = useState<string | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -743,7 +747,8 @@ const AdminRegistrations = () => {
   const sendNotificationEmail = async (
     registration: Registration, 
     type: 'approved' | 'rejected',
-    rejectionReason?: string
+    rejectionReason?: string,
+    allReceiptUrls?: string[]
   ) => {
     try {
       const { data, error } = await supabase.functions.invoke('send-registration-email', {
@@ -754,6 +759,7 @@ const AdminRegistrations = () => {
           type,
           rejectionReason,
           paymentReceiptUrl: type === 'approved' ? registration.payment_receipt_url : undefined,
+          allReceiptUrls: type === 'approved' ? allReceiptUrls : undefined,
         },
       });
 
@@ -963,15 +969,22 @@ const AdminRegistrations = () => {
   };
 
   // Handle final approval for edit mode registrations
-  // This sends a notification email about the changes made
+  // This sends a notification email about the changes made with ALL receipts attached
   const handleEditModeFinalApproval = async (registration: Registration) => {
     setIsProcessing(true);
     try {
       // Build change summary from edit_mode_reason
       const changeSummary = registration.edit_mode_reason || 'Registration details updated';
 
-      // Send notification email about the changes
-      const emailSent = await sendNotificationEmail(registration, 'approved');
+      // Collect all receipt URLs (PDF only) for attachment
+      const allReceiptUrls = allReceipts
+        .filter(r => r.url.toLowerCase().endsWith('.pdf'))
+        .map(r => r.url);
+
+      console.log(`Sending final approval email with ${allReceiptUrls.length} receipt(s)`);
+
+      // Send notification email about the changes with all receipts
+      const emailSent = await sendNotificationEmail(registration, 'approved', undefined, allReceiptUrls);
 
       if (!emailSent) {
         toast({
@@ -981,6 +994,17 @@ const AdminRegistrations = () => {
         });
         setIsProcessing(false);
         return;
+      }
+
+      // If a new payment proof was uploaded during edit mode, update it in the database
+      if (editModeProofUrl) {
+        await supabase
+          .from('registrations')
+          .update({
+            payment_proof_url: editModeProofUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', registration.id);
       }
 
       // Clear edit mode flags after successful email
@@ -1006,14 +1030,17 @@ const AdminRegistrations = () => {
           changeSummary,
           name: registration.name,
           email: registration.email,
+          receiptsAttached: allReceiptUrls.length,
         }
       });
 
       toast({
         title: 'Changes Approved & Notification Sent',
-        description: `${registration.name} has been notified about the registration changes.`,
+        description: `${registration.name} has been notified about the registration changes with ${allReceiptUrls.length} receipt(s) attached.`,
       });
 
+      // Reset edit mode proof state
+      setEditModeProofUrl(null);
       fetchRegistrations();
       setIsDetailOpen(false);
     } catch (error) {
@@ -1753,23 +1780,31 @@ const AdminRegistrations = () => {
             <div className="space-y-6">
               {/* Edit Mode Banner */}
               {selectedRegistration.edit_mode_enabled && (
-                <div className="p-4 rounded-lg bg-accent/20 border border-accent/50">
-                  <div className="flex items-start gap-2">
-                    <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium text-accent-foreground">Edit Mode Active</p>
-                      {selectedRegistration.edit_mode_reason && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          <strong>Reason:</strong> {selectedRegistration.edit_mode_reason}
-                        </p>
-                      )}
-                      {selectedRegistration.pending_admin_approval && (
-                        <p className="text-sm font-medium text-primary mt-2">
-                          Accounts admin has verified - Ready for final approval
-                        </p>
-                      )}
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-accent/20 border border-accent/50">
+                    <div className="flex items-start gap-2">
+                      <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-accent-foreground">Edit Mode Active</p>
+                        {selectedRegistration.edit_mode_reason && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            <strong>Reason:</strong> {selectedRegistration.edit_mode_reason}
+                          </p>
+                        )}
+                        {selectedRegistration.pending_admin_approval && (
+                          <p className="text-sm font-medium text-primary mt-2">
+                            Accounts admin has verified - Ready for final approval
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* Payment Proof Upload during Edit Mode */}
+                  <EditModePaymentProofUpload
+                    applicationId={selectedRegistration.application_id}
+                    onUploadSuccess={(url) => setEditModeProofUrl(url)}
+                  />
                 </div>
               )}
 
