@@ -387,12 +387,12 @@ const AdminAccountsReview = () => {
 
 
   const handleVerifyPayment = async (registration: AccountsRegistration) => {
-    // For edit mode registrations, require BOTH payment proof AND receipt
+    // For edit mode registrations, require NEW payment proof (editModeProofUrl) AND receipt
     if (registration.edit_mode_enabled) {
-      if (!registration.payment_proof_url) {
+      if (!editModeProofUrl) {
         toast({
-          title: 'Payment Proof Required',
-          description: 'Please upload a payment proof before verifying (required for edit mode)',
+          title: 'New Payment Proof Required',
+          description: 'Please upload a new payment proof before verifying (required for edit mode)',
           variant: 'destructive',
         });
         return;
@@ -862,7 +862,14 @@ const AdminAccountsReview = () => {
       </div>
 
       {/* Payment Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      <Dialog open={isDetailOpen} onOpenChange={(open) => {
+        setIsDetailOpen(open);
+        if (!open) {
+          // Reset edit mode proof state when dialog closes
+          setEditModeProofFile(null);
+          setEditModeProofUrl(null);
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
@@ -919,63 +926,102 @@ const AdminAccountsReview = () => {
                 )}
               </div>
 
-              {/* Edit Mode: Payment Proof Upload Section */}
+              {/* Edit Mode: Payment Proof Section */}
               {selectedRegistration.edit_mode_enabled && (
-                <div className="border border-accent/30 rounded-lg p-4 bg-accent/10">
-                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Upload New Payment Proof (Required for Edit Mode)
-                  </label>
-                  <p className="text-xs text-muted-foreground mt-1 mb-3">
-                    Upload a new payment proof image or PDF
-                  </p>
-                  
-                  {selectedRegistration.payment_proof_url ? (
-                    <div className="p-3 bg-secondary/50 rounded-lg border border-secondary">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-secondary-foreground flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">Payment proof uploaded</p>
-                          <a
-                            href={toPublicPaymentProofUrl(selectedRegistration.payment_proof_url) || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline"
-                          >
-                            View uploaded file
-                          </a>
-                        </div>
+                <div className="border border-accent/30 rounded-lg p-4 bg-accent/10 space-y-4">
+                  {/* Show existing/original payment proof */}
+                  {selectedRegistration.payment_proof_url && !editModeProofUrl && (
+                    <div>
+                      <label className="text-sm text-muted-foreground font-medium">Original Payment Proof</label>
+                      <div className="mt-2 border border-border rounded-lg p-3 bg-muted/30">
+                        {(() => {
+                          const proofUrl = toPublicPaymentProofUrl(selectedRegistration.payment_proof_url);
+                          if (!proofUrl) return null;
+                          return selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
+                            <a 
+                              href={proofUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                            >
+                              <FileCheck className="h-4 w-4" />
+                              View Original PDF Payment Proof
+                            </a>
+                          ) : (
+                            <a 
+                              href={proofUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                            >
+                              <img 
+                                src={proofUrl} 
+                                alt="Original payment proof" 
+                                className="max-w-full max-h-40 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              />
+                            </a>
+                          );
+                        })()}
                       </div>
                     </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={handleEditModeProofSelect}
-                        className="hidden"
-                        disabled={isUploadingEditModeProof}
-                      />
-                      <div className="border-2 border-dashed border-accent hover:border-primary rounded-lg p-4 text-center transition-colors">
-                        {isUploadingEditModeProof ? (
-                          <>
-                            <Loader2 className="h-6 w-6 mx-auto text-primary animate-spin mb-2" />
-                            <p className="text-sm text-muted-foreground">Uploading...</p>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-6 w-6 mx-auto text-accent-foreground mb-2" />
-                            <p className="text-sm text-accent-foreground font-medium">
-                              Click to upload payment proof
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              JPG, PNG, WebP, or PDF (max 5MB)
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </label>
                   )}
+
+                  {/* New payment proof upload section */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Upload New Payment Proof (Required for Edit Mode)
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-3">
+                      Upload a new payment proof reflecting changes
+                    </p>
+                    
+                    {editModeProofUrl ? (
+                      <div className="p-3 bg-secondary/50 rounded-lg border border-secondary">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5 text-secondary-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">New payment proof uploaded</p>
+                            <a
+                              href={editModeProofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              View new uploaded file
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer block">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          onChange={handleEditModeProofSelect}
+                          className="hidden"
+                          disabled={isUploadingEditModeProof}
+                        />
+                        <div className="border-2 border-dashed border-accent hover:border-primary rounded-lg p-4 text-center transition-colors">
+                          {isUploadingEditModeProof ? (
+                            <>
+                              <Loader2 className="h-6 w-6 mx-auto text-primary animate-spin mb-2" />
+                              <p className="text-sm text-muted-foreground">Uploading...</p>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-6 w-6 mx-auto text-accent-foreground mb-2" />
+                              <p className="text-sm text-accent-foreground font-medium">
+                                Click to upload new payment proof
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                JPG, PNG, WebP, or PDF (max 5MB)
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </label>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1120,9 +1166,9 @@ const AdminAccountsReview = () => {
                     isProcessing || 
                     isUploadingReceipt || 
                     isUploadingEditModeProof ||
-                    // For edit mode: require BOTH payment proof AND receipt
+                    // For edit mode: require NEW payment proof (editModeProofUrl) AND receipt
                     (selectedRegistration.edit_mode_enabled 
-                      ? (!selectedRegistration.payment_proof_url || (!receiptFile && !selectedRegistration.payment_receipt_url))
+                      ? (!editModeProofUrl || (!receiptFile && !selectedRegistration.payment_receipt_url))
                       : (!receiptFile && !selectedRegistration.payment_receipt_url)
                     )
                   }

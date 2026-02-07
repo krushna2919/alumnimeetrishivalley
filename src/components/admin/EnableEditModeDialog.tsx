@@ -54,8 +54,7 @@ const EnableEditModeDialog = ({
           accounts_verified: false,
           accounts_verified_at: null,
           accounts_verified_by: null,
-          // Clear payment proof and receipt URLs so accounts admin must upload new ones
-          payment_proof_url: null,
+          // Clear only the receipt URL - keep existing payment proof for reference
           payment_receipt_url: null,
           // Set pending admin approval to false until accounts admin verifies
           pending_admin_approval: false,
@@ -121,8 +120,8 @@ const EnableEditModeDialog = ({
             <ul className="text-sm text-accent-foreground mt-2 list-disc list-inside space-y-1">
               <li>Change registration status back to <strong>pending</strong></li>
               <li>Reset accounts verification status</li>
-              <li>Clear existing payment proof and receipt URLs</li>
-              <li>Require accounts admin to upload <strong>both</strong> new payment proof and receipt</li>
+              <li>Keep existing payment proof for reference</li>
+              <li>Require accounts admin to upload a <strong>new</strong> payment proof and receipt</li>
             </ul>
           </div>
 
