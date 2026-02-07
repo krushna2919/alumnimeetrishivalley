@@ -75,6 +75,7 @@ interface AccountsRegistration {
   parent_application_id: string | null;
   // Edit mode fields
   edit_mode_enabled: boolean;
+  edit_mode_enabled_at: string | null;
   edit_mode_reason: string | null;
   stay_type: string | null;
 }
@@ -93,6 +94,11 @@ const AdminAccountsReview = () => {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  
+  // Edit mode payment proof upload state
+  const [editModeProofFile, setEditModeProofFile] = useState<File | null>(null);
+  const [isUploadingEditModeProof, setIsUploadingEditModeProof] = useState(false);
+  const [editModeProofUrl, setEditModeProofUrl] = useState<string | null>(null);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -206,7 +212,7 @@ const AdminAccountsReview = () => {
       // Also include edit_mode_enabled registrations that need new payment proof
       const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_reason, stay_type')
+        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_enabled_at, edit_mode_reason, stay_type')
         .or('payment_status.eq.submitted,edit_mode_enabled.eq.true')
         .order('created_at', { ascending: false });
 
@@ -278,6 +284,80 @@ const AdminAccountsReview = () => {
     setReceiptPreview(null); // PDFs don't have preview
   };
 
+  const handleEditModeProofSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedRegistration) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid File',
+        description: 'Please upload a JPG, PNG, WebP, or PDF file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File Too Large',
+        description: 'File size must be less than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setEditModeProofFile(file);
+    setIsUploadingEditModeProof(true);
+
+    try {
+      const timestamp = Date.now();
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `edit-mode-${selectedRegistration.application_id}-${timestamp}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(data.path);
+
+      setEditModeProofUrl(urlData.publicUrl);
+
+      // Update registration with the new proof URL
+      await supabase
+        .from('registrations')
+        .update({ 
+          payment_proof_url: urlData.publicUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedRegistration.id);
+
+      toast({
+        title: 'Payment Proof Uploaded',
+        description: 'Payment proof uploaded successfully',
+      });
+
+      // Refresh registrations to get updated data
+      fetchRegistrations();
+    } catch (error) {
+      console.error('Error uploading edit mode proof:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to upload payment proof',
+        variant: 'destructive',
+      });
+      setEditModeProofFile(null);
+    } finally {
+      setIsUploadingEditModeProof(false);
+    }
+  };
+
   const uploadReceipt = async (registration: AccountsRegistration): Promise<string | null> => {
     if (!receiptFile) return null;
 
@@ -307,13 +387,33 @@ const AdminAccountsReview = () => {
 
 
   const handleVerifyPayment = async (registration: AccountsRegistration) => {
-    if (!receiptFile && !registration.payment_receipt_url) {
-      toast({
-        title: 'Receipt Required',
-        description: 'Please upload a payment receipt before verifying',
-        variant: 'destructive',
-      });
-      return;
+    // For edit mode registrations, require BOTH payment proof AND receipt
+    if (registration.edit_mode_enabled) {
+      if (!registration.payment_proof_url) {
+        toast({
+          title: 'Payment Proof Required',
+          description: 'Please upload a payment proof before verifying (required for edit mode)',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!receiptFile && !registration.payment_receipt_url) {
+        toast({
+          title: 'Receipt Required',
+          description: 'Please upload a payment receipt before verifying',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else {
+      if (!receiptFile && !registration.payment_receipt_url) {
+        toast({
+          title: 'Receipt Required',
+          description: 'Please upload a payment receipt before verifying',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -819,42 +919,105 @@ const AdminAccountsReview = () => {
                 )}
               </div>
 
-              <div>
-                <label className="text-sm text-muted-foreground font-medium">Payment Proof</label>
-                {selectedRegistration.payment_proof_url ? (
-                  <div className="mt-2 border border-border rounded-lg p-4 bg-muted/30">
-                    {(() => {
-                      const proofUrl = toPublicPaymentProofUrl(selectedRegistration.payment_proof_url);
-                      if (!proofUrl) return null;
-                      return selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
-                      <a 
-                        href={proofUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-primary hover:underline"
-                      >
-                        <FileCheck className="h-4 w-4" />
-                        View PDF Payment Proof
-                      </a>
-                    ) : (
-                      <a 
-                        href={proofUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                      >
-                        <img 
-                          src={proofUrl} 
-                          alt="Payment proof" 
-                          className="max-w-full max-h-80 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                        />
-                      </a>
-                    );
-                    })()}
-                  </div>
-                ) : (
-                  <p className="font-medium text-muted-foreground mt-2">No proof uploaded</p>
-                )}
-              </div>
+              {/* Edit Mode: Payment Proof Upload Section */}
+              {selectedRegistration.edit_mode_enabled && (
+                <div className="border border-accent/30 rounded-lg p-4 bg-accent/10">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Upload New Payment Proof (Required for Edit Mode)
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">
+                    Upload a new payment proof image or PDF
+                  </p>
+                  
+                  {selectedRegistration.payment_proof_url ? (
+                    <div className="p-3 bg-secondary/50 rounded-lg border border-secondary">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-secondary-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">Payment proof uploaded</p>
+                          <a
+                            href={toPublicPaymentProofUrl(selectedRegistration.payment_proof_url) || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline"
+                          >
+                            View uploaded file
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block">
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={handleEditModeProofSelect}
+                        className="hidden"
+                        disabled={isUploadingEditModeProof}
+                      />
+                      <div className="border-2 border-dashed border-accent hover:border-primary rounded-lg p-4 text-center transition-colors">
+                        {isUploadingEditModeProof ? (
+                          <>
+                            <Loader2 className="h-6 w-6 mx-auto text-primary animate-spin mb-2" />
+                            <p className="text-sm text-muted-foreground">Uploading...</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-6 w-6 mx-auto text-accent-foreground mb-2" />
+                            <p className="text-sm text-accent-foreground font-medium">
+                              Click to upload payment proof
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              JPG, PNG, WebP, or PDF (max 5MB)
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Non-edit mode: Show existing payment proof */}
+              {!selectedRegistration.edit_mode_enabled && (
+                <div>
+                  <label className="text-sm text-muted-foreground font-medium">Payment Proof</label>
+                  {selectedRegistration.payment_proof_url ? (
+                    <div className="mt-2 border border-border rounded-lg p-4 bg-muted/30">
+                      {(() => {
+                        const proofUrl = toPublicPaymentProofUrl(selectedRegistration.payment_proof_url);
+                        if (!proofUrl) return null;
+                        return selectedRegistration.payment_proof_url.toLowerCase().endsWith('.pdf') ? (
+                        <a 
+                          href={proofUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline"
+                        >
+                          <FileCheck className="h-4 w-4" />
+                          View PDF Payment Proof
+                        </a>
+                      ) : (
+                        <a 
+                          href={proofUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <img 
+                            src={proofUrl} 
+                            alt="Payment proof" 
+                            className="max-w-full max-h-80 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                          />
+                        </a>
+                      );
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="font-medium text-muted-foreground mt-2">No proof uploaded</p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="text-sm text-muted-foreground">Verification Status</label>
@@ -953,7 +1116,16 @@ const AdminAccountsReview = () => {
                 </Button>
                 <Button
                   onClick={() => selectedRegistration && handleVerifyPayment(selectedRegistration)}
-                  disabled={isProcessing || isUploadingReceipt || (!receiptFile && !selectedRegistration?.payment_receipt_url)}
+                  disabled={
+                    isProcessing || 
+                    isUploadingReceipt || 
+                    isUploadingEditModeProof ||
+                    // For edit mode: require BOTH payment proof AND receipt
+                    (selectedRegistration.edit_mode_enabled 
+                      ? (!selectedRegistration.payment_proof_url || (!receiptFile && !selectedRegistration.payment_receipt_url))
+                      : (!receiptFile && !selectedRegistration.payment_receipt_url)
+                    )
+                  }
                 >
                   {isProcessing || isUploadingReceipt ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
