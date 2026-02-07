@@ -17,6 +17,7 @@ interface EmailRequest {
   type: "approved" | "rejected";
   rejectionReason?: string;
   paymentReceiptUrl?: string;
+  allReceiptUrls?: string[]; // NEW: Array of all receipt URLs for multiple attachments
 }
 
 // Helper function to fetch PDF and convert to base64
@@ -112,7 +113,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Admin access verified for user: ${user.id}`);
 
-    const { to, name, applicationId, type, rejectionReason, paymentReceiptUrl }: EmailRequest = await req.json();
+    const { to, name, applicationId, type, rejectionReason, paymentReceiptUrl, allReceiptUrls }: EmailRequest = await req.json();
     
     // Validate required fields
     if (!to || !name || !applicationId || !type) {
@@ -162,10 +163,14 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Use the receipt URL from the request or from the database
-    const receiptUrl = paymentReceiptUrl || registration.payment_receipt_url;
+    // Use all receipt URLs if provided, otherwise fall back to single URL
+    const receiptUrls: string[] = allReceiptUrls && allReceiptUrls.length > 0 
+      ? allReceiptUrls 
+      : (paymentReceiptUrl || registration.payment_receipt_url) 
+        ? [paymentReceiptUrl || registration.payment_receipt_url!] 
+        : [];
 
-    console.log(`Sending ${type} email to ${to} for application ${applicationId}`);
+    console.log(`Sending ${type} email to ${to} for application ${applicationId} with ${receiptUrls.length} receipt(s)`);
 
     // Build email content based on type
     let subject: string;
@@ -186,11 +191,14 @@ const handler = async (req: Request): Promise<Response> => {
               ${applicationId}
             </p>
           </div>
-          ${receiptUrl ? `
+          ${receiptUrls.length > 0 ? `
           <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f57c00;">
-            <p style="margin: 0; font-size: 14px; color: #666;">📄 Payment Receipt:</p>
+            <p style="margin: 0; font-size: 14px; color: #666;">📄 Payment Receipt${receiptUrls.length > 1 ? 's' : ''}:</p>
             <p style="margin: 10px 0 0; color: #333;">
-              Your payment receipt is attached to this email.
+              ${receiptUrls.length > 1 
+                ? `${receiptUrls.length} payment receipts are attached to this email.`
+                : 'Your payment receipt is attached to this email.'
+              }
             </p>
           </div>
           ` : ''}
@@ -232,21 +240,30 @@ const handler = async (req: Request): Promise<Response> => {
     // BCC for superuser on all emails
     const bccEmail = "superuseralumnimeet@rishivalley.org";
 
-    // Prepare attachments for approved emails with PDF receipt
+    // Prepare attachments for approved emails with PDF receipts
     const attachments: Array<{ filename: string; content: string }> = [];
     
-    if (type === "approved" && receiptUrl && receiptUrl.toLowerCase().endsWith('.pdf')) {
-      console.log("Fetching PDF receipt for attachment...");
-      const pdfData = await fetchPdfAsBase64(receiptUrl);
-      if (pdfData) {
-        attachments.push({
-          filename: `Payment-Receipt-${applicationId}.pdf`,
-          content: pdfData.content,
-        });
-        console.log("PDF attachment prepared successfully");
-      } else {
-        console.warn("Failed to fetch PDF, email will be sent without attachment");
+    if (type === "approved" && receiptUrls.length > 0) {
+      console.log(`Fetching ${receiptUrls.length} PDF receipt(s) for attachment...`);
+      
+      for (let i = 0; i < receiptUrls.length; i++) {
+        const url = receiptUrls[i];
+        if (url && url.toLowerCase().endsWith('.pdf')) {
+          const pdfData = await fetchPdfAsBase64(url);
+          if (pdfData) {
+            const receiptNumber = receiptUrls.length > 1 ? `-${i + 1}` : '';
+            attachments.push({
+              filename: `Payment-Receipt-${applicationId}${receiptNumber}.pdf`,
+              content: pdfData.content,
+            });
+            console.log(`PDF attachment ${i + 1} prepared successfully`);
+          } else {
+            console.warn(`Failed to fetch PDF ${i + 1}, skipping attachment`);
+          }
+        }
       }
+      
+      console.log(`Total attachments prepared: ${attachments.length}`);
     }
 
     // Send email via Resend API
