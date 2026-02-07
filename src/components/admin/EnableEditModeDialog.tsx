@@ -49,10 +49,14 @@ const EnableEditModeDialog = ({
           edit_mode_enabled_by: user?.id,
           edit_mode_enabled_at: new Date().toISOString(),
           edit_mode_reason: reason.trim(),
-          // Reset accounts verification so accounts admin needs to re-verify
+          // Reset registration status and accounts verification
+          registration_status: 'pending',
           accounts_verified: false,
           accounts_verified_at: null,
           accounts_verified_by: null,
+          // Clear payment proof and receipt URLs so accounts admin must upload new ones
+          payment_proof_url: null,
+          payment_receipt_url: null,
           // Set pending admin approval to false until accounts admin verifies
           pending_admin_approval: false,
           updated_at: new Date().toISOString(),
@@ -103,7 +107,7 @@ const EnableEditModeDialog = ({
             Enable Edit Mode
           </DialogTitle>
           <DialogDescription>
-            This will allow accounts admin to upload a new payment proof for{' '}
+            This will allow accounts admin to upload a new payment proof and receipt for{' '}
             <span className="font-semibold">{registration.application_id}</span>.
             After accounts admin verifies, admin can approve to notify the applicant.
           </DialogDescription>
@@ -112,9 +116,14 @@ const EnableEditModeDialog = ({
         <div className="space-y-4 py-4">
           <div className="p-3 rounded-lg bg-accent/30 border border-accent/50">
             <p className="text-sm text-accent-foreground">
-              <strong>Note:</strong> Enabling edit mode will reset the accounts verification status. 
-              The accounts admin will need to upload a new payment proof and verify it again.
+              <strong>Note:</strong> Enabling edit mode will:
             </p>
+            <ul className="text-sm text-accent-foreground mt-2 list-disc list-inside space-y-1">
+              <li>Change registration status back to <strong>pending</strong></li>
+              <li>Reset accounts verification status</li>
+              <li>Clear existing payment proof and receipt URLs</li>
+              <li>Require accounts admin to upload <strong>both</strong> new payment proof and receipt</li>
+            </ul>
           </div>
 
           <div className="space-y-2">
