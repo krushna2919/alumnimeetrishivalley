@@ -1200,7 +1200,15 @@ const AdminRegistrations = () => {
     }
   };
 
-  const getStatusBadge = (status: string, accountsVerified?: boolean) => {
+  const getStatusBadge = (status: string, accountsVerified?: boolean, editModeEnabled?: boolean) => {
+    // When edit mode is enabled, always show pending status until final approval
+    if (editModeEnabled) {
+      if (accountsVerified) {
+        return <Badge className="bg-accent text-accent-foreground">Ready for Final Approval (Edit Mode)</Badge>;
+      }
+      return <Badge variant="outline" className="border-accent text-accent">Pending (Edit Mode)</Badge>;
+    }
+    
     switch (status) {
       case 'approved':
         return <Badge className="bg-secondary text-secondary-foreground">Approved</Badge>;
@@ -1567,7 +1575,7 @@ const AdminRegistrations = () => {
                                       <TableCell className="font-medium">{registration.name}</TableCell>
                                       <TableCell>{registration.email}</TableCell>
                                       <TableCell>{registration.year_of_passing}</TableCell>
-                                      <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
+                                      <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified, registration.edit_mode_enabled ?? false)}</TableCell>
                                       <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                       <TableCell>
                                         {registration.hostel_name ? (
@@ -1620,7 +1628,7 @@ const AdminRegistrations = () => {
                                   <TableCell className="font-medium">{registration.name}</TableCell>
                                   <TableCell>{registration.email}</TableCell>
                                   <TableCell>{registration.year_of_passing}</TableCell>
-                                  <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
+                                  <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified, registration.edit_mode_enabled ?? false)}</TableCell>
                                   <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                                   <TableCell>
                                     {registration.hostel_name ? (
@@ -1681,7 +1689,7 @@ const AdminRegistrations = () => {
                           <TableCell className="font-medium">{registration.name}</TableCell>
                           <TableCell>{registration.email}</TableCell>
                           <TableCell>{registration.year_of_passing}</TableCell>
-                          <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified)}</TableCell>
+                          <TableCell>{getStatusBadge(registration.registration_status, registration.accounts_verified, registration.edit_mode_enabled ?? false)}</TableCell>
                           <TableCell>{getPaymentBadge(registration.payment_status)}</TableCell>
                           <TableCell>
                             {registration.hostel_name ? (
@@ -1981,7 +1989,7 @@ const AdminRegistrations = () => {
               <div className="flex flex-wrap gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground">Registration Status</label>
-                  <div className="mt-1">{getStatusBadge(selectedRegistration.registration_status, selectedRegistration.accounts_verified)}</div>
+                  <div className="mt-1">{getStatusBadge(selectedRegistration.registration_status, selectedRegistration.accounts_verified, selectedRegistration.edit_mode_enabled ?? false)}</div>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Payment Status</label>
