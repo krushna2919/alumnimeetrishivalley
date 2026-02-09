@@ -2080,9 +2080,9 @@ const AdminRegistrations = () => {
                 Delete
               </Button>
             )}
-            {/* Edit button - Superadmin always, Admin when in edit mode pending approval */}
+            {/* Edit button - Superadmin always, Admin when edit mode is active */}
             {(userRole === 'superadmin' || 
-              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled && selectedRegistration?.pending_admin_approval)) && (
+              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled)) && (
               <Button
                 variant="outline"
                 onClick={() => {
