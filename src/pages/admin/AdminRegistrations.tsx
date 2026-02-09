@@ -2108,8 +2108,10 @@ const AdminRegistrations = () => {
                     )}
                   </div>
                 </div>
-                {/* Edit Mode Status */}
-                {selectedRegistration.edit_mode_enabled && (
+                {/* Edit Mode Status - Only show when not ready for final approval */}
+                {selectedRegistration.edit_mode_enabled && 
+                  !selectedRegistration.pending_admin_approval && 
+                  !selectedRegistration.accounts_verified && (
                   <div>
                     <label className="text-sm text-muted-foreground">Edit Mode</label>
                     <div className="mt-1">
@@ -2183,9 +2185,11 @@ const AdminRegistrations = () => {
                 Delete
               </Button>
             )}
-            {/* Edit button - Superadmin always, Admin when edit mode is active */}
+            {/* Edit button - Superadmin always, Admin when edit mode is active BUT not ready for final approval */}
             {(userRole === 'superadmin' || 
-              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled)) && (
+              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled)) && 
+              // Hide Edit button when edit mode is active and ready for final approval (show Approve instead)
+              !(selectedRegistration?.edit_mode_enabled && (selectedRegistration?.pending_admin_approval || selectedRegistration?.accounts_verified)) && (
               <Button
                 variant="outline"
                 onClick={() => {
@@ -2198,7 +2202,7 @@ const AdminRegistrations = () => {
                 Edit
               </Button>
             )}
-{selectedRegistration?.registration_status === 'pending' && (
+            {selectedRegistration?.registration_status === 'pending' && !selectedRegistration?.edit_mode_enabled && (
               <>
                 <Button
                   variant="outline"
@@ -2282,7 +2286,7 @@ const AdminRegistrations = () => {
                 ) : (
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
-                Final Approve & Notify
+                Approve
               </Button>
             )}
             {/* Show edit mode status badge (only if accounts not yet verified) */}
