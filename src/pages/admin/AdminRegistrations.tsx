@@ -1857,26 +1857,32 @@ const AdminRegistrations = () => {
                     <div className="flex items-start gap-2">
                       <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-accent-foreground">Edit Mode Active</p>
+                        <p className="font-medium text-accent-foreground">
+                          {(selectedRegistration.pending_admin_approval || selectedRegistration.accounts_verified) 
+                            ? 'Edit Mode - Ready for Final Approval' 
+                            : 'Edit Mode Active'}
+                        </p>
                         {selectedRegistration.edit_mode_reason && (
                           <p className="text-sm text-muted-foreground mt-1">
                             <strong>Reason:</strong> {selectedRegistration.edit_mode_reason}
                           </p>
                         )}
-                        {selectedRegistration.pending_admin_approval && (
+                        {(selectedRegistration.pending_admin_approval || selectedRegistration.accounts_verified) && (
                           <p className="text-sm font-medium text-primary mt-2">
-                            Accounts admin has verified - Ready for final approval
+                            Changes saved - Click Approve to send notification to applicant
                           </p>
                         )}
                       </div>
                     </div>
                   </div>
                   
-                  {/* Payment Proof Upload during Edit Mode */}
-                  <EditModePaymentProofUpload
-                    applicationId={selectedRegistration.application_id}
-                    onUploadSuccess={(url) => setEditModeProofUrl(url)}
-                  />
+                  {/* Payment Proof Upload during Edit Mode - Hide after admin saves changes */}
+                  {!selectedRegistration.pending_admin_approval && !selectedRegistration.accounts_verified && (
+                    <EditModePaymentProofUpload
+                      applicationId={selectedRegistration.application_id}
+                      onUploadSuccess={(url) => setEditModeProofUrl(url)}
+                    />
+                  )}
                 </div>
               )}
 
