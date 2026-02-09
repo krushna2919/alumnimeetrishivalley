@@ -1858,31 +1858,36 @@ const AdminRegistrations = () => {
                       <Edit3 className="h-5 w-5 text-accent-foreground mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="font-medium text-accent-foreground">
-                          {(selectedRegistration.pending_admin_approval || selectedRegistration.accounts_verified) 
+                          {selectedRegistration.pending_admin_approval 
                             ? 'Edit Mode - Ready for Final Approval' 
-                            : 'Edit Mode Active'}
+                            : selectedRegistration.accounts_verified 
+                              ? 'Edit Mode - Accounts Verified (Admin Can Edit)'
+                              : 'Edit Mode - Awaiting Accounts Verification'}
                         </p>
                         {selectedRegistration.edit_mode_reason && (
                           <p className="text-sm text-muted-foreground mt-1">
                             <strong>Reason:</strong> {selectedRegistration.edit_mode_reason}
                           </p>
                         )}
-                        {(selectedRegistration.pending_admin_approval || selectedRegistration.accounts_verified) && (
+                        {/* Step-by-step status messages */}
+                        {!selectedRegistration.accounts_verified && !selectedRegistration.pending_admin_approval && (
+                          <p className="text-sm font-medium text-accent-foreground mt-2">
+                            Step 1: Accounts admin must upload new payment proof & receipt
+                          </p>
+                        )}
+                        {selectedRegistration.accounts_verified && !selectedRegistration.pending_admin_approval && (
                           <p className="text-sm font-medium text-primary mt-2">
-                            Changes saved - Click Approve to send notification to applicant
+                            Step 2: Admin can now edit the form and save changes
+                          </p>
+                        )}
+                        {selectedRegistration.pending_admin_approval && (
+                          <p className="text-sm font-medium text-primary mt-2">
+                            Step 3: Click Approve to send notification to applicant
                           </p>
                         )}
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Payment Proof Upload during Edit Mode - Hide after admin saves changes */}
-                  {!selectedRegistration.pending_admin_approval && !selectedRegistration.accounts_verified && (
-                    <EditModePaymentProofUpload
-                      applicationId={selectedRegistration.application_id}
-                      onUploadSuccess={(url) => setEditModeProofUrl(url)}
-                    />
-                  )}
                 </div>
               )}
 
@@ -2191,11 +2196,16 @@ const AdminRegistrations = () => {
                 Delete
               </Button>
             )}
-            {/* Edit button - Superadmin always, Admin when edit mode is active BUT not ready for final approval */}
-            {(userRole === 'superadmin' || 
-              (userRole === 'admin' && selectedRegistration?.edit_mode_enabled)) && 
-              // Hide Edit button when edit mode is active and ready for final approval (show Approve instead)
-              !(selectedRegistration?.edit_mode_enabled && (selectedRegistration?.pending_admin_approval || selectedRegistration?.accounts_verified)) && (
+            {/* Edit button - Superadmin always (non-edit mode), Admin when edit mode is active AND accounts verified (but not pending final approval) */}
+            {(
+              // Superadmin can edit non-edit-mode registrations
+              (userRole === 'superadmin' && !selectedRegistration?.edit_mode_enabled) || 
+              // In edit mode: both Admin and Superadmin can edit ONLY when accounts_verified but NOT pending_admin_approval
+              ((userRole === 'admin' || userRole === 'superadmin') && 
+                selectedRegistration?.edit_mode_enabled && 
+                selectedRegistration?.accounts_verified && 
+                !selectedRegistration?.pending_admin_approval)
+            ) && (
               <Button
                 variant="outline"
                 onClick={() => {
@@ -2296,9 +2306,9 @@ const AdminRegistrations = () => {
               </Button>
             )}
             {/* Show edit mode status badge (only if accounts not yet verified) */}
-            {selectedRegistration?.edit_mode_enabled && !selectedRegistration?.accounts_verified && !selectedRegistration?.pending_admin_approval && (
+            {selectedRegistration?.edit_mode_enabled && !selectedRegistration?.accounts_verified && (
               <Badge className="bg-accent text-accent-foreground">
-                Edit Mode Active - Awaiting Accounts Review
+                Edit Mode Active - Awaiting Accounts Verification
               </Badge>
             )}
           </DialogFooter>
