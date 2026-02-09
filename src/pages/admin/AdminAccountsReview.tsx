@@ -108,7 +108,7 @@ const AdminAccountsReview = () => {
   const [showGrouped, setShowGrouped] = useState(true);
   
   const { toast } = useToast();
-  const { user, userRole } = useAuth();
+  const { user } = useAuth();
 
   const toPublicPaymentProofUrl = (value: string | null) => {
     if (!value) return null;
@@ -198,7 +198,7 @@ const AdminAccountsReview = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userRole]);
+  }, []);
 
   useEffect(() => {
     filterRegistrations();
@@ -208,22 +208,13 @@ const AdminAccountsReview = () => {
   const fetchRegistrations = async () => {
     setIsLoading(true);
     try {
-      // Build query based on user role
-      // - accounts_admin and superadmin: see all submitted payments + edit mode registrations
-      // - admin: only see edit mode enabled registrations
-      let query = supabase
+      // Accounts admin sees payment-related fields
+      // Also include edit_mode_enabled registrations that need new payment proof
+      const { data, error } = await supabase
         .from('registrations')
-        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_enabled_at, edit_mode_reason, stay_type');
-
-      if (userRole === 'admin') {
-        // Admin role only sees edit mode enabled registrations
-        query = query.eq('edit_mode_enabled', true);
-      } else {
-        // accounts_admin and superadmin see all submitted payments + edit mode registrations
-        query = query.or('payment_status.eq.submitted,edit_mode_enabled.eq.true');
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
+        .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_enabled_at, edit_mode_reason, stay_type')
+        .or('payment_status.eq.submitted,edit_mode_enabled.eq.true')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       const rows = (data || []) as AccountsRegistration[];
@@ -635,9 +626,7 @@ const AdminAccountsReview = () => {
           <div>
             <h1 className="font-serif text-3xl font-bold text-foreground">Payment Verification</h1>
             <p className="text-muted-foreground mt-1">
-              {userRole === 'admin' 
-                ? 'Review and verify payments for edit mode registrations'
-                : 'Review and verify payment proofs before admin approval'}
+              Review and verify payment proofs before admin approval
             </p>
           </div>
           <div className="flex gap-2">
