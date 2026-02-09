@@ -1970,10 +1970,9 @@ const AdminRegistrations = () => {
                               <Eye className="h-4 w-4" />
                               {isPdf ? 'PDF Proof' : 'Image Proof'} {allPaymentProofs.length - index}
                               {isEditMode && (
-                                <Badge variant="outline" className="text-xs ml-1">
-                                  <Edit3 className="h-3 w-3 mr-1" />
-                                  Edit Mode
-                                </Badge>
+                                <span className="text-xs text-muted-foreground italic ml-1">
+                                  (re-uploaded)
+                                </span>
                               )}
                               {proof.created_at && (
                                 <span className="text-xs text-muted-foreground">
