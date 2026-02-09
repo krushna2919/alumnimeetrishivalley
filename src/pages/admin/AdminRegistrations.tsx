@@ -134,6 +134,12 @@ const AdminRegistrations = () => {
   >([]);
   const [isLoadingReceipts, setIsLoadingReceipts] = useState(false);
   
+  // All payment proofs for selected application
+  const [allPaymentProofs, setAllPaymentProofs] = useState<
+    { name: string; url: string; created_at?: string }[]
+  >([]);
+  const [isLoadingProofs, setIsLoadingProofs] = useState(false);
+  
   // Edit mode payment proof upload
   const [editModeProofUrl, setEditModeProofUrl] = useState<string | null>(null);
 
@@ -396,11 +402,68 @@ const AdminRegistrations = () => {
     }
   };
 
-  // Ensure receipts are fetched whenever the details dialog opens for a selection.
+  // Fetch all payment proofs from storage for an application
+  const fetchAllPaymentProofs = async (applicationId: string, dbProofUrl?: string | null) => {
+    setIsLoadingProofs(true);
+    setAllPaymentProofs([]);
+
+    try {
+      // Use backend function (service-role) to list all proofs
+      const { data, error } = await supabase.functions.invoke("list-payment-proofs", {
+        body: { applicationId },
+      });
+
+      if (error) {
+        console.error("list-payment-proofs failed:", error);
+      }
+
+      const fromFn = (data?.proofs ?? []) as Array<{
+        path: string;
+        url: string;
+        created_at?: string | null;
+      }>;
+
+      const matches: { name: string; url: string; created_at?: string }[] = fromFn
+        .filter((r) => r?.url)
+        .map((r) => ({
+          name: r.path,
+          url: r.url,
+          created_at: r.created_at ?? undefined,
+        }));
+
+      // Always include the DB-linked proof (if any) so we don't "lose" it
+      if (dbProofUrl) {
+        const resolved = toPublicPaymentProofUrl(dbProofUrl);
+        if (resolved && !matches.some((m) => m.url === resolved)) {
+          matches.push({
+            name: dbProofUrl,
+            url: resolved,
+          });
+        }
+      }
+
+      matches.sort((a, b) => {
+        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (at !== bt) return bt - at;
+        return b.name.localeCompare(a.name);
+      });
+
+      console.log(`Found ${matches.length} payment proofs for ${applicationId}`);
+      setAllPaymentProofs(matches);
+    } catch (error) {
+      console.error("Error fetching payment proofs:", error);
+    } finally {
+      setIsLoadingProofs(false);
+    }
+  };
+
+  // Ensure receipts and proofs are fetched whenever the details dialog opens for a selection.
   // (Relying on Dialog's onOpenChange is not enough because programmatic opens may not trigger it.)
   useEffect(() => {
     if (!isDetailOpen || !selectedRegistration) return;
     fetchAllReceipts(selectedRegistration.application_id, selectedRegistration.payment_receipt_url);
+    fetchAllPaymentProofs(selectedRegistration.application_id, selectedRegistration.payment_proof_url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDetailOpen, selectedRegistration?.id]);
 
@@ -1774,6 +1837,7 @@ const AdminRegistrations = () => {
         setIsDetailOpen(open);
         if (!open) {
           setAllReceipts([]);
+          setAllPaymentProofs([]);
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1870,8 +1934,47 @@ const AdminRegistrations = () => {
                   </div>
                 )}
                 <div className="col-span-2">
-                  <label className="text-sm text-muted-foreground">Payment Proof</label>
-                  {selectedRegistration.payment_proof_url ? (
+                  <label className="text-sm text-muted-foreground">
+                    Payment Proofs
+                    {allPaymentProofs.length > 0 && <span className="ml-1 text-xs">({allPaymentProofs.length} found)</span>}
+                  </label>
+                  {isLoadingProofs ? (
+                    <div className="flex items-center gap-2 mt-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading payment proofs...</span>
+                    </div>
+                  ) : allPaymentProofs.length > 0 ? (
+                    <div className="mt-2 space-y-2">
+                      {allPaymentProofs.map((proof, index) => {
+                        const isPdf = proof.name.toLowerCase().endsWith('.pdf');
+                        const isEditMode = proof.name.includes('edit-mode-');
+                        return (
+                          <div key={proof.name} className="flex items-center gap-2">
+                            <a 
+                              href={proof.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                            >
+                              <Eye className="h-4 w-4" />
+                              {isPdf ? 'PDF Proof' : 'Image Proof'} {allPaymentProofs.length - index}
+                              {isEditMode && (
+                                <Badge variant="outline" className="text-xs ml-1">
+                                  <Edit3 className="h-3 w-3 mr-1" />
+                                  Edit Mode
+                                </Badge>
+                              )}
+                              {proof.created_at && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({format(new Date(proof.created_at), 'dd MMM yyyy')})
+                                </span>
+                              )}
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : selectedRegistration.payment_proof_url ? (
                     <div className="mt-2">
                       {(() => {
                         const proofUrl = toPublicPaymentProofUrl(selectedRegistration.payment_proof_url);
@@ -2166,7 +2269,10 @@ const AdminRegistrations = () => {
               </Button>
             )}
             {/* Final Approval for Edit Mode registrations - Admin can approve and send notification */}
-            {(userRole === 'superadmin' || userRole === 'admin') && selectedRegistration?.pending_admin_approval && selectedRegistration?.edit_mode_enabled && (
+            {/* Show when edit mode is active AND accounts verification is complete (pending_admin_approval or accounts_verified) */}
+            {(userRole === 'superadmin' || userRole === 'admin') && 
+              selectedRegistration?.edit_mode_enabled && 
+              (selectedRegistration?.pending_admin_approval || selectedRegistration?.accounts_verified) && (
               <Button
                 onClick={() => selectedRegistration && handleEditModeFinalApproval(selectedRegistration)}
                 disabled={isProcessing}
@@ -2179,8 +2285,8 @@ const AdminRegistrations = () => {
                 Final Approve & Notify
               </Button>
             )}
-            {/* Show edit mode status badge (only if not pending approval) */}
-            {selectedRegistration?.edit_mode_enabled && !selectedRegistration?.pending_admin_approval && (
+            {/* Show edit mode status badge (only if accounts not yet verified) */}
+            {selectedRegistration?.edit_mode_enabled && !selectedRegistration?.accounts_verified && !selectedRegistration?.pending_admin_approval && (
               <Badge className="bg-accent text-accent-foreground">
                 Edit Mode Active - Awaiting Accounts Review
               </Badge>
