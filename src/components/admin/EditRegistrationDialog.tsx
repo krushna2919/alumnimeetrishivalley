@@ -129,10 +129,9 @@ const EditRegistrationDialog = ({
       };
 
       // If edit mode is enabled, mark as ready for final approval after admin saves changes
+      // Note: accounts_verified should already be true at this point (set by accounts admin)
       if (registration.edit_mode_enabled) {
         updatePayload.pending_admin_approval = true;
-        updatePayload.accounts_verified = true;
-        updatePayload.accounts_verified_at = new Date().toISOString();
       }
 
       const { error } = await supabase

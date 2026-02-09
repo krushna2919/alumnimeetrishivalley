@@ -54,8 +54,8 @@ const EnableEditModeDialog = ({
           accounts_verified: false,
           accounts_verified_at: null,
           accounts_verified_by: null,
-          // Clear only the receipt URL - keep existing payment proof for reference
-          payment_receipt_url: null,
+          // Keep existing payment_proof_url and payment_receipt_url for reference
+          // Accounts admin will upload NEW proofs during edit mode
           // Set pending admin approval to false until accounts admin verifies
           pending_admin_approval: false,
           updated_at: new Date().toISOString(),
@@ -120,8 +120,9 @@ const EnableEditModeDialog = ({
             <ul className="text-sm text-accent-foreground mt-2 list-disc list-inside space-y-1">
               <li>Change registration status back to <strong>pending</strong></li>
               <li>Reset accounts verification status</li>
-              <li>Keep existing payment proof for reference</li>
+              <li>Keep existing payment proofs and receipts visible for reference</li>
               <li>Require accounts admin to upload a <strong>new</strong> payment proof and receipt</li>
+              <li>Admin can edit form only <strong>after</strong> accounts admin completes verification</li>
             </ul>
           </div>
 
