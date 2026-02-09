@@ -106,28 +106,38 @@ const EditRegistrationDialog = ({
 
     setIsProcessing(true);
     try {
+      // Build update payload
+      const updatePayload: Record<string, unknown> = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        occupation: formData.occupation.trim(),
+        year_of_passing: formData.year_of_passing,
+        board_type: formData.board_type,
+        gender: formData.gender,
+        tshirt_size: formData.tshirt_size,
+        stay_type: formData.stay_type,
+        registration_fee: formData.registration_fee,
+        address_line1: formData.address_line1.trim(),
+        address_line2: formData.address_line2?.trim() || null,
+        city: formData.city.trim(),
+        district: formData.district.trim(),
+        state: formData.state.trim(),
+        postal_code: formData.postal_code.trim(),
+        country: formData.country.trim(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // If edit mode is enabled, mark as ready for final approval after admin saves changes
+      if (registration.edit_mode_enabled) {
+        updatePayload.pending_admin_approval = true;
+        updatePayload.accounts_verified = true;
+        updatePayload.accounts_verified_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('registrations')
-        .update({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          occupation: formData.occupation.trim(),
-          year_of_passing: formData.year_of_passing,
-          board_type: formData.board_type,
-          gender: formData.gender,
-          tshirt_size: formData.tshirt_size,
-          stay_type: formData.stay_type,
-          registration_fee: formData.registration_fee,
-          address_line1: formData.address_line1.trim(),
-          address_line2: formData.address_line2?.trim() || null,
-          city: formData.city.trim(),
-          district: formData.district.trim(),
-          state: formData.state.trim(),
-          postal_code: formData.postal_code.trim(),
-          country: formData.country.trim(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', registration.id);
 
       if (error) throw error;
