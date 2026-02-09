@@ -438,18 +438,15 @@ const AdminAccountsReview = () => {
 
       const verifiedAt = new Date().toISOString();
 
-      // For edit mode registrations, set pending_admin_approval to true
-      // so admin can do final approval and send notification
+      // For edit mode registrations, do NOT set pending_admin_approval here.
+      // The admin must first edit the registration (e.g. update paid amount, stay type),
+      // and saving those edits will set pending_admin_approval = true.
       const updateData: Record<string, unknown> = {
         accounts_verified: true,
         accounts_verified_at: verifiedAt,
         accounts_verified_by: user?.id,
         payment_receipt_url: receiptUrl,
       };
-
-      if (registration.edit_mode_enabled) {
-        updateData.pending_admin_approval = true;
-      }
 
       const { error } = await supabase
         .from('registrations')
