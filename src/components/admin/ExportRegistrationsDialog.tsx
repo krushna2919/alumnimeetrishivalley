@@ -108,8 +108,12 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
   const exportToPDF = async () => {
     setIsExporting(true);
     try {
-      const { default: jsPDF } = await import('jspdf');
-      await import('jspdf-autotable');
+      // Import jspdf and autotable — autotable is a side-effect plugin that
+      // attaches autoTable() to the jsPDF prototype when imported.
+      const [{ default: jsPDF }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
       const { headers, rows } = getExportData();
 
       const doc = new jsPDF({ orientation: headers.length > 8 ? 'landscape' : 'portrait' });
@@ -118,15 +122,29 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
       doc.setFontSize(9);
       doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')} | Records: ${rows.length}`, 14, 22);
 
-      (doc as any).autoTable({
-        head: [headers],
-        body: rows,
-        startY: 28,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
-        alternateRowStyles: { fillColor: [245, 247, 250] },
-        margin: { top: 28 },
-      });
+      // Use autoTable via the imported module as fallback if prototype attachment fails
+      const autoTable = (await import('jspdf-autotable')).default;
+      if (typeof autoTable === 'function') {
+        autoTable(doc, {
+          head: [headers],
+          body: rows,
+          startY: 28,
+          styles: { fontSize: 7, cellPadding: 2 },
+          headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          margin: { top: 28 },
+        });
+      } else {
+        (doc as any).autoTable({
+          head: [headers],
+          body: rows,
+          startY: 28,
+          styles: { fontSize: 7, cellPadding: 2 },
+          headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          margin: { top: 28 },
+        });
+      }
 
       doc.save(`registrations-export-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (err) {
