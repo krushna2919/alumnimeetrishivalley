@@ -162,10 +162,20 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
 
       const wsData = [headers, ...rows];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-      // Auto-size columns
+
+      // Auto-size columns based on content width
       ws['!cols'] = headers.map((h, i) => ({
         wch: Math.max(h.length, ...rows.map(r => (r[i] || '').length).slice(0, 100)) + 2,
       }));
+
+      // Enable auto-filter on all columns so users can sort & filter in Excel/Sheets
+      const lastCol = XLSX.utils.encode_col(headers.length - 1);
+      const lastRow = rows.length + 1; // +1 for header row
+      ws['!autofilter'] = { ref: `A1:${lastCol}${lastRow}` };
+
+      // Freeze the header row so it stays visible while scrolling
+      ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
       XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
