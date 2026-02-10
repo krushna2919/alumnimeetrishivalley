@@ -18,7 +18,10 @@ interface BatchPeriod {
   is_registration_open: boolean;
   registration_start_date: string | null;
   registration_end_date: string | null;
+  /** Stores combined hour (0-23) — minutes stored separately in start_minute */
   start_hour: number;
+  /** Minutes component of the start time (0-59) */
+  start_minute: number;
   label: string | null;
 }
 
