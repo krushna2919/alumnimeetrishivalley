@@ -143,8 +143,15 @@ export const useBatchConfiguration = () => {
     
     // Check if before start date
     if (startDate && now < startDate) return false;
-    // Check if after end date
-    if (endDate && now > endDate) return false;
+    // Check if after end date - include the full end date in IST (UTC+5:30)
+    // End of day in IST (23:59:59.999) = next day 18:29:59.999 UTC
+    if (endDate) {
+      const endOfDayIST = new Date(endDate);
+      // Set to next day 18:30 UTC (= end of day 23:59:59 IST + buffer)
+      endOfDayIST.setUTCDate(endOfDayIST.getUTCDate() + 1);
+      endOfDayIST.setUTCHours(18, 30, 0, 0);
+      if (now > endOfDayIST) return false;
+    }
     
     return true;
   };
