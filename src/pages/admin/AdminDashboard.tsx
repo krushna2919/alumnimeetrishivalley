@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Users, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface DashboardStats {
   totalRegistrations: number;
   pendingRegistrations: number;
   approvedRegistrations: number;
-  rejectedRegistrations: number;
+  onCampusCount: number;
   pendingPayments: number;
   verifiedPayments: number;
 }
@@ -27,7 +27,7 @@ const AdminDashboard = () => {
     try {
       const { data: registrations, error } = await supabase
         .from('registrations')
-        .select('registration_status, payment_status');
+        .select('registration_status, payment_status, stay_type');
 
       if (error) throw error;
 
@@ -35,7 +35,7 @@ const AdminDashboard = () => {
         totalRegistrations: registrations?.length || 0,
         pendingRegistrations: registrations?.filter(r => r.registration_status === 'pending').length || 0,
         approvedRegistrations: registrations?.filter(r => r.registration_status === 'approved').length || 0,
-        rejectedRegistrations: registrations?.filter(r => r.registration_status === 'rejected').length || 0,
+        onCampusCount: registrations?.filter(r => r.stay_type === 'on-campus').length || 0,
         pendingPayments: registrations?.filter(r => r.payment_status === 'pending' || r.payment_status === 'submitted').length || 0,
         verifiedPayments: registrations?.filter(r => r.payment_status === 'verified').length || 0,
       };
@@ -71,11 +71,11 @@ const AdminDashboard = () => {
       bgColor: 'bg-secondary/10',
     },
     {
-      title: 'Rejected',
-      value: stats?.rejectedRegistrations || 0,
-      icon: XCircle,
-      color: 'text-destructive',
-      bgColor: 'bg-destructive/10',
+      title: 'On Campus',
+      value: stats?.onCampusCount || 0,
+      icon: Users,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
     },
   ];
 
