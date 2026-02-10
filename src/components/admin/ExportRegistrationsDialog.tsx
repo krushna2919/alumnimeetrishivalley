@@ -108,42 +108,117 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
   const exportToPDF = async () => {
     setIsExporting(true);
     try {
-      // Import jspdf and autotable — autotable is a side-effect plugin that
-      // attaches autoTable() to the jsPDF prototype when imported.
       const [{ default: jsPDF }] = await Promise.all([
         import('jspdf'),
         import('jspdf-autotable'),
       ]);
-      const { headers, rows } = getExportData();
+      const { fields, headers, rows } = getExportData();
 
-      const doc = new jsPDF({ orientation: headers.length > 8 ? 'landscape' : 'portrait' });
-      doc.setFontSize(16);
-      doc.text('Registrations Export', 14, 15);
+      // Always use landscape for many columns; use A3 for 20+ fields
+      const useA3 = headers.length >= 20;
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        format: useA3 ? 'a3' : 'a4',
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // --- Header band ---
+      doc.setFillColor(30, 58, 95); // dark navy
+      doc.rect(0, 0, pageWidth, 28, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Registrations Export', 14, 16);
       doc.setFontSize(9);
-      doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')} | Records: ${rows.length}`, 14, 22);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}  |  Records: ${rows.length}  |  Fields: ${headers.length}`,
+        14, 24
+      );
 
-      // Use autoTable via the imported module as fallback if prototype attachment fails
+      // Reset text color for table
+      doc.setTextColor(0, 0, 0);
+
+      // --- Dynamically compute font size based on column count ---
+      // More columns → smaller font to prevent overflow
+      let fontSize = 7;
+      if (headers.length > 20) fontSize = 5;
+      else if (headers.length > 14) fontSize = 6;
+
+      // --- Compute optimal column widths proportionally ---
+      // Give each column a weight based on its max content length
+      const colMaxLens = headers.map((h, i) => {
+        const contentMax = rows.slice(0, 80).reduce((max, r) => Math.max(max, (r[i] || '').length), 0);
+        return Math.max(h.length, contentMax);
+      });
+      const totalLen = colMaxLens.reduce((s, l) => s + l, 0);
+      const usableWidth = pageWidth - 20; // 10mm margin each side
+      const colWidths = colMaxLens.map(l => Math.max((l / totalLen) * usableWidth, 12));
+
+      // --- Table config ---
+      const tableOptions = {
+        head: [headers],
+        body: rows,
+        startY: 32,
+        theme: 'grid' as const,
+        styles: {
+          fontSize,
+          cellPadding: 1.5,
+          overflow: 'linebreak' as const,
+          lineColor: [200, 200, 200] as [number, number, number],
+          lineWidth: 0.2,
+          valign: 'middle' as const,
+        },
+        headStyles: {
+          fillColor: [30, 58, 95] as [number, number, number],
+          textColor: [255, 255, 255] as [number, number, number],
+          fontSize: fontSize + 0.5,
+          fontStyle: 'bold' as const,
+          halign: 'center' as const,
+          cellPadding: 2,
+          minCellHeight: 8,
+        },
+        alternateRowStyles: {
+          fillColor: [240, 244, 248] as [number, number, number],
+        },
+        columnStyles: Object.fromEntries(
+          colWidths.map((w, i) => [i, { cellWidth: w }])
+        ),
+        margin: { top: 32, left: 10, right: 10, bottom: 18 },
+        tableWidth: 'wrap' as const,
+        // Footer on each page
+        didDrawPage: (data: any) => {
+          const pageNum = doc.internal.pages.length - 1;
+          doc.setFontSize(7);
+          doc.setTextColor(130, 130, 130);
+          doc.text(
+            `Page ${data.pageNumber}`,
+            pageWidth / 2,
+            pageHeight - 8,
+            { align: 'center' }
+          );
+          doc.text('Confidential', pageWidth - 14, pageHeight - 8, { align: 'right' });
+          // Re-draw header band on subsequent pages
+          if (data.pageNumber > 1) {
+            doc.setFillColor(30, 58, 95);
+            doc.rect(0, 0, pageWidth, 12, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Registrations Export (cont.)', 14, 8);
+          }
+          // Reset for table rendering
+          doc.setTextColor(0, 0, 0);
+        },
+      };
+
       const autoTable = (await import('jspdf-autotable')).default;
       if (typeof autoTable === 'function') {
-        autoTable(doc, {
-          head: [headers],
-          body: rows,
-          startY: 28,
-          styles: { fontSize: 7, cellPadding: 2 },
-          headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
-          alternateRowStyles: { fillColor: [245, 247, 250] },
-          margin: { top: 28 },
-        });
+        autoTable(doc, tableOptions);
       } else {
-        (doc as any).autoTable({
-          head: [headers],
-          body: rows,
-          startY: 28,
-          styles: { fontSize: 7, cellPadding: 2 },
-          headStyles: { fillColor: [59, 130, 246], fontSize: 7 },
-          alternateRowStyles: { fillColor: [245, 247, 250] },
-          margin: { top: 28 },
-        });
+        (doc as any).autoTable(tableOptions);
       }
 
       doc.save(`registrations-export-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
