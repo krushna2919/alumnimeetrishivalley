@@ -68,6 +68,7 @@ const ScheduledPeriodsManager = () => {
             ? format(new Date(d.registration_end_date), 'yyyy-MM-dd')
             : null,
           start_hour: d.start_hour ?? 0,
+          start_minute: d.start_minute ?? 0,
           label: d.label ?? null,
         }))
       );
