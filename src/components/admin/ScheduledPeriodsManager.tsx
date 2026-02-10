@@ -26,11 +26,13 @@ interface BatchPeriod {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
-const formatHourIST = (hour: number) => {
+/** Format hour + minute as readable IST string */
+const formatTimeIST = (hour: number, minute: number) => {
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${display}:00 ${suffix} IST`;
+  return `${display}:${String(minute).padStart(2, '0')} ${suffix} IST`;
 };
 
 const ScheduledPeriodsManager = () => {
@@ -102,9 +104,9 @@ const ScheduledPeriodsManager = () => {
       let endTimestamp: string | null = null;
 
       if (period.registration_start_date) {
-        // Create date in IST: date + hour, then convert to UTC by subtracting 5:30
+        // Create date in IST: date + hour:minute, then convert to UTC by subtracting 5:30
         const startDate = new Date(period.registration_start_date);
-        startDate.setUTCHours(period.start_hour - 5, -30, 0, 0); // IST to UTC
+        startDate.setUTCHours(period.start_hour - 5, period.start_minute - 30, 0, 0); // IST to UTC
         startTimestamp = startDate.toISOString();
       }
       if (period.registration_end_date) {
@@ -118,6 +120,7 @@ const ScheduledPeriodsManager = () => {
         registration_start_date: startTimestamp,
         registration_end_date: endTimestamp,
         start_hour: period.start_hour,
+        start_minute: period.start_minute,
         label: period.label || null,
       };
 
@@ -146,6 +149,7 @@ const ScheduledPeriodsManager = () => {
         year_to: 2020,
         is_registration_open: false,
         start_hour: 0,
+        start_minute: 0,
         label: `Period ${periods.length + 1}`,
       } as any);
 
@@ -301,8 +305,8 @@ const ScheduledPeriodsManager = () => {
               </div>
             </div>
 
-            {/* Start date, hour, end date */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            {/* Start date, time, end date */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input
@@ -311,6 +315,20 @@ const ScheduledPeriodsManager = () => {
                   onChange={(e) => updatePeriod(period.id, 'registration_start_date', e.target.value || null)}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={period.registration_end_date || ''}
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">Auto: start + 3 weeks</p>
+              </div>
+            </div>
+
+            {/* Hour and Minute selectors */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" /> Start Hour (IST)
@@ -325,23 +343,38 @@ const ScheduledPeriodsManager = () => {
                   <SelectContent>
                     {HOURS.map((h) => (
                       <SelectItem key={h} value={String(h)}>
-                        {formatHourIST(h)}
+                        {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={period.registration_end_date || ''}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">Auto: start + 3 weeks</p>
+                <Label className="flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" /> Start Minute
+                </Label>
+                <Select
+                  value={String(period.start_minute)}
+                  onValueChange={(val) => updatePeriod(period.id, 'start_minute', parseInt(val))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MINUTES.map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        :{String(m).padStart(2, '0')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+
+            {/* Computed start time display */}
+            <p className="text-sm text-muted-foreground">
+              Start time: <span className="font-medium text-foreground">{formatTimeIST(period.start_hour, period.start_minute)}</span>
+            </p>
 
             <Button
               onClick={() => savePeriod(period)}
