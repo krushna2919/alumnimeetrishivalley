@@ -53,8 +53,10 @@ export type Database = {
           created_by: string | null
           id: string
           is_registration_open: boolean
+          label: string | null
           registration_end_date: string | null
           registration_start_date: string | null
+          start_hour: number
           updated_at: string
           year_from: number
           year_to: number
@@ -64,8 +66,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_registration_open?: boolean
+          label?: string | null
           registration_end_date?: string | null
           registration_start_date?: string | null
+          start_hour?: number
           updated_at?: string
           year_from: number
           year_to: number
@@ -75,8 +79,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_registration_open?: boolean
+          label?: string | null
           registration_end_date?: string | null
           registration_start_date?: string | null
+          start_hour?: number
           updated_at?: string
           year_from?: number
           year_to?: number
