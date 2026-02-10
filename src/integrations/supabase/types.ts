@@ -57,6 +57,7 @@ export type Database = {
           registration_end_date: string | null
           registration_start_date: string | null
           start_hour: number
+          start_minute: number
           updated_at: string
           year_from: number
           year_to: number
@@ -70,6 +71,7 @@ export type Database = {
           registration_end_date?: string | null
           registration_start_date?: string | null
           start_hour?: number
+          start_minute?: number
           updated_at?: string
           year_from: number
           year_to: number
@@ -83,6 +85,7 @@ export type Database = {
           registration_end_date?: string | null
           registration_start_date?: string | null
           start_hour?: number
+          start_minute?: number
           updated_at?: string
           year_from?: number
           year_to?: number
