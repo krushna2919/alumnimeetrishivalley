@@ -1481,6 +1481,19 @@ const AdminRegistrations = () => {
                   </SelectContent>
                 </Select>
 
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Reg. Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Reg. Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Payment" />
