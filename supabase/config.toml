@@ -1,13 +1,1 @@
-project_id = "ebairczcrtojkrnetpvw"
-
-[functions.send-registration-email]
-verify_jwt = false
-
-[functions.verify-captcha-register]
-verify_jwt = false
-
-[functions.payment-reminder-cron]
-verify_jwt = false
-
-[functions.send-accounts-notification]
-verify_jwt = false
+project_id = "dwuaimlzwhhivolcgajj"
