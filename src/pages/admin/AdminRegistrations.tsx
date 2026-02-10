@@ -60,10 +60,12 @@ import {
   Building2,
   ChevronLeft,
   Pencil,
-  Edit3
+  Edit3,
+  Download,
 } from 'lucide-react';
 import EditRegistrationDialog from '@/components/admin/EditRegistrationDialog';
 import EnableEditModeDialog from '@/components/admin/EnableEditModeDialog';
+import ExportRegistrationsDialog from '@/components/admin/ExportRegistrationsDialog';
 import EditModePaymentProofUpload from '@/components/admin/EditModePaymentProofUpload';
 import {
   Pagination,
@@ -142,6 +144,9 @@ const AdminRegistrations = () => {
   
   // Edit mode payment proof upload
   const [editModeProofUrl, setEditModeProofUrl] = useState<string | null>(null);
+
+  // Export dialog state
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -1358,6 +1363,10 @@ const AdminRegistrations = () => {
               <Users className="h-4 w-4 mr-2" />
               {showGrouped ? 'Grouped' : 'Flat'}
             </Button>
+            <Button onClick={() => setIsExportDialogOpen(true)} variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
             <Button onClick={fetchRegistrations} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
@@ -1394,18 +1403,6 @@ const AdminRegistrations = () => {
                     className="pl-10"
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-40">
-                    <SelectValue placeholder="Filter status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Additional filters row */}
@@ -2600,6 +2597,12 @@ const AdminRegistrations = () => {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         onSuccess={fetchRegistrations}
+      />
+      {/* Export Dialog */}
+      <ExportRegistrationsDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        registrations={filteredRegistrations}
       />
 
       {/* Enable Edit Mode Dialog (Superadmin only) */}
