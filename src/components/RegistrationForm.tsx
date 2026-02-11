@@ -261,6 +261,7 @@ const RegistrationForm = () => {
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
         body: {
           botValidation,
+          paymentProofFileName: uploadedFileName,
           name: data.name,
           email: data.email,
           phone: data.phone,
