@@ -31,6 +31,8 @@ interface BotValidation {
 
 interface RegistrationRequest {
   botValidation: BotValidation;
+  // Payment proof filename (uploaded to storage before this call)
+  paymentProofFileName?: string;
   // Main registrant info
   name: string;
   email: string;
@@ -309,6 +311,39 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // --- SERVER-SIDE: Verify payment proof exists in storage ---
+    if (!data.paymentProofFileName || typeof data.paymentProofFileName !== "string" || data.paymentProofFileName.trim().length === 0) {
+      console.warn("Registration rejected: no paymentProofFileName provided");
+      return new Response(
+        JSON.stringify({
+          error: "Payment proof is required. Please upload your payment proof and try again.",
+          code: "MISSING_PROOF",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { data: proofFileData, error: proofFileError } = await supabase.storage
+      .from("payment-proofs")
+      .list("", { search: data.paymentProofFileName, limit: 1 });
+
+    const proofExists = !proofFileError && proofFileData && proofFileData.some(
+      (f: { name: string }) => f.name === data.paymentProofFileName
+    );
+
+    if (!proofExists) {
+      console.warn("Registration rejected: proof file not found in storage:", data.paymentProofFileName);
+      return new Response(
+        JSON.stringify({
+          error: "Payment proof file could not be verified in storage. Please re-upload and try again.",
+          code: "PROOF_NOT_FOUND",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("Payment proof verified in storage:", data.paymentProofFileName);
 
     // Generate application ID for main registrant using the database function
     const { data: appIdData, error: appIdError } = await supabase.rpc("generate_application_id");
