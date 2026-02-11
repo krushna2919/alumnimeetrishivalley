@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Upload, FileText, X, CheckCircle, ExternalLink } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -50,6 +50,9 @@ const EditRegistrationDialog = ({
 }: EditRegistrationDialogProps) => {
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [uploadedProof, setUploadedProof] = useState<{ name: string; url: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -94,11 +97,56 @@ const EditRegistrationDialog = ({
         postal_code: registration.postal_code || '',
         country: registration.country || 'India',
       });
+      setUploadedProof(null);
     }
   }, [registration]);
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleProofFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !registration) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({ title: 'Invalid file type', description: 'Please upload a JPG, PNG, WebP, or PDF file', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'File size must be less than 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setIsUploadingProof(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${registration.application_id}-${Date.now()}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (error) {
+        console.error('Upload error:', error);
+        toast({ title: 'Upload failed', description: 'Failed to upload payment proof', variant: 'destructive' });
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(data.path);
+
+      setUploadedProof({ name: file.name, url: urlData.publicUrl });
+      toast({ title: 'Payment proof uploaded', description: file.name });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({ title: 'Upload failed', description: 'Failed to upload payment proof', variant: 'destructive' });
+    } finally {
+      setIsUploadingProof(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -128,6 +176,12 @@ const EditRegistrationDialog = ({
         updated_at: new Date().toISOString(),
       };
 
+      // If a new proof was uploaded, link it and set payment status to submitted
+      if (uploadedProof) {
+        updatePayload.payment_proof_url = uploadedProof.url;
+        updatePayload.payment_status = 'submitted';
+      }
+
       // If edit mode is enabled, mark as ready for final approval after admin saves changes
       // Note: accounts_verified should already be true at this point (set by accounts admin)
       if (registration.edit_mode_enabled) {
@@ -141,9 +195,30 @@ const EditRegistrationDialog = ({
 
       if (error) throw error;
 
+      // If this is a group parent and proof was uploaded, also link to child registrations
+      if (uploadedProof && !registration.parent_application_id) {
+        const { data: children } = await supabase
+          .from('registrations')
+          .select('application_id')
+          .eq('parent_application_id', registration.application_id);
+
+        if (children && children.length > 0) {
+          for (const child of children) {
+            await supabase
+              .from('registrations')
+              .update({
+                payment_proof_url: uploadedProof.url,
+                payment_status: 'submitted',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('application_id', child.application_id);
+          }
+        }
+      }
+
       toast({
         title: 'Registration Updated',
-        description: `Successfully updated registration for ${formData.name}.`,
+        description: `Successfully updated registration for ${formData.name}.${uploadedProof ? ' Payment proof linked.' : ''}`,
       });
 
       onSuccess();
@@ -162,6 +237,8 @@ const EditRegistrationDialog = ({
 
   if (!registration) return null;
 
+  const hasExistingProof = !!registration.payment_proof_url;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -173,6 +250,95 @@ const EditRegistrationDialog = ({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+          {/* Payment Proof Section */}
+          <div className="col-span-full border rounded-lg p-4 bg-muted/30">
+            <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+              <FileText className="h-4 w-4" />
+              Payment Proof
+            </h4>
+
+            {hasExistingProof && !uploadedProof && (
+              <div className="flex items-center gap-2 mb-3 text-sm">
+                <CheckCircle className="h-4 w-4 text-secondary-foreground" />
+                <span className="text-muted-foreground">Existing proof on file</span>
+                <a
+                  href={registration.payment_proof_url!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline flex items-center gap-1"
+                >
+                  View <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+
+            {!hasExistingProof && !uploadedProof && (
+              <p className="text-sm text-destructive mb-3">
+                ⚠ No payment proof on file for this registration.
+              </p>
+            )}
+
+            {uploadedProof ? (
+              <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg border border-secondary">
+                <CheckCircle className="h-5 w-5 text-secondary-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{uploadedProof.name}</p>
+                  <a
+                    href={uploadedProof.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View uploaded file
+                  </a>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUploadedProof(null)}
+                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={handleProofFileSelect}
+                  className="hidden"
+                  disabled={isUploadingProof}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingProof}
+                  className="gap-2"
+                >
+                  {isUploadingProof ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      {hasExistingProof ? 'Replace Payment Proof' : 'Upload Payment Proof'}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  JPG, PNG, WebP, or PDF (max 5MB)
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Personal Information */}
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
