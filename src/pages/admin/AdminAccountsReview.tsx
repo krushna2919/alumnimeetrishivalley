@@ -128,51 +128,71 @@ const AdminAccountsReview = () => {
   const resolvePaymentProofUrlFromStorage = (applicationId: string) =>
     resolveLatestPaymentProofUrlFromStorage(applicationId, { bucket: 'payment-proofs' });
 
-  const backfillMissingPaymentProofUrls = async (rows: AccountsRegistration[]) => {
-    const missing = rows.filter((r) => r.payment_status === 'submitted' && !r.payment_proof_url);
-    if (missing.length === 0) return;
+  // Silent sync: find ALL registrations with missing proof URLs across the DB,
+  // inherit from parent or resolve from storage, then update — no UI messages.
+  const silentSyncMissingProofs = async () => {
+    try {
+      const { data: pendingRecords, error: fetchError } = await supabase
+        .from('registrations')
+        .select('id, application_id, payment_status, payment_proof_url, parent_application_id')
+        .is('payment_proof_url', null)
+        .in('payment_status', ['pending', 'submitted']);
 
-    // Build a map of parent_application_id -> payment_proof_url for parents that have proofs
-    const parentProofMap: Record<string, string> = {};
-    rows.forEach((r) => {
-      if (!r.parent_application_id && r.payment_proof_url) {
-        parentProofMap[r.application_id] = r.payment_proof_url;
-      }
-    });
+      if (fetchError || !pendingRecords || pendingRecords.length === 0) return;
 
-    // Keep this light: resolve only a handful per refresh to avoid hammering storage.
-    const toResolve = missing.slice(0, 10);
+      // Build parent proof map for group inheritance
+      const parentIds = [...new Set(pendingRecords
+        .filter(r => r.parent_application_id)
+        .map(r => r.parent_application_id as string))];
 
-    let linkedCount = 0;
-    await Promise.allSettled(
-      toResolve.map(async (r) => {
-        let resolvedUrl: string | null = null;
-
-        // First check if parent has a proof we can inherit
-        if (r.parent_application_id && parentProofMap[r.parent_application_id]) {
-          resolvedUrl = parentProofMap[r.parent_application_id];
-        } else {
-          // Fall back to searching storage
-          resolvedUrl = await resolvePaymentProofUrlFromStorage(r.application_id);
-        }
-
-        if (!resolvedUrl) return;
-
-        const { error } = await supabase
+      let parentProofMap: Record<string, string> = {};
+      if (parentIds.length > 0) {
+        const { data: parentData } = await supabase
           .from('registrations')
-          .update({ payment_proof_url: resolvedUrl, updated_at: new Date().toISOString() })
-          .eq('id', r.id);
+          .select('application_id, payment_proof_url')
+          .in('application_id', parentIds)
+          .not('payment_proof_url', 'is', null);
 
-        if (error) {
-          console.error('Failed to backfill payment_proof_url:', error);
-        } else {
-          linkedCount++;
+        if (parentData) {
+          parentProofMap = parentData.reduce((acc, p) => {
+            if (p.payment_proof_url) acc[p.application_id] = p.payment_proof_url;
+            return acc;
+          }, {} as Record<string, string>);
         }
-      })
-    );
+      }
 
-    if (linkedCount > 0) {
-      console.log(`Auto-linked ${linkedCount} missing payment proofs`);
+      let linkedCount = 0;
+      await Promise.allSettled(
+        pendingRecords.map(async (record) => {
+          let resolvedUrl: string | null = null;
+
+          if (record.parent_application_id && parentProofMap[record.parent_application_id]) {
+            resolvedUrl = parentProofMap[record.parent_application_id];
+          } else {
+            resolvedUrl = await resolvePaymentProofUrlFromStorage(record.application_id);
+          }
+
+          if (!resolvedUrl) return;
+
+          const { error: updateError } = await supabase
+            .from('registrations')
+            .update({
+              payment_proof_url: resolvedUrl,
+              payment_status: 'submitted',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', record.id);
+
+          if (!updateError) linkedCount++;
+          else console.error(`Silent sync failed for ${record.application_id}:`, updateError);
+        })
+      );
+
+      if (linkedCount > 0) {
+        console.log(`Silent sync: linked ${linkedCount} missing payment proof(s)`);
+      }
+    } catch (err) {
+      console.error('Silent sync error:', err);
     }
   };
 
@@ -220,10 +240,8 @@ const AdminAccountsReview = () => {
       const rows = (data || []) as AccountsRegistration[];
       setRegistrations(rows);
 
-      // If some rows show "submitted" but proof URL is missing (upload succeeded but DB link failed),
-      // auto-resolve by looking up the latest matching file in storage and writing it back.
-      // This avoids needing any backend script runs.
-      void backfillMissingPaymentProofUrls(rows);
+      // Silently sync all missing payment proofs (parent inheritance + storage resolution)
+      void silentSyncMissingProofs();
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
