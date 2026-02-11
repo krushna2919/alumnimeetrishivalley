@@ -28,7 +28,7 @@ import {
   MAX_ATTENDEES,
 } from "./registration/types";
 
-type ViewState = "form" | "success" | "payment";
+type ViewState = "form" | "success" | "payment" | "proof-retry";
 
 interface RegistrationResult extends RegistrationData {
   additionalRegistrations?: Array<{
@@ -44,11 +44,13 @@ interface RegistrationResult extends RegistrationData {
 
 const RegistrationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
+  const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
@@ -98,6 +100,164 @@ const RegistrationForm = () => {
 
   // Check if submit is allowed based on registration period
   const canSubmit = isWithinRegistrationPeriod();
+
+
+  const uploadSingleProof = async (applicationId: string, file: File): Promise<boolean> => {
+    toast.info("Uploading payment proof...");
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${applicationId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        return false;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(fileName);
+
+      const updatePayload = {
+        payment_proof_url: publicUrl,
+        payment_status: "submitted" as const,
+        updated_at: new Date().toISOString(),
+      };
+
+      let updateError: unknown = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error } = await supabase
+          .from("registrations")
+          .update(updatePayload)
+          .eq("application_id", applicationId);
+
+        if (!error) { updateError = null; break; }
+        updateError = error;
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+      }
+
+      if (updateError) {
+        console.error("Failed to link payment proof after retries:", updateError);
+        return false;
+      }
+
+      toast.success("Payment proof uploaded successfully!");
+      return true;
+    } catch (err) {
+      console.error("Error uploading proof:", err);
+      return false;
+    }
+  };
+
+  // --- Upload helper: combined proof for multiple applicants ---
+  const uploadCombinedProof = async (
+    result: { applicationId: string; additionalRegistrations?: Array<{ applicationId: string }> },
+    proofs: Map<string, File>
+  ): Promise<boolean> => {
+    toast.info("Uploading payment proofs...");
+
+    if (!proofs.has("combined")) return false;
+
+    const combinedFile = proofs.get("combined")!;
+    const fileExt = combinedFile.name.split('.').pop();
+    const fileName = `combined-${result.applicationId}-${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('payment-proofs')
+      .upload(fileName, combinedFile);
+
+    if (uploadError) {
+      console.error("Combined upload error:", uploadError);
+      return false;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('payment-proofs')
+      .getPublicUrl(fileName);
+
+    const applicationIdMap = new Map<string, string>();
+    applicationIdMap.set("primary", result.applicationId);
+    if (result.additionalRegistrations) {
+      result.additionalRegistrations.forEach((reg, index) => {
+        applicationIdMap.set(`attendee-${index}`, reg.applicationId);
+      });
+    }
+
+    let anyFailed = false;
+    const updatePayload = {
+      payment_proof_url: publicUrl,
+      payment_status: "submitted" as const,
+      updated_at: new Date().toISOString(),
+    };
+
+    for (const [, actualAppId] of applicationIdMap.entries()) {
+      let lastError: unknown = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error } = await supabase
+          .from("registrations")
+          .update(updatePayload)
+          .eq("application_id", actualAppId);
+
+        if (!error) { lastError = null; break; }
+        lastError = error;
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+      }
+      if (lastError) {
+        console.error(`Failed to update registration ${actualAppId} after retries:`, lastError);
+        anyFailed = true;
+      }
+    }
+
+    if (anyFailed) {
+      console.warn("Some registrations could not be linked to the proof");
+      return false;
+    }
+
+    toast.success("Payment proofs uploaded successfully!");
+    return true;
+  };
+
+  // --- Retry proof upload from retry screen ---
+  const handleRetryProofUpload = async () => {
+    if (!registrationResult || !retryProofFile) return;
+    setIsRetryingUpload(true);
+
+    try {
+      const isBulk = (registrationResult.totalRegistrants ?? 1) > 1;
+      let success = false;
+
+      if (isBulk) {
+        const proofs = new Map<string, File>();
+        proofs.set("combined", retryProofFile);
+        success = await uploadCombinedProof(
+          {
+            applicationId: registrationResult.applicationId,
+            additionalRegistrations: registrationResult.additionalRegistrations,
+          },
+          proofs
+        );
+      } else {
+        success = await uploadSingleProof(registrationResult.applicationId, retryProofFile);
+      }
+
+      if (success) {
+        setViewState("success");
+        resetFormLoadTime();
+        toast.success("Payment proof uploaded successfully!");
+      } else {
+        toast.error("Upload failed again. Please try once more.");
+      }
+    } catch (err) {
+      console.error("Retry upload error:", err);
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setIsRetryingUpload(false);
+    }
+  };
+
 
   const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
@@ -177,159 +337,38 @@ const RegistrationForm = () => {
       }
 
       // Payment proof upload is now always required
+      let proofUploadSuccess = false;
+      
       if (hasMultipleApplicants && bulkPaymentProofs.size > 0) {
-        // Bulk upload for multiple applicants
-        toast.info("Uploading payment proofs...");
-        
-        // Build mapping of temp IDs to actual application IDs
-        // Build application ID map
-        const applicationIdMap = new Map<string, string>();
-        applicationIdMap.set("primary", result.applicationId);
-        
-        if (result.additionalRegistrations) {
-          result.additionalRegistrations.forEach((reg: { applicationId: string }, index: number) => {
-            applicationIdMap.set(`attendee-${index}`, reg.applicationId);
-          });
-        }
-
-        // Upload the combined proof and link to all applicants
-        if (bulkPaymentProofs.has("combined")) {
-          const combinedFile = bulkPaymentProofs.get("combined")!;
-          const fileExt = combinedFile.name.split('.').pop();
-          const fileName = `combined-${result.applicationId}-${Date.now()}.${fileExt}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('payment-proofs')
-            .upload(fileName, combinedFile);
-
-          if (uploadError) {
-            console.error("Combined upload error:", uploadError);
-            toast.error("Failed to upload payment proof", {
-              description: "Your registration is saved. Please use 'Already registered?' to upload proof later."
-            });
-          } else {
-            const { data: { publicUrl } } = supabase.storage
-              .from('payment-proofs')
-              .getPublicUrl(fileName);
-
-             // Update all registrations with the same proof (retry each update)
-             let updateFailed = false;
-             const updatePayload = {
-               payment_proof_url: publicUrl,
-               payment_status: "submitted" as const,
-               updated_at: new Date().toISOString(),
-             };
-
-             for (const [, actualAppId] of applicationIdMap.entries()) {
-               let lastError: unknown = null;
-               for (let attempt = 1; attempt <= 3; attempt++) {
-                 // eslint-disable-next-line no-await-in-loop
-                 const { error } = await supabase
-                   .from("registrations")
-                   .update(updatePayload)
-                   .eq("application_id", actualAppId);
-
-                 if (!error) {
-                   lastError = null;
-                   break;
-                 }
-
-                 lastError = error;
-                 // eslint-disable-next-line no-await-in-loop
-                 await new Promise((r) => setTimeout(r, 400 * attempt));
-               }
-
-               if (lastError) {
-                 console.error(`Failed to update registration ${actualAppId} after retries:`, lastError);
-                 updateFailed = true;
-               }
-             }
-            
-            if (updateFailed) {
-              toast.warning("Payment proof uploaded but link may not be saved", {
-                description: "Please use 'Already registered?' to verify or re-upload."
-              });
-            }
-          }
-        }
-
-        toast.success("Payment proofs uploaded successfully!");
+        proofUploadSuccess = await uploadCombinedProof(result, bulkPaymentProofs);
       } else if (paymentProofFile) {
-        // Single applicant upload
-        toast.info("Uploading payment proof...");
-        
-        try {
-          const fileExt = paymentProofFile.name.split('.').pop();
-          const fileName = `${result.applicationId}-${Date.now()}.${fileExt}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('payment-proofs')
-            .upload(fileName, paymentProofFile);
-
-          if (uploadError) {
-            console.error("Upload error:", uploadError);
-            toast.error("Failed to upload payment proof", {
-              description: "Your registration is saved. Please contact support."
-            });
-          } else {
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-              .from('payment-proofs')
-              .getPublicUrl(fileName);
-
-            // Update registration with payment proof (retry to avoid intermittent RLS/network timing issues)
-            const updatePayload = {
-              payment_proof_url: publicUrl,
-              payment_status: "submitted" as const,
-              updated_at: new Date().toISOString(),
-            };
-
-            let updateError: unknown = null;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              // eslint-disable-next-line no-await-in-loop
-              const { error } = await supabase
-                .from("registrations")
-                .update(updatePayload)
-                .eq("application_id", result.applicationId);
-
-              if (!error) {
-                updateError = null;
-                break;
-              }
-
-              updateError = error;
-              // eslint-disable-next-line no-await-in-loop
-              await new Promise((r) => setTimeout(r, 400 * attempt));
-            }
-
-            if (updateError) {
-              console.error("Failed to link payment proof after retries:", updateError);
-              toast.warning("Payment proof uploaded but link may not be saved", {
-                description: "Your proof is uploaded. If it doesn't show up, use 'Already registered?' to re-link it.",
-              });
-            } else {
-              toast.success("Payment proof uploaded successfully!");
-            }
-          }
-        } catch (uploadErr) {
-          console.error("Error uploading proof:", uploadErr);
-        }
+        proofUploadSuccess = await uploadSingleProof(result.applicationId, paymentProofFile);
       }
 
-      setCurrentApplication(result.registration);
-      setRegistrationResult({
+      const regResult: RegistrationResult = {
         ...result.registration,
         additionalRegistrations: result.additionalRegistrations,
         totalFee: result.totalFee,
         totalRegistrants: result.totalRegistrants,
-      });
-      setViewState("success");
-      resetFormLoadTime();
+      };
 
-      const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
-      toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
-        description: `Primary Application ID: ${result.applicationId}`,
-      });
+      setCurrentApplication(result.registration);
+      setRegistrationResult(regResult);
+
+      if (proofUploadSuccess) {
+        setViewState("success");
+        resetFormLoadTime();
+        const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
+        toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
+          description: `Primary Application ID: ${result.applicationId}`,
+        });
+      } else {
+        // Show retry UI — registration is saved but proof upload failed
+        setViewState("proof-retry");
+        toast.error("Payment proof upload failed", {
+          description: "Your registration is saved. Please re-upload the proof below.",
+        });
+      }
     } catch (error: unknown) {
       console.error("Registration failed");
       toast.error("Registration failed", {
@@ -355,6 +394,8 @@ const RegistrationForm = () => {
     setRegistrationResult(null);
     setPaymentProofFile(null);
     setBulkPaymentProofs(new Map());
+    setRetryProofFile(null);
+    setIsRetryingUpload(false);
     setViewState("form");
   };
 
@@ -1032,6 +1073,89 @@ const RegistrationForm = () => {
                 </form>
               </Form>
             </>
+          )}
+
+          {viewState === "proof-retry" && registrationResult && (
+            <div className="space-y-6 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <AlertCircle className="w-12 h-12 text-amber-500" />
+                <h3 className="text-xl font-semibold text-foreground">Payment Proof Upload Failed</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Your registration has been saved (Application ID: <strong className="font-mono text-foreground">{registrationResult.applicationId}</strong>), but the payment proof could not be uploaded. Please re-upload it below.
+                </p>
+              </div>
+
+              <div className="bg-accent/10 rounded-lg p-6 border border-accent/20 space-y-4 text-left">
+                <div className="flex items-center gap-2 text-foreground font-medium">
+                  <Upload className="w-4 h-4 text-primary" />
+                  Re-upload Payment Proof
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload a screenshot or PDF of your payment confirmation with the <span className="text-destructive font-bold">transaction reference number</span> (Max 5MB).
+                </p>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="file"
+                    id="retry-payment-proof"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("File too large", { description: "Max 5MB" });
+                        return;
+                      }
+                      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+                      if (!allowedTypes.includes(file.type)) {
+                        toast.error("Invalid file type", { description: "JPG, PNG, WebP or PDF only" });
+                        return;
+                      }
+                      setRetryProofFile(file);
+                      toast.success("File selected", { description: file.name });
+                    }}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="retry-payment-proof"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-background border border-border rounded-lg cursor-pointer hover:bg-accent/10 transition-colors"
+                  >
+                    <Upload className="w-4 h-4 text-primary" />
+                    <span className="text-foreground">
+                      {retryProofFile ? retryProofFile.name : "Choose file..."}
+                    </span>
+                  </label>
+                  {retryProofFile && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileText className="w-4 h-4" />
+                      <span>{(retryProofFile.size / 1024).toFixed(1)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setRetryProofFile(null)}
+                        className="ml-2 text-destructive hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                onClick={handleRetryProofUpload}
+                disabled={!retryProofFile || isRetryingUpload}
+                size="lg"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-12 py-6 text-lg rounded-full shadow-card"
+              >
+                {isRetryingUpload ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload & Complete Registration"
+                )}
+              </Button>
+            </div>
           )}
 
           {viewState === "success" && currentApplication && (
