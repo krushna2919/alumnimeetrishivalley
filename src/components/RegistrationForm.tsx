@@ -102,153 +102,95 @@ const RegistrationForm = () => {
   const canSubmit = isWithinRegistrationPeriod();
 
 
-  const uploadSingleProof = async (applicationId: string, file: File): Promise<boolean> => {
-    toast.info("Uploading payment proof...");
+  // --- Upload proof to storage only (returns fileName or null) ---
+  const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${applicationId}-${Date.now()}.${fileExt}`;
+      const fileName = `${prefix}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('payment-proofs')
         .upload(fileName, file);
 
       if (uploadError) {
-        console.error("Upload error:", uploadError);
-        return false;
+        console.error("Storage upload error:", uploadError);
+        return null;
       }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(fileName);
-
-      const updatePayload = {
-        payment_proof_url: publicUrl,
-        payment_status: "submitted" as const,
-        updated_at: new Date().toISOString(),
-      };
-
-      let updateError: unknown = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const { error } = await supabase
-          .from("registrations")
-          .update(updatePayload)
-          .eq("application_id", applicationId);
-
-        if (!error) { updateError = null; break; }
-        updateError = error;
-        await new Promise((r) => setTimeout(r, 400 * attempt));
-      }
-
-      if (updateError) {
-        console.error("Failed to link payment proof after retries:", updateError);
-        return false;
-      }
-
-      toast.success("Payment proof uploaded successfully!");
-      return true;
+      return fileName;
     } catch (err) {
-      console.error("Error uploading proof:", err);
-      return false;
+      console.error("Error uploading to storage:", err);
+      return null;
     }
   };
 
-  // --- Upload helper: combined proof for multiple applicants ---
-  const uploadCombinedProof = async (
-    result: { applicationId: string; additionalRegistrations?: Array<{ applicationId: string }> },
-    proofs: Map<string, File>
+  // --- Link uploaded proof to registration(s) in DB ---
+  const linkProofToRegistrations = async (
+    fileName: string,
+    applicationIds: string[]
   ): Promise<boolean> => {
-    toast.info("Uploading payment proofs...");
-
-    if (!proofs.has("combined")) return false;
-
-    const combinedFile = proofs.get("combined")!;
-    const fileExt = combinedFile.name.split('.').pop();
-    const fileName = `combined-${result.applicationId}-${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('payment-proofs')
-      .upload(fileName, combinedFile);
-
-    if (uploadError) {
-      console.error("Combined upload error:", uploadError);
-      return false;
-    }
-
     const { data: { publicUrl } } = supabase.storage
       .from('payment-proofs')
       .getPublicUrl(fileName);
 
-    const applicationIdMap = new Map<string, string>();
-    applicationIdMap.set("primary", result.applicationId);
-    if (result.additionalRegistrations) {
-      result.additionalRegistrations.forEach((reg, index) => {
-        applicationIdMap.set(`attendee-${index}`, reg.applicationId);
-      });
-    }
-
-    let anyFailed = false;
     const updatePayload = {
       payment_proof_url: publicUrl,
       payment_status: "submitted" as const,
       updated_at: new Date().toISOString(),
     };
 
-    for (const [, actualAppId] of applicationIdMap.entries()) {
+    let anyFailed = false;
+    for (const appId of applicationIds) {
       let lastError: unknown = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         const { error } = await supabase
           .from("registrations")
           .update(updatePayload)
-          .eq("application_id", actualAppId);
+          .eq("application_id", appId);
 
         if (!error) { lastError = null; break; }
         lastError = error;
         await new Promise((r) => setTimeout(r, 400 * attempt));
       }
       if (lastError) {
-        console.error(`Failed to update registration ${actualAppId} after retries:`, lastError);
+        console.error(`Failed to link proof to ${appId} after retries:`, lastError);
         anyFailed = true;
       }
     }
-
-    if (anyFailed) {
-      console.warn("Some registrations could not be linked to the proof");
-      return false;
-    }
-
-    toast.success("Payment proofs uploaded successfully!");
-    return true;
+    return !anyFailed;
   };
 
-  // --- Retry proof upload from retry screen ---
+  // --- Retry proof upload from retry screen (registration already exists) ---
   const handleRetryProofUpload = async () => {
     if (!registrationResult || !retryProofFile) return;
     setIsRetryingUpload(true);
 
     try {
       const isBulk = (registrationResult.totalRegistrants ?? 1) > 1;
-      let success = false;
+      const prefix = isBulk
+        ? `combined-${registrationResult.applicationId}`
+        : registrationResult.applicationId;
 
-      if (isBulk) {
-        const proofs = new Map<string, File>();
-        proofs.set("combined", retryProofFile);
-        success = await uploadCombinedProof(
-          {
-            applicationId: registrationResult.applicationId,
-            additionalRegistrations: registrationResult.additionalRegistrations,
-          },
-          proofs
-        );
-      } else {
-        success = await uploadSingleProof(registrationResult.applicationId, retryProofFile);
+      toast.info("Uploading payment proof...");
+      const fileName = await uploadProofToStorage(retryProofFile, prefix);
+      if (!fileName) {
+        toast.error("Upload to storage failed. Please try again.");
+        return;
       }
 
-      if (success) {
+      const appIds = [registrationResult.applicationId];
+      if (registrationResult.additionalRegistrations) {
+        for (const reg of registrationResult.additionalRegistrations) {
+          appIds.push(reg.applicationId);
+        }
+      }
+
+      const linked = await linkProofToRegistrations(fileName, appIds);
+      if (linked) {
         setViewState("success");
         resetFormLoadTime();
         toast.success("Payment proof uploaded successfully!");
       } else {
-        toast.error("Upload failed again. Please try once more.");
+        toast.warning("Proof uploaded to storage but DB link failed. Please try again.");
       }
     } catch (err) {
       console.error("Retry upload error:", err);
@@ -258,15 +200,12 @@ const RegistrationForm = () => {
     }
   };
 
-
   const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
 
     try {
-      // Get bot validation data
       const botValidation = getValidationData();
 
-      // Quick client-side check (server does real validation)
       if (isLikelyBot()) {
         toast.error("Verification failed", {
           description: "Please wait a moment and try again.",
@@ -275,17 +214,40 @@ const RegistrationForm = () => {
         return;
       }
 
+      // --- STEP 1: Upload proof to storage FIRST ---
+      const proofFile = hasMultipleApplicants
+        ? bulkPaymentProofs.get("combined")
+        : paymentProofFile;
+
+      if (!proofFile) {
+        toast.error("Payment proof is required");
+        setIsSubmitting(false);
+        return;
+      }
+
+      toast.info("Uploading payment proof...");
+      const tempPrefix = `pending-${Date.now()}`;
+      const uploadedFileName = await uploadProofToStorage(proofFile, tempPrefix);
+
+      if (!uploadedFileName) {
+        toast.error("Failed to upload payment proof", {
+          description: "Please check your file and internet connection, then try again.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      toast.success("Payment proof verified in storage. Submitting registration...");
+
+      // --- STEP 2: Call edge function to create registration ---
       const registrationFee = calculateFee(data.stayType);
-      
-      // Determine the final board type value
       const finalBoardType = data.boardType === "Other" ? data.customBoardType : data.boardType;
 
-      // Prepare additional attendees data - use primary email, include secondary email if provided
       const attendeesToSubmit = data.attendees || [];
       const additionalAttendeesData = attendeesToSubmit.map((attendee) => ({
         name: attendee.name,
-        email: data.email, // Always use primary registrant's email
-        secondaryEmail: attendee.secondaryEmail || undefined, // Optional secondary email
+        email: data.email,
+        secondaryEmail: attendee.secondaryEmail || undefined,
         phone: attendee.phone,
         occupation: attendee.occupation,
         boardType: attendee.boardType === "Other" ? attendee.customBoardType : attendee.boardType,
@@ -296,29 +258,28 @@ const RegistrationForm = () => {
         registrationFee: calculateFee(attendee.stayType),
       }));
 
-      // Call edge function with bot validation data
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
-          body: {
-            botValidation,
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            occupation: data.occupation,
-            boardType: finalBoardType,
-            yearOfPassing: parseInt(data.yearOfPassing),
-            addressLine1: data.addressLine1,
-            addressLine2: data.addressLine2 || undefined,
-            city: data.city,
-            district: data.district,
-            state: data.state,
-            postalCode: data.postalCode,
-            country: data.country,
-            stayType: data.stayType,
-            tshirtSize: data.tshirtSize,
-            gender: data.gender,
-            registrationFee,
-            additionalAttendees: additionalAttendeesData.length > 0 ? additionalAttendeesData : undefined,
-          },
+        body: {
+          botValidation,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          occupation: data.occupation,
+          boardType: finalBoardType,
+          yearOfPassing: parseInt(data.yearOfPassing),
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2 || undefined,
+          city: data.city,
+          district: data.district,
+          state: data.state,
+          postalCode: data.postalCode,
+          country: data.country,
+          stayType: data.stayType,
+          tshirtSize: data.tshirtSize,
+          gender: data.gender,
+          registrationFee,
+          additionalAttendees: additionalAttendeesData.length > 0 ? additionalAttendeesData : undefined,
+        },
       });
 
       if (error) {
@@ -330,20 +291,38 @@ const RegistrationForm = () => {
       }
 
       if (result.error) {
-        toast.error("Registration failed", {
-          description: result.error,
-        });
+        toast.error("Registration failed", { description: result.error });
         return;
       }
 
-      // Payment proof upload is now always required
-      let proofUploadSuccess = false;
-      
-      if (hasMultipleApplicants && bulkPaymentProofs.size > 0) {
-        proofUploadSuccess = await uploadCombinedProof(result, bulkPaymentProofs);
-      } else if (paymentProofFile) {
-        proofUploadSuccess = await uploadSingleProof(result.applicationId, paymentProofFile);
+      // --- STEP 3: Rename proof file to use actual application ID ---
+      const isBulk = hasMultipleApplicants;
+      const finalPrefix = isBulk
+        ? `combined-${result.applicationId}`
+        : result.applicationId;
+      const fileExt = proofFile.name.split('.').pop();
+      const finalFileName = `${finalPrefix}-${Date.now()}.${fileExt}`;
+
+      const { error: copyError } = await supabase.storage
+        .from('payment-proofs')
+        .copy(uploadedFileName, finalFileName);
+
+      const fileToLink = copyError ? uploadedFileName : finalFileName;
+
+      // Clean up temp file if copy succeeded
+      if (!copyError) {
+        await supabase.storage.from('payment-proofs').remove([uploadedFileName]);
       }
+
+      // --- STEP 4: Link proof to all registrations ---
+      const allAppIds = [result.applicationId];
+      if (result.additionalRegistrations) {
+        for (const reg of result.additionalRegistrations) {
+          allAppIds.push(reg.applicationId);
+        }
+      }
+
+      const linkSuccess = await linkProofToRegistrations(fileToLink, allAppIds);
 
       const regResult: RegistrationResult = {
         ...result.registration,
@@ -355,7 +334,7 @@ const RegistrationForm = () => {
       setCurrentApplication(result.registration);
       setRegistrationResult(regResult);
 
-      if (proofUploadSuccess) {
+      if (linkSuccess) {
         setViewState("success");
         resetFormLoadTime();
         const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
@@ -363,10 +342,10 @@ const RegistrationForm = () => {
           description: `Primary Application ID: ${result.applicationId}`,
         });
       } else {
-        // Show retry UI — registration is saved but proof upload failed
+        // Proof is in storage but DB link failed — show retry
         setViewState("proof-retry");
-        toast.error("Payment proof upload failed", {
-          description: "Your registration is saved. Please re-upload the proof below.",
+        toast.warning("Registration saved but proof linking failed", {
+          description: "Your proof is safely uploaded. Please retry linking below.",
         });
       }
     } catch (error: unknown) {
