@@ -130,7 +130,7 @@ const AdminAccountsReview = () => {
 
   // Silent sync: find ALL registrations with missing proof URLs across the DB,
   // inherit from parent or resolve from storage, then update — no UI messages.
-  const silentSyncMissingProofs = async () => {
+  const silentSyncMissingProofs = async (): Promise<number> => {
     try {
       const { data: pendingRecords, error: fetchError } = await supabase
         .from('registrations')
@@ -138,7 +138,7 @@ const AdminAccountsReview = () => {
         .is('payment_proof_url', null)
         .in('payment_status', ['pending', 'submitted']);
 
-      if (fetchError || !pendingRecords || pendingRecords.length === 0) return;
+      if (fetchError || !pendingRecords || pendingRecords.length === 0) return 0;
 
       // Build parent proof map for group inheritance
       const parentIds = [...new Set(pendingRecords
@@ -191,8 +191,10 @@ const AdminAccountsReview = () => {
       if (linkedCount > 0) {
         console.log(`Silent sync: linked ${linkedCount} missing payment proof(s)`);
       }
+      return linkedCount;
     } catch (err) {
       console.error('Silent sync error:', err);
+      return 0;
     }
   };
 
@@ -240,8 +242,19 @@ const AdminAccountsReview = () => {
       const rows = (data || []) as AccountsRegistration[];
       setRegistrations(rows);
 
-      // Silently sync all missing payment proofs (parent inheritance + storage resolution)
-      void silentSyncMissingProofs();
+      // Silently sync all missing payment proofs, then re-fetch to reflect changes
+      const linked = await silentSyncMissingProofs();
+      if (linked && linked > 0) {
+        // Re-fetch to pick up the newly linked proofs
+        const { data: refreshedData } = await supabase
+          .from('registrations')
+          .select('id, application_id, name, registration_fee, payment_status, payment_proof_url, payment_receipt_url, payment_reference, payment_date, accounts_verified, accounts_verified_at, created_at, parent_application_id, edit_mode_enabled, edit_mode_enabled_at, edit_mode_reason, stay_type')
+          .or('payment_status.eq.submitted,edit_mode_enabled.eq.true')
+          .order('created_at', { ascending: false });
+        if (refreshedData) {
+          setRegistrations(refreshedData as AccountsRegistration[]);
+        }
+      }
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
