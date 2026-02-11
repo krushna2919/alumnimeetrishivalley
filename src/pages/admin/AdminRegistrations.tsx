@@ -1363,10 +1363,12 @@ const AdminRegistrations = () => {
               <Users className="h-4 w-4 mr-2" />
               {showGrouped ? 'Grouped' : 'Flat'}
             </Button>
-            <Button onClick={() => setIsExportDialogOpen(true)} variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
+            {userRole === 'superadmin' && (
+              <Button onClick={() => setIsExportDialogOpen(true)} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            )}
             <Button onClick={fetchRegistrations} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
