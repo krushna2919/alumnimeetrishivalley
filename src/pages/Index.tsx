@@ -33,10 +33,15 @@ import Footer from "@/components/Footer";
  * 
  * @returns The complete landing page layout
  */
-const Index = () => {
-  const [showLegacyForm, setShowLegacyForm] = useState(false);
+const Index = ({ forceLegacy = false }: { forceLegacy?: boolean }) => {
+  const [showLegacyForm, setShowLegacyForm] = useState(forceLegacy);
 
   useEffect(() => {
+    if (forceLegacy) {
+      setShowLegacyForm(true);
+      return;
+    }
+
     // Check initial hash
     const checkHash = () => {
       const hash = window.location.hash;
@@ -49,7 +54,7 @@ const Index = () => {
     // Listen for hash changes
     window.addEventListener("hashchange", checkHash);
     return () => window.removeEventListener("hashchange", checkHash);
-  }, []);
+  }, [forceLegacy]);
 
   return (
     <main className="min-h-screen">
