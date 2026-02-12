@@ -59,7 +59,7 @@ const Index = ({ forceLegacy = false }: { forceLegacy?: boolean }) => {
   return (
     <main className="min-h-screen">
       {/* Hero banner with event branding and call-to-action */}
-      <HeroSection />
+      <HeroSection registerHref={showLegacyForm ? "#register1930-1980" : "#register"} />
       
       {/* Important information about eligibility, deadlines, etc. */}
       <ImportantNotes />
