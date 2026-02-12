@@ -30,7 +30,7 @@ import { motion } from "framer-motion";
  * 
  * @returns Hero section JSX with animations
  */
-const HeroSection = () => {
+const HeroSection = ({ registerHref = "#register" }: { registerHref?: string }) => {
   return (
     <section className="relative min-h-[70vh] flex items-center justify-center gradient-hero overflow-hidden">
       {/* Decorative background elements - creates visual depth */}
@@ -83,7 +83,7 @@ const HeroSection = () => {
 
           {/* Call-to-action button with staggered animation */}
           <motion.a
-            href="#register"
+            href={registerHref}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.6 }}
