@@ -77,6 +77,7 @@ const App = () => (
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
+            <Route path="/register1930-1980" element={<Index forceLegacy />} />
             <Route path="/install" element={<InstallApp />} />
             
             {/* Admin Authentication */}
