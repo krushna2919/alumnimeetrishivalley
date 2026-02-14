@@ -292,7 +292,14 @@ const RegistrationForm = () => {
       }
 
       if (result.error) {
-        toast.error("Registration failed", { description: result.error });
+        if (result.code === "DUPLICATE_REGISTRATION") {
+          toast.error("Duplicate Registration Detected", { 
+            description: result.error,
+            duration: 10000,
+          });
+        } else {
+          toast.error("Registration failed", { description: result.error });
+        }
         return;
       }
 
