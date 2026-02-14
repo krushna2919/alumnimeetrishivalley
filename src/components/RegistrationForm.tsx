@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, Upload, FileText, AlertCircle } from "lucide-react";
+import { EmailOtpVerification } from "./registration/EmailOtpVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
@@ -51,6 +52,7 @@ const RegistrationForm = () => {
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
@@ -502,14 +504,35 @@ const RegistrationForm = () => {
                               <Mail className="w-4 h-4 text-primary" />
                               Email Address
                             </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="email"
-                                placeholder="your.email@example.com"
-                                {...field}
-                                className="bg-background"
+                            <div className="flex gap-2 items-start">
+                              <FormControl>
+                                <Input
+                                  type="email"
+                                  placeholder="your.email@example.com"
+                                  {...field}
+                                  className="bg-background"
+                                  disabled={emailVerified}
+                                  onChange={(e) => {
+                                    field.onChange(e);
+                                    if (emailVerified) setEmailVerified(false);
+                                  }}
+                                />
+                              </FormControl>
+                              {!emailVerified && (
+                                <EmailOtpVerification
+                                  email={field.value}
+                                  isVerified={emailVerified}
+                                  onVerified={() => setEmailVerified(true)}
+                                />
+                              )}
+                            </div>
+                            {emailVerified && (
+                              <EmailOtpVerification
+                                email={field.value}
+                                isVerified={emailVerified}
+                                onVerified={() => setEmailVerified(true)}
                               />
-                            </FormControl>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1033,6 +1056,7 @@ const RegistrationForm = () => {
                         disabled={
                           isSubmitting || 
                           !canSubmit || 
+                          !emailVerified ||
                           (hasMultipleApplicants && !allBulkProofsUploaded) ||
                           (!hasMultipleApplicants && !paymentProofFile)
                         }
