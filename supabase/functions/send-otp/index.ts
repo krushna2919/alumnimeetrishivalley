@@ -36,16 +36,16 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Rate limit: max 3 OTPs per email in last 10 minutes
+    // Rate limit: max 1 OTP per email per day (24 hours)
     const { data: recentOtps } = await supabase
       .from("email_otps")
       .select("id")
       .eq("email", email.toLowerCase().trim())
-      .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    if (recentOtps && recentOtps.length >= 3) {
+    if (recentOtps && recentOtps.length >= 1) {
       return new Response(
-        JSON.stringify({ error: "Too many OTP requests. Please wait a few minutes and try again." }),
+        JSON.stringify({ error: "A verification code has already been sent to this email today. Please check your inbox (and spam folder) or try again tomorrow." }),
         { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
