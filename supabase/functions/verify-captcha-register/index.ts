@@ -345,45 +345,6 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("Payment proof verified in storage:", data.paymentProofFileName);
 
-    // --- SERVER-SIDE: Check for duplicate registration ---
-    const { data: existingRegs, error: dupCheckError } = await supabase
-      .from("registrations")
-      .select("application_id, name, email, phone, created_at")
-      .or(`email.eq.${data.email},phone.eq.${data.phone}`)
-      .limit(5);
-
-    if (!dupCheckError && existingRegs && existingRegs.length > 0) {
-      // Check for exact match on email
-      const emailMatch = existingRegs.find(
-        (r: { email: string }) => r.email.toLowerCase() === data.email.toLowerCase()
-      );
-      if (emailMatch) {
-        console.warn("Duplicate registration detected for email:", data.email, "existing:", emailMatch.application_id);
-        return new Response(
-          JSON.stringify({
-            error: `A registration with email "${data.email}" already exists (Application ID: ${emailMatch.application_id}). Please use the Application Lookup section to check your registration status.`,
-            code: "DUPLICATE_REGISTRATION",
-          }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-
-      // Check for exact match on phone
-      const phoneMatch = existingRegs.find(
-        (r: { phone: string }) => r.phone === data.phone
-      );
-      if (phoneMatch) {
-        console.warn("Duplicate registration detected for phone:", data.phone, "existing:", phoneMatch.application_id);
-        return new Response(
-          JSON.stringify({
-            error: `A registration with phone number "${data.phone}" already exists (Application ID: ${phoneMatch.application_id}). If this is a different person, please use a different phone number.`,
-            code: "DUPLICATE_REGISTRATION",
-          }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
-      }
-    }
-
     // Generate application ID for main registrant using the database function
     const { data: appIdData, error: appIdError } = await supabase.rpc("generate_application_id");
     
