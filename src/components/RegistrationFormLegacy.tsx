@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, FileText } from "lucide-react";
+import { EmailOtpVerification } from "./registration/EmailOtpVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
 
@@ -68,6 +69,7 @@ const RegistrationFormLegacy = () => {
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
 
@@ -432,11 +434,36 @@ const RegistrationFormLegacy = () => {
                           <FormItem>
                             <FormLabel>Email Address *</FormLabel>
                             <FormControl>
-                              <div className="relative">
-                                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input placeholder="your@email.com" className="pl-10" {...field} />
+                              <div className="relative flex gap-2 items-start">
+                                <div className="relative flex-1">
+                                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                  <Input
+                                    placeholder="your@email.com"
+                                    className="pl-10"
+                                    {...field}
+                                    disabled={emailVerified}
+                                    onChange={(e) => {
+                                      field.onChange(e);
+                                      if (emailVerified) setEmailVerified(false);
+                                    }}
+                                  />
+                                </div>
+                                {!emailVerified && (
+                                  <EmailOtpVerification
+                                    email={field.value}
+                                    isVerified={emailVerified}
+                                    onVerified={() => setEmailVerified(true)}
+                                  />
+                                )}
                               </div>
                             </FormControl>
+                            {emailVerified && (
+                              <EmailOtpVerification
+                                email={field.value}
+                                isVerified={emailVerified}
+                                onVerified={() => setEmailVerified(true)}
+                              />
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -870,6 +897,7 @@ const RegistrationFormLegacy = () => {
                     disabled={
                       isSubmitting ||
                       !stayType ||
+                      !emailVerified ||
                       (hasMultipleApplicants ? !allBulkProofsUploaded : !paymentProofFile)
                     }
                   >
