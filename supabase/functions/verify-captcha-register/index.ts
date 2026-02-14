@@ -307,6 +307,43 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("Bot protection verified successfully");
 
+    // --- SERVER-SIDE: Validate email and phone formats ---
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[0-9]{10,15}$/;
+
+    if (!data.email || !emailRegex.test(data.email)) {
+      return new Response(
+        JSON.stringify({ error: "Please enter a valid email address.", code: "INVALID_EMAIL" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!data.phone || !phoneRegex.test(data.phone)) {
+      return new Response(
+        JSON.stringify({ error: "Please enter a valid phone number (10-15 digits, optional + prefix).", code: "INVALID_PHONE" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate attendee emails and phones
+    if (data.additionalAttendees && data.additionalAttendees.length > 0) {
+      for (let i = 0; i < data.additionalAttendees.length; i++) {
+        const att = data.additionalAttendees[i];
+        if (!att.phone || !phoneRegex.test(att.phone)) {
+          return new Response(
+            JSON.stringify({ error: `Attendee ${i + 1} (${att.name}): Invalid phone number.`, code: "INVALID_PHONE" }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+        if (att.secondaryEmail && att.secondaryEmail.trim() !== "" && !emailRegex.test(att.secondaryEmail)) {
+          return new Response(
+            JSON.stringify({ error: `Attendee ${i + 1} (${att.name}): Invalid secondary email.`, code: "INVALID_EMAIL" }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+      }
+    }
+
     // Create Supabase client with service role for inserting
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
