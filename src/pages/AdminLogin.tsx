@@ -241,8 +241,8 @@ const AdminLogin = () => {
       // Step 1: Authenticate user FIRST
       const { error } = await withTimeout(
         signIn(email, password),
-        12000,
-        'Sign in timed out. Please check your connection and try again.'
+        30000,
+        'Sign in is taking too long. Please check your connection and try again.'
       );
       
       if (error) {
@@ -258,8 +258,8 @@ const AdminLogin = () => {
       // Step 2: Get the current session to check user ID
       const { data: sessionData } = await withTimeout(
         supabase.auth.getSession(),
-        10000,
-        'Session validation timed out. Please try again.'
+        20000,
+        'Session validation is taking too long. Please try again.'
       );
       const userId = sessionData?.session?.user?.id;
 
@@ -276,16 +276,16 @@ const AdminLogin = () => {
       // Step 3: Check if user is superadmin BEFORE geofencing
       const isSuperadmin = await withTimeout(
         checkUserIsSuperadmin(userId),
-        10000,
-        'Permission check timed out. Please try again.'
+        15000,
+        'Permission check is taking too long. Please try again.'
       );
 
       // Step 4: Only apply geofencing if NOT a superadmin
       if (!isSuperadmin) {
         const geofenceEnabled = await withTimeout(
           isGeofencingEnabled(),
-          10000,
-          'Security checks timed out. Please try again.'
+          15000,
+          'Security checks are taking too long. Please try again.'
         );
 
         if (geofenceEnabled) {
@@ -293,7 +293,7 @@ const AdminLogin = () => {
 
           const userLocation = await withTimeout(
             getLocation(),
-            15000,
+            35000,
             'Location check timed out. Please enable location and try again.'
           );
 
@@ -314,8 +314,8 @@ const AdminLogin = () => {
           // Verify geofence
           const geofenceResult = await withTimeout(
             checkGeofence(userLocation.latitude, userLocation.longitude),
-            10000,
-            'Location verification timed out. Please try again.'
+            15000,
+            'Location verification is taking too long. Please try again.'
           );
 
           if (!geofenceResult.allowed) {
