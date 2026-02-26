@@ -48,6 +48,16 @@ const AdminLogin = () => {
   const location = useLocation();
   const { toast } = useToast();
   const { getLocation, checkGeofence, checkUserIsSuperadmin, isGeofencingEnabled } = useGeolocation();
+
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error(timeoutMessage)), ms);
+      }),
+    ]);
+  };
+
   // Check for recovery/invite token in URL hash (Supabase redirects with token in hash)
   useEffect(() => {
     const handleRecoveryToken = async () => {
@@ -242,7 +252,11 @@ const AdminLogin = () => {
       }
 
       // Step 2: Get the current session to check user ID
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await withTimeout(
+        supabase.auth.getSession(),
+        10000,
+        'Session validation timed out. Please try again.'
+      );
       const userId = sessionData?.session?.user?.id;
 
       if (!userId) {
@@ -256,17 +270,29 @@ const AdminLogin = () => {
       }
 
       // Step 3: Check if user is superadmin BEFORE geofencing
-      const isSuperadmin = await checkUserIsSuperadmin(userId);
+      const isSuperadmin = await withTimeout(
+        checkUserIsSuperadmin(userId),
+        10000,
+        'Permission check timed out. Please try again.'
+      );
 
       // Step 4: Only apply geofencing if NOT a superadmin
       if (!isSuperadmin) {
-        const geofenceEnabled = await isGeofencingEnabled();
+        const geofenceEnabled = await withTimeout(
+          isGeofencingEnabled(),
+          10000,
+          'Security checks timed out. Please try again.'
+        );
 
         if (geofenceEnabled) {
           setIsCheckingLocation(true);
-          
-          const userLocation = await getLocation();
-          
+
+          const userLocation = await withTimeout(
+            getLocation(),
+            15000,
+            'Location check timed out. Please enable location and try again.'
+          );
+
           if (!userLocation) {
             // Sign out and block access
             await supabase.auth.signOut();
@@ -282,7 +308,11 @@ const AdminLogin = () => {
           }
 
           // Verify geofence
-          const geofenceResult = await checkGeofence(userLocation.latitude, userLocation.longitude);
+          const geofenceResult = await withTimeout(
+            checkGeofence(userLocation.latitude, userLocation.longitude),
+            10000,
+            'Location verification timed out. Please try again.'
+          );
 
           if (!geofenceResult.allowed) {
             // Sign out the user immediately
@@ -301,25 +331,25 @@ const AdminLogin = () => {
             return;
           }
 
-          // Track device session with location for non-superadmins
-          await trackDeviceSession(
+          // Track device session with location for non-superadmins (non-blocking)
+          void trackDeviceSession(
             userId,
             sessionData?.session?.user?.email || email,
             userLocation.latitude,
             userLocation.longitude
           );
-          
+
           setIsCheckingLocation(false);
         } else {
-          // Geofencing disabled, track without location
-          await trackDeviceSession(
+          // Geofencing disabled, track without location (non-blocking)
+          void trackDeviceSession(
             userId,
             sessionData?.session?.user?.email || email
           );
         }
       } else {
-        // Superadmin - no geofencing, track session without location
-        await trackDeviceSession(
+        // Superadmin - no geofencing, track session without location (non-blocking)
+        void trackDeviceSession(
           userId,
           sessionData?.session?.user?.email || email
         );
@@ -334,9 +364,10 @@ const AdminLogin = () => {
         navigate('/admin');
       }, 500);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.';
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred. Please try again.',
+        title: 'Login Error',
+        description: message,
         variant: 'destructive',
       });
     } finally {
