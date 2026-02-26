@@ -203,10 +203,19 @@ const AdminLogin = () => {
       );
       
       if (error) {
-        console.error('Admin login failed:', { email: normalizedEmail, message: error.message });
+        const rawMessage = error.message || 'Login failed';
+        const isInvalidCredentials = /invalid login credentials/i.test(rawMessage);
+        const isNetworkIssue = /failed to fetch|network|fetch/i.test(rawMessage);
+
+        console.error('Admin login failed:', { email: normalizedEmail, message: rawMessage });
+
         toast({
           title: 'Login Failed',
-          description: 'Invalid email or password. Please try again.',
+          description: isInvalidCredentials
+            ? 'Invalid email or password. Please try again.'
+            : isNetworkIssue
+              ? 'Cannot reach backend right now. Please check your network/VPN/firewall and try again.'
+              : rawMessage,
           variant: 'destructive',
         });
         setIsSubmitting(false);
