@@ -179,8 +179,9 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    
-    const result = loginSchema.safeParse({ email, password });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const result = loginSchema.safeParse({ email: normalizedEmail, password });
     if (!result.success) {
       const fieldErrors: { email?: string; password?: string } = {};
       result.error.errors.forEach((err) => {
@@ -196,12 +197,13 @@ const AdminLogin = () => {
     try {
       // Step 1: Authenticate user
       const { error } = await withTimeout(
-        signIn(email, password),
+        signIn(normalizedEmail, password),
         30000,
         'Sign in is taking too long. Please check your connection and try again.'
       );
       
       if (error) {
+        console.error('Admin login failed:', { email: normalizedEmail, message: error.message });
         toast({
           title: 'Login Failed',
           description: 'Invalid email or password. Please try again.',
@@ -230,7 +232,7 @@ const AdminLogin = () => {
       }
 
       // Track device session (non-blocking)
-      void trackDeviceSession(userId, sessionData?.session?.user?.email || email);
+      void trackDeviceSession(userId, sessionData?.session?.user?.email || normalizedEmail);
 
       toast({
         title: 'Login Successful',
