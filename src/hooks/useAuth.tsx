@@ -91,13 +91,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * This runs once on mount
    */
   useEffect(() => {
+    let isMounted = true;
+
+    // Safety timeout so login screen never hangs indefinitely
+    const bootTimeout = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 12000);
+
     // Set up auth state change listener FIRST
     // This ensures we catch all auth events (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         // Defer role check with setTimeout to avoid potential deadlocks
         // with Supabase client during auth state changes
         if (session?.user) {
@@ -116,17 +125,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     // THEN check for existing session (on page load/refresh)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkAdminRole(session.user.id);
-      }
-      setIsLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          checkAdminRole(session.user.id);
+        }
+      })
+      .catch((error) => {
+        console.error('Error loading auth session:', error);
+        setSession(null);
+        setUser(null);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+          clearTimeout(bootTimeout);
+        }
+      });
 
     // Cleanup subscription on unmount
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(bootTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   /**
