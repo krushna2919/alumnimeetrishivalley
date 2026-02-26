@@ -30,6 +30,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const BATCH_CONFIG_CACHE_KEY = "batch_config_cache_v1";
+
 /**
  * Interface for batch configuration data
  */
@@ -45,6 +47,33 @@ interface BatchConfiguration {
   /** End date for registration period (ISO string or null) */
   registrationEndDate: string | null;
 }
+
+interface BatchConfigurationRow {
+  year_from: number;
+  year_to: number;
+  is_registration_open: boolean;
+  registration_start_date: string | null;
+  registration_end_date: string | null;
+}
+
+const toConfig = (row: BatchConfigurationRow): BatchConfiguration => ({
+  yearFrom: row.year_from,
+  yearTo: row.year_to,
+  isRegistrationOpen: row.is_registration_open,
+  registrationStartDate: row.registration_start_date,
+  registrationEndDate: row.registration_end_date,
+});
+
+const getDefaultFallbackConfig = (): BatchConfiguration => {
+  const currentYear = new Date().getFullYear();
+  return {
+    yearFrom: 1980,
+    yearTo: currentYear,
+    isRegistrationOpen: true,
+    registrationStartDate: null,
+    registrationEndDate: null,
+  };
+};
 
 /**
  * useBatchConfiguration Hook
@@ -71,34 +100,60 @@ export const useBatchConfiguration = () => {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        // Call the database function that returns the open batch configuration
-        // This is a SECURITY DEFINER function that bypasses RLS
-        const { data, error } = await supabase.rpc("get_open_batch_configuration");
+        let rpcData: BatchConfigurationRow[] | null = null;
+        let lastError: unknown = null;
 
-        if (error) {
-          console.error("Error fetching batch configuration:", error);
-          setError("Unable to load registration configuration");
+        // Retry transient network failures with small backoff
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const { data, error } = await supabase.rpc("get_open_batch_configuration");
+
+          if (!error) {
+            rpcData = data as BatchConfigurationRow[] | null;
+            break;
+          }
+
+          lastError = error;
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+          }
+        }
+
+        if (rpcData && rpcData.length > 0) {
+          const liveConfig = toConfig(rpcData[0]);
+          setConfig(liveConfig);
+          setError(null);
+          localStorage.setItem(BATCH_CONFIG_CACHE_KEY, JSON.stringify(liveConfig));
           return;
         }
 
-        // Check if we got configuration data
-        if (data && data.length > 0) {
-          const configData = data[0];
-          // Transform snake_case database columns to camelCase
-          setConfig({
-            yearFrom: configData.year_from,
-            yearTo: configData.year_to,
-            isRegistrationOpen: configData.is_registration_open,
-            registrationStartDate: configData.registration_start_date,
-            registrationEndDate: configData.registration_end_date,
-          });
-        } else {
-          // No configuration found - registration not set up
-          setError("No registration configuration found");
+        // If API returns no active config, fall back to cached/default so form stays usable
+        const cachedConfigRaw = localStorage.getItem(BATCH_CONFIG_CACHE_KEY);
+        if (cachedConfigRaw) {
+          const cachedConfig = JSON.parse(cachedConfigRaw) as BatchConfiguration;
+          setConfig(cachedConfig);
+          setError(null);
+          return;
+        }
+
+        setConfig(getDefaultFallbackConfig());
+        setError(null);
+
+        if (lastError) {
+          console.error("Error fetching batch configuration:", lastError);
         }
       } catch (err) {
         console.error("Error fetching batch configuration:", err);
-        setError("Unable to load registration configuration");
+
+        // Last-resort resilience: keep form available with a safe fallback
+        const cachedConfigRaw = localStorage.getItem(BATCH_CONFIG_CACHE_KEY);
+        if (cachedConfigRaw) {
+          const cachedConfig = JSON.parse(cachedConfigRaw) as BatchConfiguration;
+          setConfig(cachedConfig);
+          setError(null);
+        } else {
+          setConfig(getDefaultFallbackConfig());
+          setError(null);
+        }
       } finally {
         setIsLoading(false);
       }
