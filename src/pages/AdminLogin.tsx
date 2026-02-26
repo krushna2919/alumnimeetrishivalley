@@ -239,7 +239,11 @@ const AdminLogin = () => {
 
     try {
       // Step 1: Authenticate user FIRST
-      const { error } = await signIn(email, password);
+      const { error } = await withTimeout(
+        signIn(email, password),
+        12000,
+        'Sign in timed out. Please check your connection and try again.'
+      );
       
       if (error) {
         toast({
