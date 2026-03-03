@@ -308,6 +308,7 @@ const AdminLogin = () => {
     }
   };
 
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     
@@ -345,7 +346,6 @@ const AdminLogin = () => {
       setPassword('');
       setConfirmPassword('');
       
-      // Redirect to admin dashboard
       setTimeout(() => {
         navigate('/admin');
       }, 500);
