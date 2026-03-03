@@ -34,6 +34,8 @@ const AdminLogin = () => {
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
   
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
   
   const { signIn, isAdmin, isApproved, isPendingApproval, user, isLoading } = useAuth();
@@ -264,7 +266,48 @@ const AdminLogin = () => {
   };
 
 
-  const handlePasswordReset = async (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    const normalizedEmail = forgotEmail.trim().toLowerCase();
+    if (!normalizedEmail || !z.string().email().safeParse(normalizedEmail).success) {
+      setErrors({ email: 'Please enter a valid email address' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast({
+          title: 'Error',
+          description: error.message,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Reset Link Sent',
+        description: `If an account exists for ${normalizedEmail}, a password reset link has been sent.`,
+      });
+      setIsForgotPasswordMode(false);
+      setForgotEmail('');
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
     e.preventDefault();
     setErrors({});
     
@@ -398,6 +441,62 @@ const AdminLogin = () => {
     );
   }
 
+  // Forgot password mode
+  if (isForgotPasswordMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted p-4">
+        <Card className="w-full max-w-md shadow-elevated">
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <KeyRound className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="font-serif text-2xl">Reset Password</CardTitle>
+              <CardDescription className="mt-2">
+                Enter your email address and we'll send you a link to reset your password.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email">Email</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="admin@example.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  disabled={isSubmitting}
+                  className={errors.email ? 'border-destructive' : ''}
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
+              </div>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
+                ) : (
+                  'Send Reset Link'
+                )}
+              </Button>
+            </form>
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => { setIsForgotPasswordMode(false); setErrors({}); setForgotEmail(''); }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                ← Back to Login
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted p-4">
       <Card className="w-full max-w-md shadow-elevated">
@@ -406,12 +505,8 @@ const AdminLogin = () => {
             <Shield className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <CardTitle className="font-serif text-2xl">
-              Admin Portal
-            </CardTitle>
-            <CardDescription className="mt-2">
-              Sign in to access the admin dashboard
-            </CardDescription>
+            <CardTitle className="font-serif text-2xl">Admin Portal</CardTitle>
+            <CardDescription className="mt-2">Sign in to access the admin dashboard</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -427,13 +522,19 @@ const AdminLogin = () => {
                 disabled={isSubmitting}
                 className={errors.email ? 'border-destructive' : ''}
               />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email}</p>
-              )}
+              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
             </div>
-            
             <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="login-password">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => { setIsForgotPasswordMode(true); setErrors({}); }}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="login-password"
                 type="password"
@@ -443,32 +544,18 @@ const AdminLogin = () => {
                 disabled={isSubmitting}
                 className={errors.password ? 'border-destructive' : ''}
               />
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
-              )}
+              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
             </div>
-
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting}
-            >
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...</>
               ) : (
                 'Sign In'
               )}
             </Button>
           </form>
-
           <div className="mt-6 text-center">
-            <a 
-              href="/" 
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
+            <a href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               ← Back to Home
             </a>
           </div>
