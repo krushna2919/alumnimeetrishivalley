@@ -320,10 +320,8 @@ const ScheduledPeriodsManager = () => {
                 <Input
                   type="date"
                   value={period.registration_end_date || ''}
-                  disabled
-                  className="bg-muted"
+                  onChange={(e) => updatePeriod(period.id, 'registration_end_date', e.target.value || null)}
                 />
-                <p className="text-xs text-muted-foreground">Auto: start + 3 weeks</p>
               </div>
             </div>
 
