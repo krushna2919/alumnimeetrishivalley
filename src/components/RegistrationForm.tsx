@@ -364,6 +364,13 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       setRegistrationResult(regResult);
 
       if (linkSuccess) {
+        // Mark invite as used if this was an invite registration
+        if (inviteToken) {
+          await supabase
+            .from("registration_invites" as any)
+            .update({ used: true, used_at: new Date().toISOString() } as any)
+            .eq("token", inviteToken);
+        }
         setViewState("success");
         resetFormLoadTime();
         const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
