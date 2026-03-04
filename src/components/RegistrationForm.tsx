@@ -442,7 +442,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
     );
   }
 
-  if (configError || !batchConfig) {
+  if ((configError || !batchConfig) && !inviteToken) {
     return (
       <section id="register" className="py-20 gradient-warm">
         <div className="container max-w-4xl px-4">
