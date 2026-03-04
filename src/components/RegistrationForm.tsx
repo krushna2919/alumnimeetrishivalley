@@ -459,7 +459,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   }
 
   // Check if registration is open
-  if (!batchConfig.isRegistrationOpen) {
+  if (!batchConfig?.isRegistrationOpen && !inviteToken) {
     return (
       <section id="register" className="py-20 gradient-warm">
         <div className="container max-w-4xl px-4">
