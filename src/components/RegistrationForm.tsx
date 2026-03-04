@@ -948,16 +948,18 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                     />
                   </div>
 
-                  {/* Additional Attendees Section */}
-                  <div className="pt-6 border-t border-border">
-                    <AdditionalAttendeesSection
-                      form={form}
-                      yearOptions={yearOptions}
-                      primaryEmail={form.watch("email")}
-                      showStayOption={showStayChoice}
-                      forcedStayType={!showStayChoice ? (showOnCampusOption ? "on-campus" : "outside") : undefined}
-                    />
-                  </div>
+                  {/* Additional Attendees Section - hidden for invite registrations */}
+                  {!singleAttendeeOnly && (
+                    <div className="pt-6 border-t border-border">
+                      <AdditionalAttendeesSection
+                        form={form}
+                        yearOptions={yearOptions}
+                        primaryEmail={form.watch("email")}
+                        showStayOption={showStayChoice}
+                        forcedStayType={!showStayChoice ? (showOnCampusOption ? "on-campus" : "outside") : undefined}
+                      />
+                    </div>
+                  )}
 
                   {/* Payment Proof Upload Section - Mandatory */}
                   <div className="pt-6 border-t border-border space-y-4">
