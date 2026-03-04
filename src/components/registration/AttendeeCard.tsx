@@ -27,9 +27,10 @@ interface AttendeeCardProps {
   canRemove: boolean;
   yearOptions: number[];
   primaryEmail: string;
+  showStayOption?: boolean;
 }
 
-const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail }: AttendeeCardProps) => {
+const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail, showStayOption = true }: AttendeeCardProps) => {
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const attendeeName = form.watch(`attendees.${index}.name`) || `Attendee ${index + 1}`;
   const stayType = form.watch(`attendees.${index}.stayType`);
@@ -293,6 +294,7 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
         />
 
         {/* Stay Type */}
+        {showStayOption ? (
         <FormField
           control={form.control}
           name={`attendees.${index}.stayType`}
@@ -334,6 +336,12 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
             </FormItem>
           )}
         />
+        ) : (
+          <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+            <p className="font-medium text-foreground text-sm">Registration Fee</p>
+            <p className="text-lg font-bold text-primary">₹7,500</p>
+          </div>
+        )}
 
         {/* T-Shirt & Gender */}
         <div className="grid md:grid-cols-2 gap-4">

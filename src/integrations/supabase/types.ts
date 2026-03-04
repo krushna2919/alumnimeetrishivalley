@@ -56,6 +56,7 @@ export type Database = {
           label: string | null
           registration_end_date: string | null
           registration_start_date: string | null
+          show_stay_option: boolean
           start_hour: number
           start_minute: number
           updated_at: string
@@ -70,6 +71,7 @@ export type Database = {
           label?: string | null
           registration_end_date?: string | null
           registration_start_date?: string | null
+          show_stay_option?: boolean
           start_hour?: number
           start_minute?: number
           updated_at?: string
@@ -84,6 +86,7 @@ export type Database = {
           label?: string | null
           registration_end_date?: string | null
           registration_start_date?: string | null
+          show_stay_option?: boolean
           start_hour?: number
           start_minute?: number
           updated_at?: string
@@ -559,6 +562,7 @@ export type Database = {
           is_registration_open: boolean
           registration_end_date: string
           registration_start_date: string
+          show_stay_option: boolean
           year_from: number
           year_to: number
         }[]

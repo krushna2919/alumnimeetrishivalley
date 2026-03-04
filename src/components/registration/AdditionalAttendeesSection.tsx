@@ -10,9 +10,10 @@ interface AdditionalAttendeesSectionProps {
   form: UseFormReturn<RegistrantData>;
   yearOptions: number[];
   primaryEmail: string;
+  showStayOption?: boolean;
 }
 
-const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail }: AdditionalAttendeesSectionProps) => {
+const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail, showStayOption = true }: AdditionalAttendeesSectionProps) => {
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "attendees",
@@ -81,6 +82,7 @@ const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail }: Additio
                 primaryEmail={primaryEmail}
                 onRemove={() => handleRemoveAttendee(index)}
                 canRemove={true}
+                showStayOption={showStayOption}
               />
             ))}
           </AnimatePresence>

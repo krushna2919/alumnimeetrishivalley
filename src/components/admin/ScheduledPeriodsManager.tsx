@@ -23,6 +23,7 @@ interface BatchPeriod {
   /** Minutes component of the start time (0-59) */
   start_minute: number;
   label: string | null;
+  show_stay_option: boolean;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -72,6 +73,7 @@ const ScheduledPeriodsManager = () => {
           start_hour: d.start_hour ?? 0,
           start_minute: d.start_minute ?? 0,
           label: d.label ?? null,
+          show_stay_option: d.show_stay_option ?? true,
         }))
       );
     } catch (error) {
@@ -122,6 +124,7 @@ const ScheduledPeriodsManager = () => {
         start_hour: period.start_hour,
         start_minute: period.start_minute,
         label: period.label || null,
+        show_stay_option: period.show_stay_option,
       };
 
       const { error } = await supabase
@@ -373,6 +376,20 @@ const ScheduledPeriodsManager = () => {
             <p className="text-sm text-muted-foreground">
               Start time: <span className="font-medium text-foreground">{formatTimeIST(period.start_hour, period.start_minute)}</span>
             </p>
+
+            {/* Stay Option Toggle */}
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Show Stay Option</Label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, registrants can choose between on-campus (₹15,000) and outside (₹7,500) stay
+                </p>
+              </div>
+              <Switch
+                checked={period.show_stay_option}
+                onCheckedChange={(checked) => updatePeriod(period.id, 'show_stay_option', checked)}
+              />
+            </div>
 
             <Button
               onClick={() => savePeriod(period)}
