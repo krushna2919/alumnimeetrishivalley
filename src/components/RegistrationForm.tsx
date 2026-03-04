@@ -43,7 +43,13 @@ interface RegistrationResult extends RegistrationData {
   totalRegistrants?: number;
 }
 
-const RegistrationForm = () => {
+interface RegistrationFormProps {
+  singleAttendeeOnly?: boolean;
+  inviteToken?: string;
+  inviteEmail?: string;
+}
+
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
@@ -115,15 +121,21 @@ const RegistrationForm = () => {
     }
   }, [showOnCampusOption, showOutsideOption, form]);
 
+  // Pre-fill email for invite registrations
+  useEffect(() => {
+    if (inviteEmail) {
+      form.setValue("email", inviteEmail);
+      setEmailVerified(true); // Skip OTP for invite registrations
+    }
+  }, [inviteEmail, form]);
+
   // Calculate fees
   const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
-  const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
+  const totalFee = singleAttendeeOnly ? registrantFee : calculateTotalFee(watchedRegistrant, additionalAttendees);
 
-  // Check if submit is allowed based on registration period
-  const canSubmit = isWithinRegistrationPeriod();
-
-
+  // Check if submit is allowed based on registration period (invites bypass this)
+  const canSubmit = inviteToken ? true : isWithinRegistrationPeriod();
   // --- Upload proof to storage only (returns fileName or null) ---
   const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
     try {
@@ -358,6 +370,13 @@ const RegistrationForm = () => {
       setRegistrationResult(regResult);
 
       if (linkSuccess) {
+        // Mark invite as used if this was an invite registration
+        if (inviteToken) {
+          await supabase
+            .from("registration_invites" as any)
+            .update({ used: true, used_at: new Date().toISOString() } as any)
+            .eq("token", inviteToken);
+        }
         setViewState("success");
         resetFormLoadTime();
         const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
@@ -423,7 +442,7 @@ const RegistrationForm = () => {
     );
   }
 
-  if (configError || !batchConfig) {
+  if ((configError || !batchConfig) && !inviteToken) {
     return (
       <section id="register" className="py-20 gradient-warm">
         <div className="container max-w-4xl px-4">
@@ -440,7 +459,7 @@ const RegistrationForm = () => {
   }
 
   // Check if registration is open
-  if (!batchConfig.isRegistrationOpen) {
+  if (!batchConfig?.isRegistrationOpen && !inviteToken) {
     return (
       <section id="register" className="py-20 gradient-warm">
         <div className="container max-w-4xl px-4">
@@ -471,11 +490,13 @@ const RegistrationForm = () => {
             Register before 31st August 2026. Accommodation is on a first-come, first-serve basis with preference to
             alumni from older batches.
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-              <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
-            </span>
-          </div>
+          {batchConfig && (
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
+                <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
+              </span>
+            </div>
+          )}
         </motion.div>
 
         <motion.div
@@ -531,7 +552,7 @@ const RegistrationForm = () => {
                                   placeholder="your.email@example.com"
                                   {...field}
                                   className="bg-background"
-                                  disabled={emailVerified}
+                                  disabled={emailVerified || !!inviteEmail}
                                   onChange={(e) => {
                                     field.onChange(e);
                                     if (emailVerified) setEmailVerified(false);
@@ -942,16 +963,18 @@ const RegistrationForm = () => {
                     />
                   </div>
 
-                  {/* Additional Attendees Section */}
-                  <div className="pt-6 border-t border-border">
-                    <AdditionalAttendeesSection
-                      form={form}
-                      yearOptions={yearOptions}
-                      primaryEmail={form.watch("email")}
-                      showStayOption={showStayChoice}
-                      forcedStayType={!showStayChoice ? (showOnCampusOption ? "on-campus" : "outside") : undefined}
-                    />
-                  </div>
+                  {/* Additional Attendees Section - hidden for invite registrations */}
+                  {!singleAttendeeOnly && (
+                    <div className="pt-6 border-t border-border">
+                      <AdditionalAttendeesSection
+                        form={form}
+                        yearOptions={yearOptions}
+                        primaryEmail={form.watch("email")}
+                        showStayOption={showStayChoice}
+                        forcedStayType={!showStayChoice ? (showOnCampusOption ? "on-campus" : "outside") : undefined}
+                      />
+                    </div>
+                  )}
 
                   {/* Payment Proof Upload Section - Mandatory */}
                   <div className="pt-6 border-t border-border space-y-4">

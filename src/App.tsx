@@ -39,6 +39,7 @@ import AdminAccountsReview from "./pages/admin/AdminAccountsReview";
 import AdminActivityDashboard from "./pages/admin/AdminActivityDashboard";
 import InstallApp from "./pages/InstallApp";
 import ResetPassword from "./pages/ResetPassword";
+import InviteRegistration from "./pages/InviteRegistration";
 
 /**
  * QueryClient Configuration
@@ -79,6 +80,7 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/register1930-1980" element={<Index forceLegacy />} />
+            <Route path="/invite/:token" element={<InviteRegistration />} />
             <Route path="/install" element={<InstallApp />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             
