@@ -490,11 +490,13 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
             Register before 31st August 2026. Accommodation is on a first-come, first-serve basis with preference to
             alumni from older batches.
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-              <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
-            </span>
-          </div>
+          {batchConfig && (
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
+                <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
+              </span>
+            </div>
+          )}
         </motion.div>
 
         <motion.div
