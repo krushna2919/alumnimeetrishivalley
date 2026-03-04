@@ -43,7 +43,13 @@ interface RegistrationResult extends RegistrationData {
   totalRegistrants?: number;
 }
 
-const RegistrationForm = () => {
+interface RegistrationFormProps {
+  singleAttendeeOnly?: boolean;
+  inviteToken?: string;
+  inviteEmail?: string;
+}
+
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
