@@ -550,7 +550,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                                   placeholder="your.email@example.com"
                                   {...field}
                                   className="bg-background"
-                                  disabled={emailVerified}
+                                  disabled={emailVerified || !!inviteEmail}
                                   onChange={(e) => {
                                     field.onChange(e);
                                     if (emailVerified) setEmailVerified(false);
