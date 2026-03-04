@@ -46,8 +46,10 @@ interface BatchConfiguration {
   registrationStartDate: string | null;
   /** End date for registration period (ISO string or null) */
   registrationEndDate: string | null;
-  /** Whether to show the on-campus/outside stay option */
+  /** Whether to show the on-campus stay option */
   showStayOption: boolean;
+  /** Whether to show the outside stay option */
+  showOutsideOption: boolean;
 }
 
 interface BatchConfigurationRow {
@@ -57,6 +59,7 @@ interface BatchConfigurationRow {
   registration_start_date: string | null;
   registration_end_date: string | null;
   show_stay_option: boolean;
+  show_outside_option: boolean;
 }
 
 const toConfig = (row: BatchConfigurationRow): BatchConfiguration => ({
@@ -66,6 +69,7 @@ const toConfig = (row: BatchConfigurationRow): BatchConfiguration => ({
   registrationStartDate: row.registration_start_date,
   registrationEndDate: row.registration_end_date,
   showStayOption: row.show_stay_option,
+  showOutsideOption: row.show_outside_option,
 });
 
 const getDefaultFallbackConfig = (): BatchConfiguration => {
@@ -77,6 +81,7 @@ const getDefaultFallbackConfig = (): BatchConfiguration => {
     registrationStartDate: null,
     registrationEndDate: null,
     showStayOption: true,
+    showOutsideOption: true,
   };
 };
 

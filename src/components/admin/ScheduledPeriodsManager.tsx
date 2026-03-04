@@ -24,6 +24,7 @@ interface BatchPeriod {
   start_minute: number;
   label: string | null;
   show_stay_option: boolean;
+  show_outside_option: boolean;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -74,6 +75,7 @@ const ScheduledPeriodsManager = () => {
           start_minute: d.start_minute ?? 0,
           label: d.label ?? null,
           show_stay_option: d.show_stay_option ?? true,
+          show_outside_option: d.show_outside_option ?? true,
         }))
       );
     } catch (error) {
@@ -125,6 +127,7 @@ const ScheduledPeriodsManager = () => {
         start_minute: period.start_minute,
         label: period.label || null,
         show_stay_option: period.show_stay_option,
+        show_outside_option: period.show_outside_option,
       };
 
       const { error } = await supabase
@@ -377,18 +380,38 @@ const ScheduledPeriodsManager = () => {
               Start time: <span className="font-medium text-foreground">{formatTimeIST(period.start_hour, period.start_minute)}</span>
             </p>
 
-            {/* Stay Option Toggle */}
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Show Stay Option</Label>
-                <p className="text-xs text-muted-foreground">
-                  When enabled, registrants can choose between on-campus (₹15,000) and outside (₹7,500) stay
-                </p>
+            {/* Stay Option Toggles */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Stay Options</Label>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">On-Campus Stay (₹15,000)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Allow registrants to choose on-campus accommodation
+                  </p>
+                </div>
+                <Switch
+                  checked={period.show_stay_option}
+                  onCheckedChange={(checked) => updatePeriod(period.id, 'show_stay_option', checked)}
+                />
               </div>
-              <Switch
-                checked={period.show_stay_option}
-                onCheckedChange={(checked) => updatePeriod(period.id, 'show_stay_option', checked)}
-              />
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Outside Stay (₹7,500)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Allow registrants to choose outside accommodation
+                  </p>
+                </div>
+                <Switch
+                  checked={period.show_outside_option}
+                  onCheckedChange={(checked) => updatePeriod(period.id, 'show_outside_option', checked)}
+                />
+              </div>
+              {!period.show_stay_option && !period.show_outside_option && (
+                <p className="text-xs text-amber-600">
+                  ⚠ Both options are disabled. Registrants will default to outside stay (₹7,500).
+                </p>
+              )}
             </div>
 
             <Button

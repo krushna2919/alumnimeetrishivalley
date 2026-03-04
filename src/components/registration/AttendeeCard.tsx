@@ -28,9 +28,10 @@ interface AttendeeCardProps {
   yearOptions: number[];
   primaryEmail: string;
   showStayOption?: boolean;
+  forcedStayType?: string;
 }
 
-const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail, showStayOption = true }: AttendeeCardProps) => {
+const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEmail, showStayOption = true, forcedStayType }: AttendeeCardProps) => {
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const attendeeName = form.watch(`attendees.${index}.name`) || `Attendee ${index + 1}`;
   const stayType = form.watch(`attendees.${index}.stayType`);
@@ -339,7 +340,7 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
         ) : (
           <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
             <p className="font-medium text-foreground text-sm">Registration Fee</p>
-            <p className="text-lg font-bold text-primary">₹7,500</p>
+            <p className="text-lg font-bold text-primary">₹{calculateFee(forcedStayType === "on-campus" ? "on-campus" : "outside").toLocaleString('en-IN')}</p>
           </div>
         )}
 

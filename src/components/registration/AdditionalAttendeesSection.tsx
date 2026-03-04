@@ -8,12 +8,13 @@ import AttendeeCard from "./AttendeeCard";
 
 interface AdditionalAttendeesSectionProps {
   form: UseFormReturn<RegistrantData>;
-  yearOptions: number[];
-  primaryEmail: string;
-  showStayOption?: boolean;
+   yearOptions: number[];
+   primaryEmail: string;
+   showStayOption?: boolean;
+   forcedStayType?: string;
 }
 
-const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail, showStayOption = true }: AdditionalAttendeesSectionProps) => {
+const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail, showStayOption = true, forcedStayType }: AdditionalAttendeesSectionProps) => {
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "attendees",
@@ -83,6 +84,7 @@ const AdditionalAttendeesSection = ({ form, yearOptions, primaryEmail, showStayO
                 onRemove={() => handleRemoveAttendee(index)}
                 canRemove={true}
                 showStayOption={showStayOption}
+                forcedStayType={forcedStayType}
               />
             ))}
           </AnimatePresence>
