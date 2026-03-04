@@ -95,6 +95,20 @@ const RegistrationForm = () => {
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
 
+  const showStayOption = batchConfig?.showStayOption ?? true;
+
+  // When stay option is disabled, force stayType to "outside"
+  useEffect(() => {
+    if (!showStayOption) {
+      form.setValue("stayType", "outside");
+      // Also force all attendees to "outside"
+      const attendees = form.getValues("attendees");
+      attendees.forEach((_, idx) => {
+        form.setValue(`attendees.${idx}.stayType`, "outside");
+      });
+    }
+  }, [showStayOption, form]);
+
   // Calculate fees
   const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
@@ -800,7 +814,8 @@ const RegistrationForm = () => {
                     </div>
                   </div>
 
-                  {/* Stay Type */}
+                  {/* Stay Type - only show when admin has enabled it */}
+                  {showStayOption ? (
                   <FormField
                     control={form.control}
                     name="stayType"
@@ -852,6 +867,15 @@ const RegistrationForm = () => {
                       </FormItem>
                     )}
                   />
+                  ) : (
+                    <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-6">
+                      <p className="font-semibold text-foreground text-lg">Registration Fee</p>
+                      <p className="text-2xl font-bold text-primary mt-1">₹7,500</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Full event access, lunch & dinner included
+                      </p>
+                    </div>
+                  )}
 
                   {/* T-Shirt & Gender */}
                   <div className="grid md:grid-cols-2 gap-6">
@@ -914,6 +938,7 @@ const RegistrationForm = () => {
                       form={form}
                       yearOptions={yearOptions}
                       primaryEmail={form.watch("email")}
+                      showStayOption={showStayOption}
                     />
                   </div>
 
