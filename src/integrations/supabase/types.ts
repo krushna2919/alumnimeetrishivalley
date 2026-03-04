@@ -286,6 +286,42 @@ export type Database = {
         }
         Relationships: []
       }
+      registration_invites: {
+        Row: {
+          created_at: string
+          created_by: string
+          email: string
+          expires_at: string
+          extended_count: number
+          id: string
+          token: string
+          used: boolean
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          email: string
+          expires_at?: string
+          extended_count?: number
+          id?: string
+          token?: string
+          used?: boolean
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          email?: string
+          expires_at?: string
+          extended_count?: number
+          id?: string
+          token?: string
+          used?: boolean
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       registrations: {
         Row: {
           accounts_verified: boolean
