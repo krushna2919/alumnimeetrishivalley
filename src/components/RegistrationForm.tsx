@@ -121,15 +121,21 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
     }
   }, [showOnCampusOption, showOutsideOption, form]);
 
+  // Pre-fill email for invite registrations
+  useEffect(() => {
+    if (inviteEmail) {
+      form.setValue("email", inviteEmail);
+      setEmailVerified(true); // Skip OTP for invite registrations
+    }
+  }, [inviteEmail, form]);
+
   // Calculate fees
   const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
-  const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
+  const totalFee = singleAttendeeOnly ? registrantFee : calculateTotalFee(watchedRegistrant, additionalAttendees);
 
-  // Check if submit is allowed based on registration period
-  const canSubmit = isWithinRegistrationPeriod();
-
-
+  // Check if submit is allowed based on registration period (invites bypass this)
+  const canSubmit = inviteToken ? true : isWithinRegistrationPeriod();
   // --- Upload proof to storage only (returns fileName or null) ---
   const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
     try {
