@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2, Upload, FileText, AlertCircle } from "lucide-react";
-import { EmailOtpVerification } from "./registration/EmailOtpVerification";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
@@ -58,7 +58,6 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
-  const [emailVerified, setEmailVerified] = useState(false);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
@@ -125,7 +124,6 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   useEffect(() => {
     if (inviteEmail) {
       form.setValue("email", inviteEmail);
-      setEmailVerified(true); // Skip OTP for invite registrations
     }
   }, [inviteEmail, form]);
 
@@ -552,28 +550,10 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                                   placeholder="your.email@example.com"
                                   {...field}
                                   className="bg-background"
-                                  disabled={emailVerified || !!inviteEmail}
-                                  onChange={(e) => {
-                                    field.onChange(e);
-                                    if (emailVerified) setEmailVerified(false);
-                                  }}
+                                  disabled={!!inviteEmail}
                                 />
                               </FormControl>
-                              {!emailVerified && (
-                                <EmailOtpVerification
-                                  email={field.value}
-                                  isVerified={emailVerified}
-                                  onVerified={() => setEmailVerified(true)}
-                                />
-                              )}
                             </div>
-                            {emailVerified && (
-                              <EmailOtpVerification
-                                email={field.value}
-                                isVerified={emailVerified}
-                                onVerified={() => setEmailVerified(true)}
-                              />
-                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -1114,8 +1094,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                         size="lg"
                         disabled={
                           isSubmitting || 
-                          !canSubmit || 
-                          !emailVerified ||
+                          !canSubmit ||
                           (hasMultipleApplicants && !allBulkProofsUploaded) ||
                           (!hasMultipleApplicants && !paymentProofFile)
                         }
