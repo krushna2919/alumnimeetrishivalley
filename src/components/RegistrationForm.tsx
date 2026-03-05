@@ -58,7 +58,6 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
-  const [emailVerified, setEmailVerified] = useState(false);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
