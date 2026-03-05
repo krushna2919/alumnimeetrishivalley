@@ -1,6 +1,5 @@
 import AdminLayout from '@/components/admin/AdminLayout';
 import ScheduledPeriodsManager from '@/components/admin/ScheduledPeriodsManager';
-import InviteManager from '@/components/admin/InviteManager';
 
 const AdminSettings = () => {
   return (
@@ -9,13 +8,12 @@ const AdminSettings = () => {
         <div>
           <h1 className="font-serif text-3xl font-bold text-foreground">Settings</h1>
           <p className="text-muted-foreground mt-1">
-            Manage registration periods, batch configuration, and invites
+            Manage registration periods and batch configuration
           </p>
         </div>
 
         <div className="max-w-3xl space-y-8">
           <ScheduledPeriodsManager />
-          <InviteManager />
         </div>
       </div>
     </AdminLayout>
