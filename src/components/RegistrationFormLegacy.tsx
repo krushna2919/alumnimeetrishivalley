@@ -69,7 +69,7 @@ const RegistrationFormLegacy = () => {
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
-  const [emailVerified, setEmailVerified] = useState(false);
+  
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
 
