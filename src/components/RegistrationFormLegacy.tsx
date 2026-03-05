@@ -441,29 +441,10 @@ const RegistrationFormLegacy = () => {
                                     placeholder="your@email.com"
                                     className="pl-10"
                                     {...field}
-                                    disabled={emailVerified}
-                                    onChange={(e) => {
-                                      field.onChange(e);
-                                      if (emailVerified) setEmailVerified(false);
-                                    }}
                                   />
                                 </div>
-                                {!emailVerified && (
-                                  <EmailOtpVerification
-                                    email={field.value}
-                                    isVerified={emailVerified}
-                                    onVerified={() => setEmailVerified(true)}
-                                  />
-                                )}
                               </div>
                             </FormControl>
-                            {emailVerified && (
-                              <EmailOtpVerification
-                                email={field.value}
-                                isVerified={emailVerified}
-                                onVerified={() => setEmailVerified(true)}
-                              />
-                            )}
                             <FormMessage />
                           </FormItem>
                         )}
