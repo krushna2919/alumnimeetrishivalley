@@ -19,7 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, FileText } from "lucide-react";
-import { EmailOtpVerification } from "./registration/EmailOtpVerification";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
 
