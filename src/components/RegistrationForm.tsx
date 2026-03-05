@@ -124,7 +124,6 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   useEffect(() => {
     if (inviteEmail) {
       form.setValue("email", inviteEmail);
-      setEmailVerified(true); // Skip OTP for invite registrations
     }
   }, [inviteEmail, form]);
 
