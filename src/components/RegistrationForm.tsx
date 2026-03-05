@@ -1094,8 +1094,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                         size="lg"
                         disabled={
                           isSubmitting || 
-                          !canSubmit || 
-                          !emailVerified ||
+                          !canSubmit ||
                           (hasMultipleApplicants && !allBulkProofsUploaded) ||
                           (!hasMultipleApplicants && !paymentProofFile)
                         }

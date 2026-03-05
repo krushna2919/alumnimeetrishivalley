@@ -878,7 +878,6 @@ const RegistrationFormLegacy = () => {
                     disabled={
                       isSubmitting ||
                       !stayType ||
-                      !emailVerified ||
                       (hasMultipleApplicants ? !allBulkProofsUploaded : !paymentProofFile)
                     }
                   >
