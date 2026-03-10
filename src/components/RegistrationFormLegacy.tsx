@@ -113,23 +113,36 @@ const RegistrationFormLegacy = () => {
 
   // --- Upload proof to storage only (returns fileName or null) ---
   const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+    const maxRetries = 3;
 
-      const { error: uploadError } = await supabase.storage
-        .from('payment-proofs')
-        .upload(fileName, file);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${file.size} bytes, ${file.type})`);
+        const { error: uploadError } = await supabase.storage
+          .from('payment-proofs')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: file.type || 'application/octet-stream',
+          });
 
-      if (uploadError) {
-        console.error("Storage upload error:", uploadError);
-        return null;
+        if (uploadError) {
+          console.error(`Storage upload error (attempt ${attempt}):`, uploadError.message, uploadError);
+          if (attempt === maxRetries) return null;
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        console.log(`Upload succeeded on attempt ${attempt}: ${fileName}`);
+        return fileName;
+      } catch (err) {
+        console.error(`Upload exception (attempt ${attempt}):`, err);
+        if (attempt === maxRetries) return null;
+        await new Promise(r => setTimeout(r, 1000 * attempt));
       }
-      return fileName;
-    } catch (err) {
-      console.error("Error uploading to storage:", err);
-      return null;
     }
+    return null;
   };
 
   // --- Link uploaded proof to registration(s) in DB ---
