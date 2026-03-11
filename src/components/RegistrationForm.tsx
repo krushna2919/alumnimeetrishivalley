@@ -446,7 +446,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
     setCurrentApplication(null);
     setRegistrationResult(null);
     setPaymentProofFile(null);
+    setPaymentProofBlob(null);
     setBulkPaymentProofs(new Map());
+    setBulkPaymentBlobs(new Map());
     setRetryProofFile(null);
     setIsRetryingUpload(false);
     setViewState("form");
