@@ -63,7 +63,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
-  const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       // Validate file size (max 5MB) and type
@@ -76,8 +76,17 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         toast.error("Invalid file type", { description: "Please upload a JPG, PNG, WebP or PDF file" });
         return;
       }
-      setPaymentProofFile(file);
-      toast.success("Payment proof attached", { description: file.name });
+      // Read file data into memory immediately to prevent stale File references on mobile Safari/iPadOS
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+        setPaymentProofBlob({ blob, name: file.name, type: file.type || 'application/octet-stream' });
+        setPaymentProofFile(file);
+        toast.success("Payment proof attached", { description: file.name });
+      } catch (err) {
+        console.error("Failed to read file into memory:", err);
+        toast.error("Failed to read file", { description: "Please try selecting the file again." });
+      }
     }
   };
 
