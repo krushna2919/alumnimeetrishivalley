@@ -74,7 +74,7 @@ const RegistrationFormLegacy = () => {
   const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
 
-  const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -86,8 +86,16 @@ const RegistrationFormLegacy = () => {
         toast.error("Invalid file type", { description: "Please upload a JPG, PNG, WebP or PDF file" });
         return;
       }
-      setPaymentProofFile(file);
-      toast.success("Payment proof attached", { description: file.name });
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+        setPaymentProofBlob({ blob, name: file.name, type: file.type || 'application/octet-stream' });
+        setPaymentProofFile(file);
+        toast.success("Payment proof attached", { description: file.name });
+      } catch (err) {
+        console.error("Failed to read file into memory:", err);
+        toast.error("Failed to read file", { description: "Please try selecting the file again." });
+      }
     }
   };
 
