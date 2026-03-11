@@ -56,7 +56,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [paymentProofBlob, setPaymentProofBlob] = useState<{ blob: Blob; name: string; type: string } | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
+  const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
