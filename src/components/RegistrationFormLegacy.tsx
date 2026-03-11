@@ -205,25 +205,31 @@ const RegistrationFormLegacy = () => {
         return;
       }
 
-      // --- STEP 1: Upload proof to storage FIRST ---
+      // --- STEP 1: Upload proof to storage FIRST (use in-memory blob if available) ---
+      const proofBlob = hasMultipleApplicants
+        ? bulkPaymentBlobs.get("combined")
+        : paymentProofBlob;
       const proofFile = hasMultipleApplicants
         ? bulkPaymentProofs.get("combined")
         : paymentProofFile;
 
-      if (!proofFile) {
+      if (!proofBlob && !proofFile) {
         toast.error("Payment proof is required");
         setIsSubmitting(false);
         return;
       }
 
+      const uploadData = proofBlob ? proofBlob.blob : proofFile!;
+      const uploadName = proofBlob ? proofBlob.name : proofFile!.name;
+      const uploadType = proofBlob ? proofBlob.type : (proofFile!.type || 'application/octet-stream');
+
       toast.info("Uploading payment proof...");
       const tempPrefix = `pending-${Date.now()}`;
-      const uploadedFileName = await uploadProofToStorage(proofFile, tempPrefix);
+      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
+      const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
 
       if (!uploadedFileName) {
-        toast.error("Failed to upload payment proof", {
-          description: "Please check your file and internet connection, then try again.",
-        });
         setIsSubmitting(false);
         return;
       }
