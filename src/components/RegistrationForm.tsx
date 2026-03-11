@@ -368,7 +368,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         ? `combined-${result.applicationId}`
         : result.applicationId;
       const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const finalFileName = `${finalPrefix}-${Date.now()}.${fileExt}`;
+      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
 
       const { error: copyError } = await supabase.storage
         .from('payment-proofs')
