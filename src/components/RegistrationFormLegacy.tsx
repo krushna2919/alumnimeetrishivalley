@@ -120,37 +120,38 @@ const RegistrationFormLegacy = () => {
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
   const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
 
-  // --- Upload proof to storage only (returns fileName or null) ---
-  const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+  const uploadProofToStorage = async (fileData: Blob | File, fileName: string, contentType: string): Promise<string | null> => {
     const maxRetries = 3;
+    let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${file.size} bytes, ${file.type})`);
+        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${fileData.size} bytes, ${contentType})`);
         const { error: uploadError } = await supabase.storage
           .from('payment-proofs')
-          .upload(fileName, file, {
+          .upload(fileName, fileData, {
             cacheControl: '3600',
             upsert: true,
-            contentType: file.type || 'application/octet-stream',
+            contentType,
           });
 
         if (uploadError) {
+          lastError = uploadError.message;
           console.error(`Storage upload error (attempt ${attempt}):`, uploadError.message, uploadError);
-          if (attempt === maxRetries) return null;
+          if (attempt === maxRetries) break;
           await new Promise(r => setTimeout(r, 1000 * attempt));
           continue;
         }
         console.log(`Upload succeeded on attempt ${attempt}: ${fileName}`);
         return fileName;
-      } catch (err) {
+      } catch (err: any) {
+        lastError = err?.message || 'Network error';
         console.error(`Upload exception (attempt ${attempt}):`, err);
-        if (attempt === maxRetries) return null;
+        if (attempt === maxRetries) break;
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
+    toast.error("Upload failed after 3 attempts", { description: lastError });
     return null;
   };
 
