@@ -294,8 +294,8 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
 
       toast.info("Uploading payment proof...");
       const tempPrefix = `pending-${Date.now()}`;
-      const fileExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const targetFileName = `${tempPrefix}-${Date.now()}.${fileExt}`;
+      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
       const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
 
       if (!uploadedFileName) {
