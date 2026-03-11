@@ -298,8 +298,8 @@ const RegistrationFormLegacy = () => {
       const finalPrefix = isBulk
         ? `combined-${result.applicationId}`
         : result.applicationId;
-      const fileExt = proofFile.name.split('.').pop();
-      const finalFileName = `${finalPrefix}-${Date.now()}.${fileExt}`;
+      const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
 
       const { error: copyError } = await supabase.storage
         .from('payment-proofs')
