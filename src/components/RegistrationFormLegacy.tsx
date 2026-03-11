@@ -69,11 +69,12 @@ const RegistrationFormLegacy = () => {
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
-  
+  const [paymentProofBlob, setPaymentProofBlob] = useState<{ blob: Blob; name: string; type: string } | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
+  const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
 
-  const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -85,8 +86,16 @@ const RegistrationFormLegacy = () => {
         toast.error("Invalid file type", { description: "Please upload a JPG, PNG, WebP or PDF file" });
         return;
       }
-      setPaymentProofFile(file);
-      toast.success("Payment proof attached", { description: file.name });
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+        setPaymentProofBlob({ blob, name: file.name, type: file.type || 'application/octet-stream' });
+        setPaymentProofFile(file);
+        toast.success("Payment proof attached", { description: file.name });
+      } catch (err) {
+        console.error("Failed to read file into memory:", err);
+        toast.error("Failed to read file", { description: "Please try selecting the file again." });
+      }
     }
   };
 
@@ -111,37 +120,38 @@ const RegistrationFormLegacy = () => {
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
   const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
 
-  // --- Upload proof to storage only (returns fileName or null) ---
-  const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+  const uploadProofToStorage = async (fileData: Blob | File, fileName: string, contentType: string): Promise<string | null> => {
     const maxRetries = 3;
+    let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${file.size} bytes, ${file.type})`);
+        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${fileData.size} bytes, ${contentType})`);
         const { error: uploadError } = await supabase.storage
           .from('payment-proofs')
-          .upload(fileName, file, {
+          .upload(fileName, fileData, {
             cacheControl: '3600',
             upsert: true,
-            contentType: file.type || 'application/octet-stream',
+            contentType,
           });
 
         if (uploadError) {
+          lastError = uploadError.message;
           console.error(`Storage upload error (attempt ${attempt}):`, uploadError.message, uploadError);
-          if (attempt === maxRetries) return null;
+          if (attempt === maxRetries) break;
           await new Promise(r => setTimeout(r, 1000 * attempt));
           continue;
         }
         console.log(`Upload succeeded on attempt ${attempt}: ${fileName}`);
         return fileName;
-      } catch (err) {
+      } catch (err: any) {
+        lastError = err?.message || 'Network error';
         console.error(`Upload exception (attempt ${attempt}):`, err);
-        if (attempt === maxRetries) return null;
+        if (attempt === maxRetries) break;
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
+    toast.error("Upload failed after 3 attempts", { description: lastError });
     return null;
   };
 
@@ -195,25 +205,31 @@ const RegistrationFormLegacy = () => {
         return;
       }
 
-      // --- STEP 1: Upload proof to storage FIRST ---
+      // --- STEP 1: Upload proof to storage FIRST (use in-memory blob if available) ---
+      const proofBlob = hasMultipleApplicants
+        ? bulkPaymentBlobs.get("combined")
+        : paymentProofBlob;
       const proofFile = hasMultipleApplicants
         ? bulkPaymentProofs.get("combined")
         : paymentProofFile;
 
-      if (!proofFile) {
+      if (!proofBlob && !proofFile) {
         toast.error("Payment proof is required");
         setIsSubmitting(false);
         return;
       }
 
+      const uploadData = proofBlob ? proofBlob.blob : proofFile!;
+      const uploadName = proofBlob ? proofBlob.name : proofFile!.name;
+      const uploadType = proofBlob ? proofBlob.type : (proofFile!.type || 'application/octet-stream');
+
       toast.info("Uploading payment proof...");
       const tempPrefix = `pending-${Date.now()}`;
-      const uploadedFileName = await uploadProofToStorage(proofFile, tempPrefix);
+      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
+      const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
 
       if (!uploadedFileName) {
-        toast.error("Failed to upload payment proof", {
-          description: "Please check your file and internet connection, then try again.",
-        });
         setIsSubmitting(false);
         return;
       }
@@ -282,8 +298,8 @@ const RegistrationFormLegacy = () => {
       const finalPrefix = isBulk
         ? `combined-${result.applicationId}`
         : result.applicationId;
-      const fileExt = proofFile.name.split('.').pop();
-      const finalFileName = `${finalPrefix}-${Date.now()}.${fileExt}`;
+      const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
 
       const { error: copyError } = await supabase.storage
         .from('payment-proofs')
@@ -340,7 +356,9 @@ const RegistrationFormLegacy = () => {
     setCurrentApplication(null);
     setRegistrationResult(null);
     setPaymentProofFile(null);
+    setPaymentProofBlob(null);
     setBulkPaymentProofs(new Map());
+    setBulkPaymentBlobs(new Map());
     setViewState("form");
   };
 

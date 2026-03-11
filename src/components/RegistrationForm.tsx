@@ -56,12 +56,14 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [currentApplication, setCurrentApplication] = useState<RegistrationData | null>(null);
   const [registrationResult, setRegistrationResult] = useState<RegistrationResult | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [paymentProofBlob, setPaymentProofBlob] = useState<{ blob: Blob; name: string; type: string } | null>(null);
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
+  const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
-  const handlePaymentProofChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       // Validate file size (max 5MB) and type
@@ -74,8 +76,17 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         toast.error("Invalid file type", { description: "Please upload a JPG, PNG, WebP or PDF file" });
         return;
       }
-      setPaymentProofFile(file);
-      toast.success("Payment proof attached", { description: file.name });
+      // Read file data into memory immediately to prevent stale File references on mobile Safari/iPadOS
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+        setPaymentProofBlob({ blob, name: file.name, type: file.type || 'application/octet-stream' });
+        setPaymentProofFile(file);
+        toast.success("Payment proof attached", { description: file.name });
+      } catch (err) {
+        console.error("Failed to read file into memory:", err);
+        toast.error("Failed to read file", { description: "Please try selecting the file again." });
+      }
     }
   };
 
@@ -135,36 +146,38 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   // Check if submit is allowed based on registration period (invites bypass this)
   const canSubmit = inviteToken ? true : isWithinRegistrationPeriod();
   // --- Upload proof to storage only (returns fileName or null) ---
-  const uploadProofToStorage = async (file: File, prefix: string): Promise<string | null> => {
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+  const uploadProofToStorage = async (fileData: Blob | File, fileName: string, contentType: string): Promise<string | null> => {
     const maxRetries = 3;
+    let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${file.size} bytes, ${file.type})`);
+        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${fileData.size} bytes, ${contentType})`);
         const { error: uploadError } = await supabase.storage
           .from('payment-proofs')
-          .upload(fileName, file, {
+          .upload(fileName, fileData, {
             cacheControl: '3600',
             upsert: true,
-            contentType: file.type || 'application/octet-stream',
+            contentType,
           });
 
         if (uploadError) {
+          lastError = uploadError.message;
           console.error(`Storage upload error (attempt ${attempt}):`, uploadError.message, uploadError);
-          if (attempt === maxRetries) return null;
+          if (attempt === maxRetries) break;
           await new Promise(r => setTimeout(r, 1000 * attempt));
           continue;
         }
         console.log(`Upload succeeded on attempt ${attempt}: ${fileName}`);
         return fileName;
-      } catch (err) {
+      } catch (err: any) {
+        lastError = err?.message || 'Network error';
         console.error(`Upload exception (attempt ${attempt}):`, err);
-        if (attempt === maxRetries) return null;
+        if (attempt === maxRetries) break;
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
+    toast.error("Upload failed after 3 attempts", { description: lastError });
     return null;
   };
 
@@ -214,9 +227,11 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       const prefix = isBulk
         ? `combined-${registrationResult.applicationId}`
         : registrationResult.applicationId;
+      const fileExt = retryProofFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${prefix}-${Date.now()}.${fileExt}`;
 
       toast.info("Uploading payment proof...");
-      const fileName = await uploadProofToStorage(retryProofFile, prefix);
+      const fileName = await uploadProofToStorage(retryProofFile, targetFileName, retryProofFile.type || 'application/octet-stream');
       if (!fileName) {
         toast.error("Upload to storage failed. Please try again.");
         return;
@@ -259,25 +274,31 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         return;
       }
 
-      // --- STEP 1: Upload proof to storage FIRST ---
+      // --- STEP 1: Upload proof to storage FIRST (use in-memory blob if available) ---
+      const proofBlob = hasMultipleApplicants
+        ? bulkPaymentBlobs.get("combined")
+        : paymentProofBlob;
       const proofFile = hasMultipleApplicants
         ? bulkPaymentProofs.get("combined")
         : paymentProofFile;
 
-      if (!proofFile) {
+      if (!proofBlob && !proofFile) {
         toast.error("Payment proof is required");
         setIsSubmitting(false);
         return;
       }
 
+      const uploadData = proofBlob ? proofBlob.blob : proofFile!;
+      const uploadName = proofBlob ? proofBlob.name : proofFile!.name;
+      const uploadType = proofBlob ? proofBlob.type : (proofFile!.type || 'application/octet-stream');
+
       toast.info("Uploading payment proof...");
       const tempPrefix = `pending-${Date.now()}`;
-      const uploadedFileName = await uploadProofToStorage(proofFile, tempPrefix);
+      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
+      const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
 
       if (!uploadedFileName) {
-        toast.error("Failed to upload payment proof", {
-          description: "Please check your file and internet connection, then try again.",
-        });
         setIsSubmitting(false);
         return;
       }
@@ -346,8 +367,8 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       const finalPrefix = isBulk
         ? `combined-${result.applicationId}`
         : result.applicationId;
-      const fileExt = proofFile.name.split('.').pop();
-      const finalFileName = `${finalPrefix}-${Date.now()}.${fileExt}`;
+      const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
+      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
 
       const { error: copyError } = await supabase.storage
         .from('payment-proofs')
@@ -425,7 +446,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
     setCurrentApplication(null);
     setRegistrationResult(null);
     setPaymentProofFile(null);
+    setPaymentProofBlob(null);
     setBulkPaymentProofs(new Map());
+    setBulkPaymentBlobs(new Map());
     setRetryProofFile(null);
     setIsRetryingUpload(false);
     setViewState("form");
@@ -1036,7 +1059,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                                 <span>{(paymentProofFile.size / 1024).toFixed(1)} KB</span>
                                 <button
                                   type="button"
-                                  onClick={() => setPaymentProofFile(null)}
+                                  onClick={() => { setPaymentProofFile(null); setPaymentProofBlob(null); }}
                                   className="ml-2 text-destructive hover:underline"
                                 >
                                   Remove
