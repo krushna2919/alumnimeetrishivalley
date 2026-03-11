@@ -227,9 +227,11 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       const prefix = isBulk
         ? `combined-${registrationResult.applicationId}`
         : registrationResult.applicationId;
+      const fileExt = retryProofFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const targetFileName = `${prefix}-${Date.now()}.${fileExt}`;
 
       toast.info("Uploading payment proof...");
-      const fileName = await uploadProofToStorage(retryProofFile, prefix);
+      const fileName = await uploadProofToStorage(retryProofFile, targetFileName, retryProofFile.type || 'application/octet-stream');
       if (!fileName) {
         toast.error("Upload to storage failed. Please try again.");
         return;
