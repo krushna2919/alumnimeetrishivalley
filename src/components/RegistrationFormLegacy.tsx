@@ -356,7 +356,9 @@ const RegistrationFormLegacy = () => {
     setCurrentApplication(null);
     setRegistrationResult(null);
     setPaymentProofFile(null);
+    setPaymentProofBlob(null);
     setBulkPaymentProofs(new Map());
+    setBulkPaymentBlobs(new Map());
     setViewState("form");
   };
 
