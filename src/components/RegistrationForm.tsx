@@ -1059,7 +1059,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                                 <span>{(paymentProofFile.size / 1024).toFixed(1)} KB</span>
                                 <button
                                   type="button"
-                                  onClick={() => setPaymentProofFile(null)}
+                                  onClick={() => { setPaymentProofFile(null); setPaymentProofBlob(null); }}
                                   className="ml-2 text-destructive hover:underline"
                                 >
                                   Remove
