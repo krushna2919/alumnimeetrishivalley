@@ -169,26 +169,31 @@ const EditRegistrationDialog = ({
 
     setIsUploadingReceipt(true);
     try {
-      // Delete old receipt from storage if one exists
-      const oldUrl = registration.payment_receipt_url;
-      if (oldUrl) {
-        try {
-          const url = new URL(oldUrl);
-          const pathParts = url.pathname.split('/storage/v1/object/public/payment-receipts/');
-          if (pathParts[1]) {
-            await supabase.storage.from('payment-receipts').remove([decodeURIComponent(pathParts[1])]);
+      const { data: existingReceiptsData, error: existingReceiptsError } = await supabase.functions.invoke('list-payment-receipts', {
+        body: { applicationId: registration.application_id },
+      });
+
+      if (existingReceiptsError) {
+        console.error('Failed to list existing receipts:', existingReceiptsError);
+      } else {
+        const existingPaths = ((existingReceiptsData?.receipts ?? []) as Array<{ path: string; bucket?: string }>)
+          .filter((item) => item?.bucket === 'payment-receipts' && item?.path)
+          .map((item) => item.path);
+
+        if (existingPaths.length > 0) {
+          const { error: removeError } = await supabase.storage.from('payment-receipts').remove(existingPaths);
+          if (removeError) {
+            console.error('Failed to delete old receipts:', removeError);
           }
-        } catch (e) {
-          console.warn('Could not delete old receipt:', e);
         }
       }
 
       const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const fileName = `${registration.application_id}-${Date.now()}.${ext}`;
+      const fileName = `receipt-${registration.application_id}.${ext}`;
 
       const { data, error } = await supabase.storage
         .from('payment-receipts')
-        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
       if (error) {
         console.error('Receipt upload error:', error);
