@@ -230,6 +230,11 @@ const EditRegistrationDialog = ({
         updatePayload.payment_status = 'submitted';
       }
 
+      // If a new receipt was uploaded, link it
+      if (uploadedReceipt) {
+        updatePayload.payment_receipt_url = uploadedReceipt.url;
+      }
+
       // If edit mode is enabled, mark as ready for final approval after admin saves changes
       // Note: accounts_verified should already be true at this point (set by accounts admin)
       if (registration.edit_mode_enabled) {
