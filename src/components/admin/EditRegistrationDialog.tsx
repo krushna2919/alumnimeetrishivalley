@@ -51,8 +51,11 @@ const EditRegistrationDialog = ({
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [uploadedProof, setUploadedProof] = useState<{ name: string; url: string } | null>(null);
+  const [uploadedReceipt, setUploadedReceipt] = useState<{ name: string; url: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
