@@ -161,15 +161,14 @@ serve(async (req) => {
     ]);
 
     const receipts = [...inReceipts, ...inProofs]
-      // Sort newest first when possible
       .sort((a, b) => {
         const at = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
         if (at !== bt) return bt - at;
-        // Put current bucket first for ties
         if (a.bucket !== b.bucket) return a.bucket === "payment-receipts" ? -1 : 1;
         return b.path.localeCompare(a.path);
-      });
+      })
+      .slice(0, 1);
 
     return new Response(JSON.stringify({ receipts }), {
       status: 200,

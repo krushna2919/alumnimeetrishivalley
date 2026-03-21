@@ -394,12 +394,31 @@ const AdminAccountsReview = () => {
 
     setIsUploadingReceipt(true);
     try {
-      const fileExt = receiptFile.name.split('.').pop();
-      const fileName = `receipt-${registration.application_id}-${Date.now()}.${fileExt}`;
+      const { data: existingReceiptsData, error: existingReceiptsError } = await supabase.functions.invoke('list-payment-receipts', {
+        body: { applicationId: registration.application_id },
+      });
+
+      if (existingReceiptsError) {
+        console.error('Failed to list existing receipts:', existingReceiptsError);
+      } else {
+        const existingPaths = ((existingReceiptsData?.receipts ?? []) as Array<{ path: string; bucket?: string }>)
+          .filter((item) => item?.bucket === 'payment-receipts' && item?.path)
+          .map((item) => item.path);
+
+        if (existingPaths.length > 0) {
+          const { error: removeError } = await supabase.storage.from('payment-receipts').remove(existingPaths);
+          if (removeError) {
+            console.error('Failed to delete old receipts:', removeError);
+          }
+        }
+      }
+
+      const fileExt = receiptFile.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const fileName = `receipt-${registration.application_id}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('payment-receipts')
-        .upload(fileName, receiptFile);
+        .upload(fileName, receiptFile, { upsert: true });
 
       if (uploadError) throw uploadError;
 
