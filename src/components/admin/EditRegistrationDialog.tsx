@@ -392,7 +392,95 @@ const EditRegistrationDialog = ({
             )}
           </div>
 
-          {/* Personal Information */}
+          {/* Payment Receipt Section */}
+          <div className="col-span-full border rounded-lg p-4 bg-muted/30">
+            <h4 className="font-medium text-sm flex items-center gap-2 mb-3">
+              <FileText className="h-4 w-4" />
+              Payment Receipt
+            </h4>
+
+            {registration.payment_receipt_url && !uploadedReceipt && (
+              <div className="flex items-center gap-2 mb-3 text-sm">
+                <CheckCircle className="h-4 w-4 text-secondary-foreground" />
+                <span className="text-muted-foreground">Existing receipt on file</span>
+                <a
+                  href={registration.payment_receipt_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline flex items-center gap-1"
+                >
+                  View <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+
+            {!registration.payment_receipt_url && !uploadedReceipt && (
+              <p className="text-sm text-muted-foreground mb-3">
+                No payment receipt on file.
+              </p>
+            )}
+
+            {uploadedReceipt ? (
+              <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg border border-secondary">
+                <CheckCircle className="h-5 w-5 text-secondary-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{uploadedReceipt.name}</p>
+                  <a
+                    href={uploadedReceipt.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View uploaded receipt
+                  </a>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUploadedReceipt(null)}
+                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={handleReceiptFileSelect}
+                  className="hidden"
+                  disabled={isUploadingReceipt}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => receiptInputRef.current?.click()}
+                  disabled={isUploadingReceipt}
+                  className="gap-2"
+                >
+                  {isUploadingReceipt ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      {registration.payment_receipt_url ? 'Replace Payment Receipt' : 'Upload Payment Receipt'}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  JPG, PNG, WebP, or PDF (max 5MB)
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
