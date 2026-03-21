@@ -153,6 +153,50 @@ const EditRegistrationDialog = ({
     }
   };
 
+  const handleReceiptFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !registration) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({ title: 'Invalid file type', description: 'Please upload a JPG, PNG, WebP, or PDF file', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'File size must be less than 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setIsUploadingReceipt(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const fileName = `${registration.application_id}-${Date.now()}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from('payment-receipts')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (error) {
+        console.error('Receipt upload error:', error);
+        toast({ title: 'Upload failed', description: 'Failed to upload payment receipt', variant: 'destructive' });
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('payment-receipts')
+        .getPublicUrl(data.path);
+
+      setUploadedReceipt({ name: file.name, url: urlData.publicUrl });
+      toast({ title: 'Payment receipt uploaded', description: file.name });
+    } catch (error) {
+      console.error('Receipt upload error:', error);
+      toast({ title: 'Upload failed', description: 'Failed to upload payment receipt', variant: 'destructive' });
+    } finally {
+      setIsUploadingReceipt(false);
+      if (receiptInputRef.current) receiptInputRef.current.value = '';
+    }
+  };
+
   const handleSave = async () => {
     if (!registration) return;
 
