@@ -169,6 +169,20 @@ const EditRegistrationDialog = ({
 
     setIsUploadingReceipt(true);
     try {
+      // Delete old receipt from storage if one exists
+      const oldUrl = registration.payment_receipt_url;
+      if (oldUrl) {
+        try {
+          const url = new URL(oldUrl);
+          const pathParts = url.pathname.split('/storage/v1/object/public/payment-receipts/');
+          if (pathParts[1]) {
+            await supabase.storage.from('payment-receipts').remove([decodeURIComponent(pathParts[1])]);
+          }
+        } catch (e) {
+          console.warn('Could not delete old receipt:', e);
+        }
+      }
+
       const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
       const fileName = `${registration.application_id}-${Date.now()}.${ext}`;
 
