@@ -101,6 +101,7 @@ const EditRegistrationDialog = ({
         country: registration.country || 'India',
       });
       setUploadedProof(null);
+      setUploadedReceipt(null);
     }
   }, [registration]);
 
