@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Upload, FileText, X, User, CheckCircle, AlertCircle, IndianRupee, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ interface BulkPaymentProofUploadProps {
   registrant: RegistrantData;
   additionalAttendees: AttendeeData[];
   paymentProofs: Map<string, File>;
+  onPaymentProofBlobsChange: (proofs: Map<string, { blob: Blob; name: string; type: string }>) => void;
   onPaymentProofsChange: (proofs: Map<string, File>) => void;
 }
 
@@ -24,10 +25,17 @@ const BulkPaymentProofUpload = ({
   registrant,
   additionalAttendees,
   paymentProofs,
+  onPaymentProofBlobsChange,
   onPaymentProofsChange,
 }: BulkPaymentProofUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   // Build list of all applicants for display only
   const applicants: Applicant[] = [
@@ -51,7 +59,7 @@ const BulkPaymentProofUpload = ({
   const hasMultipleApplicants = applicants.length > 1;
   const hasFile = paymentProofs.has("combined");
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -68,10 +76,28 @@ const BulkPaymentProofUpload = ({
       return;
     }
 
-    // Update payment proofs with "combined" key
-    const newProofs = new Map<string, File>();
-    newProofs.set("combined", file);
-    onPaymentProofsChange(newProofs);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: file.type || "application/octet-stream" });
+
+      const newProofs = new Map<string, File>();
+      newProofs.set("combined", file);
+      onPaymentProofsChange(newProofs);
+
+      const newBlobs = new Map<string, { blob: Blob; name: string; type: string }>();
+      newBlobs.set("combined", {
+        blob,
+        name: file.name,
+        type: file.type || "application/octet-stream",
+      });
+      onPaymentProofBlobsChange(newBlobs);
+    } catch (error) {
+      console.error("Failed to persist combined payment proof in memory:", error);
+      toast.error("Failed to read file", {
+        description: "Please select the payment proof again before submitting.",
+      });
+      return;
+    }
 
     // Create preview for images
     if (file.type.startsWith("image/")) {
@@ -87,6 +113,7 @@ const BulkPaymentProofUpload = ({
 
   const removeFile = () => {
     onPaymentProofsChange(new Map());
+    onPaymentProofBlobsChange(new Map());
     if (preview) {
       URL.revokeObjectURL(preview);
       setPreview(null);

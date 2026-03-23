@@ -177,7 +177,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
-    toast.error("Upload failed after 3 attempts", { description: lastError });
+    toast.error("Failed to upload payment proof", {
+      description: lastError || "Storage could not accept the file. Please retry.",
+    });
     return null;
   };
 
@@ -288,9 +290,47 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         return;
       }
 
-      const uploadData = proofBlob ? proofBlob.blob : proofFile!;
-      const uploadName = proofBlob ? proofBlob.name : proofFile!.name;
-      const uploadType = proofBlob ? proofBlob.type : (proofFile!.type || 'application/octet-stream');
+      let uploadData: Blob | File;
+      let uploadName: string;
+      let uploadType: string;
+
+      if (proofBlob) {
+        uploadData = proofBlob.blob;
+        uploadName = proofBlob.name;
+        uploadType = proofBlob.type;
+      } else {
+        try {
+          const arrayBuffer = await proofFile!.arrayBuffer();
+          const blob = new Blob([arrayBuffer], { type: proofFile!.type || 'application/octet-stream' });
+
+          uploadData = blob;
+          uploadName = proofFile!.name;
+          uploadType = proofFile!.type || 'application/octet-stream';
+
+          if (hasMultipleApplicants) {
+            const refreshedBulkBlobs = new Map(bulkPaymentBlobs);
+            refreshedBulkBlobs.set("combined", {
+              blob,
+              name: proofFile!.name,
+              type: uploadType,
+            });
+            setBulkPaymentBlobs(refreshedBulkBlobs);
+          } else {
+            setPaymentProofBlob({
+              blob,
+              name: proofFile!.name,
+              type: uploadType,
+            });
+          }
+        } catch (readError) {
+          console.error("Failed to prepare payment proof for upload:", readError);
+          toast.error("Failed to read payment proof", {
+            description: "Please select the file again and retry your submission.",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       toast.info("Uploading payment proof...");
       const tempPrefix = `pending-${Date.now()}`;
@@ -1024,6 +1064,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                           registrant={form.watch()}
                           additionalAttendees={additionalAttendees}
                           paymentProofs={bulkPaymentProofs}
+                          onPaymentProofBlobsChange={setBulkPaymentBlobs}
                           onPaymentProofsChange={setBulkPaymentProofs}
                         />
                       ) : (
