@@ -22,6 +22,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
+import { encodeBlobToBase64 } from "@/lib/paymentProofPayload";
 
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -207,7 +208,7 @@ const RegistrationFormLegacy = () => {
         return;
       }
 
-      // --- STEP 1: Upload proof to storage FIRST (use in-memory blob if available) ---
+      // --- STEP 1: Prepare proof payload in memory ---
       const proofBlob = hasMultipleApplicants
         ? bulkPaymentBlobs.get("combined")
         : paymentProofBlob;
@@ -221,7 +222,7 @@ const RegistrationFormLegacy = () => {
         return;
       }
 
-      let uploadData: Blob | File;
+      let uploadData: Blob;
       let uploadName: string;
       let uploadType: string;
 
@@ -263,20 +264,16 @@ const RegistrationFormLegacy = () => {
         }
       }
 
-      toast.info("Uploading payment proof...");
-      const tempPrefix = `pending-${Date.now()}`;
-      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
-      const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
+      const paymentProof = {
+        base64: await encodeBlobToBase64(uploadData),
+        name: uploadName,
+        type: uploadType,
+        size: uploadData.size,
+      };
 
-      if (!uploadedFileName) {
-        setIsSubmitting(false);
-        return;
-      }
+      toast.info("Submitting registration...");
 
-      toast.success("Payment proof verified in storage. Submitting registration...");
-
-      // --- STEP 2: Call edge function (now with proof filename for server-side verification) ---
+      // --- STEP 2: Call backend to upload proof + create registration atomically ---
       const registrationFee = calculateFee(data.stayType);
       const finalBoardType = data.boardType === "Other" ? data.customBoardType : data.boardType;
 
@@ -298,7 +295,7 @@ const RegistrationFormLegacy = () => {
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
         body: {
           botValidation,
-          paymentProofFileName: uploadedFileName,
+          paymentProof,
           name: data.name,
           email: data.email,
           phone: data.phone,
@@ -321,9 +318,12 @@ const RegistrationFormLegacy = () => {
       });
 
       if (error) {
-        console.error("Registration error code:", error.name);
+        console.error("Legacy registration submit failed:", error);
+        const description = /failed to fetch/i.test(error.message)
+          ? "Unable to reach the registration service right now. Please retry in a few moments."
+          : error.message || "Unable to complete registration. Please try again later.";
         toast.error("Registration failed", {
-          description: "Unable to complete registration. Please try again later.",
+          description,
         });
         return;
       }
@@ -332,35 +332,6 @@ const RegistrationFormLegacy = () => {
         toast.error("Registration failed", { description: result.error });
         return;
       }
-
-      // --- STEP 3: Rename proof file to use actual application ID ---
-      const isBulk = hasMultipleApplicants;
-      const finalPrefix = isBulk
-        ? `combined-${result.applicationId}`
-        : result.applicationId;
-      const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
-
-      const { error: copyError } = await supabase.storage
-        .from('payment-proofs')
-        .copy(uploadedFileName, finalFileName);
-
-      const fileToLink = copyError ? uploadedFileName : finalFileName;
-
-      // Clean up temp file if copy succeeded
-      if (!copyError) {
-        await supabase.storage.from('payment-proofs').remove([uploadedFileName]);
-      }
-
-      // --- STEP 4: Link proof to all registrations ---
-      const allAppIds = [result.applicationId];
-      if (result.additionalRegistrations) {
-        for (const reg of result.additionalRegistrations) {
-          allAppIds.push(reg.applicationId);
-        }
-      }
-
-      await linkProofToRegistrations(fileToLink, allAppIds);
 
       setCurrentApplication(result.registration);
       setRegistrationResult({

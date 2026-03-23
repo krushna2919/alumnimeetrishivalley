@@ -13,6 +13,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
+import { encodeBlobToBase64 } from "@/lib/paymentProofPayload";
 import ApplicationLookup from "./ApplicationLookup";
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -276,7 +277,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         return;
       }
 
-      // --- STEP 1: Upload proof to storage FIRST (use in-memory blob if available) ---
+      // --- STEP 1: Prepare proof payload in memory ---
       const proofBlob = hasMultipleApplicants
         ? bulkPaymentBlobs.get("combined")
         : paymentProofBlob;
@@ -290,7 +291,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         return;
       }
 
-      let uploadData: Blob | File;
+      let uploadData: Blob;
       let uploadName: string;
       let uploadType: string;
 
@@ -332,20 +333,16 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         }
       }
 
-      toast.info("Uploading payment proof...");
-      const tempPrefix = `pending-${Date.now()}`;
-      const uploadExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const targetFileName = `${tempPrefix}-${Date.now()}.${uploadExt}`;
-      const uploadedFileName = await uploadProofToStorage(uploadData, targetFileName, uploadType);
+      const paymentProof = {
+        base64: await encodeBlobToBase64(uploadData),
+        name: uploadName,
+        type: uploadType,
+        size: uploadData.size,
+      };
 
-      if (!uploadedFileName) {
-        setIsSubmitting(false);
-        return;
-      }
+      toast.info("Submitting registration...");
 
-      toast.success("Payment proof verified in storage. Submitting registration...");
-
-      // --- STEP 2: Call edge function to create registration ---
+      // --- STEP 2: Call backend to upload proof + create registration atomically ---
       const registrationFee = calculateFee(data.stayType);
       const finalBoardType = data.boardType === "Other" ? data.customBoardType : data.boardType;
 
@@ -367,7 +364,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       const { data: result, error } = await supabase.functions.invoke("verify-captcha-register", {
         body: {
           botValidation,
-          paymentProofFileName: uploadedFileName,
+          paymentProof,
           name: data.name,
           email: data.email,
           phone: data.phone,
@@ -390,9 +387,12 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       });
 
       if (error) {
-        console.error("Registration error code:", error.name);
+        console.error("Registration submit failed:", error);
+        const description = /failed to fetch/i.test(error.message)
+          ? "Unable to reach the registration service right now. Please retry in a few moments."
+          : error.message || "Unable to complete registration. Please try again later.";
         toast.error("Registration failed", {
-          description: "Unable to complete registration. Please try again later.",
+          description,
         });
         return;
       }
@@ -401,35 +401,6 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         toast.error("Registration failed", { description: result.error });
         return;
       }
-
-      // --- STEP 3: Rename proof file to use actual application ID ---
-      const isBulk = hasMultipleApplicants;
-      const finalPrefix = isBulk
-        ? `combined-${result.applicationId}`
-        : result.applicationId;
-      const renameExt = uploadName.split('.').pop()?.toLowerCase() || 'jpg';
-      const finalFileName = `${finalPrefix}-${Date.now()}.${renameExt}`;
-
-      const { error: copyError } = await supabase.storage
-        .from('payment-proofs')
-        .copy(uploadedFileName, finalFileName);
-
-      const fileToLink = copyError ? uploadedFileName : finalFileName;
-
-      // Clean up temp file if copy succeeded
-      if (!copyError) {
-        await supabase.storage.from('payment-proofs').remove([uploadedFileName]);
-      }
-
-      // --- STEP 4: Link proof to all registrations ---
-      const allAppIds = [result.applicationId];
-      if (result.additionalRegistrations) {
-        for (const reg of result.additionalRegistrations) {
-          allAppIds.push(reg.applicationId);
-        }
-      }
-
-      const linkSuccess = await linkProofToRegistrations(fileToLink, allAppIds);
 
       const regResult: RegistrationResult = {
         ...result.registration,
@@ -441,27 +412,19 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       setCurrentApplication(result.registration);
       setRegistrationResult(regResult);
 
-      if (linkSuccess) {
-        // Mark invite as used if this was an invite registration
-        if (inviteToken) {
-          await supabase
-            .from("registration_invites" as any)
-            .update({ used: true, used_at: new Date().toISOString() } as any)
-            .eq("token", inviteToken);
-        }
-        setViewState("success");
-        resetFormLoadTime();
-        const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
-        toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
-          description: `Primary Application ID: ${result.applicationId}`,
-        });
-      } else {
-        // Proof is in storage but DB link failed — show retry
-        setViewState("proof-retry");
-        toast.warning("Registration saved but proof linking failed", {
-          description: "Your proof is safely uploaded. Please retry linking below.",
-        });
+      if (inviteToken) {
+        await supabase
+          .from("registration_invites" as any)
+          .update({ used: true, used_at: new Date().toISOString() } as any)
+          .eq("token", inviteToken);
       }
+
+      setViewState("success");
+      resetFormLoadTime();
+      const totalRegistered = 1 + (result.additionalRegistrations?.length || 0);
+      toast.success(`${totalRegistered} registration${totalRegistered > 1 ? "s" : ""} submitted!`, {
+        description: `Primary Application ID: ${result.applicationId}`,
+      });
     } catch (error: unknown) {
       console.error("Registration failed");
       toast.error("Registration failed", {
