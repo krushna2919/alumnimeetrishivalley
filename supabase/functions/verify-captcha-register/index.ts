@@ -31,8 +31,12 @@ interface BotValidation {
 
 interface RegistrationRequest {
   botValidation: BotValidation;
-  // Payment proof filename (uploaded to storage before this call)
-  paymentProofFileName?: string;
+  paymentProof?: {
+    base64: string;
+    name: string;
+    type: string;
+    size?: number;
+  };
   // Main registrant info
   name: string;
   email: string;
@@ -85,6 +89,36 @@ interface RegistrationInfo {
   email: string;
   stayType: string;
   registrationFee: number;
+}
+
+function base64ToBytes(input: string): Uint8Array {
+  const normalized = input.includes(",") ? input.split(",").pop() ?? "" : input;
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function getProofExtension(fileName: string, contentType: string): string {
+  const fromName = fileName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (fromName) return fromName;
+
+  switch (contentType) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "application/pdf":
+      return "pdf";
+    default:
+      return "bin";
+  }
 }
 
 async function sendConsolidatedConfirmationEmail(
@@ -349,9 +383,9 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // --- SERVER-SIDE: Verify payment proof exists in storage ---
-    if (!data.paymentProofFileName || typeof data.paymentProofFileName !== "string" || data.paymentProofFileName.trim().length === 0) {
-      console.warn("Registration rejected: no paymentProofFileName provided");
+    // --- SERVER-SIDE: Validate and upload payment proof ---
+    if (!data.paymentProof?.base64 || !data.paymentProof?.name || !data.paymentProof?.type) {
+      console.warn("Registration rejected: no payment proof payload provided");
       return new Response(
         JSON.stringify({
           error: "Payment proof is required. Please upload your payment proof and try again.",
@@ -361,30 +395,32 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { data: proofFileData, error: proofFileError } = await supabase.storage
-      .from("payment-proofs")
-      .list("", { search: data.paymentProofFileName, limit: 1 });
-
-    const proofExists = !proofFileError && proofFileData && proofFileData.some(
-      (f: { name: string }) => f.name === data.paymentProofFileName
-    );
-
-    if (!proofExists) {
-      console.warn("Registration rejected: proof file not found in storage:", data.paymentProofFileName);
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(data.paymentProof.type)) {
       return new Response(
         JSON.stringify({
-          error: "Payment proof file could not be verified in storage. Please re-upload and try again.",
-          code: "PROOF_NOT_FOUND",
+          error: "Unsupported payment proof file type. Please upload JPG, PNG, WebP, or PDF.",
+          code: "INVALID_PROOF_TYPE",
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Payment proof verified in storage:", data.paymentProofFileName);
+    const proofBytes = base64ToBytes(data.paymentProof.base64);
+    const proofSize = data.paymentProof.size ?? proofBytes.byteLength;
+    if (proofSize > 5 * 1024 * 1024 || proofBytes.byteLength > 5 * 1024 * 1024) {
+      return new Response(
+        JSON.stringify({
+          error: "Payment proof must be 5MB or smaller.",
+          code: "PROOF_TOO_LARGE",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Generate application ID for main registrant using the database function
     const { data: appIdData, error: appIdError } = await supabase.rpc("generate_application_id");
-    
+
     if (appIdError) {
       console.error("Error generating application ID:", appIdError);
       throw new Error("Failed to generate application ID");
@@ -392,6 +428,38 @@ serve(async (req: Request): Promise<Response> => {
 
     const applicationId = appIdData;
     console.log("Generated application ID:", applicationId);
+
+    const isBulkRegistration = !!(data.additionalAttendees && data.additionalAttendees.length > 0);
+    const proofExtension = getProofExtension(data.paymentProof.name, data.paymentProof.type);
+    const paymentProofFileName = isBulkRegistration
+      ? `combined-${applicationId}-${Date.now()}.${proofExtension}`
+      : `${applicationId}-${Date.now()}.${proofExtension}`;
+
+    const { error: proofUploadError } = await supabase.storage
+      .from("payment-proofs")
+      .upload(paymentProofFileName, proofBytes, {
+        upsert: true,
+        cacheControl: "3600",
+        contentType: data.paymentProof.type,
+      });
+
+    if (proofUploadError) {
+      console.error("Payment proof upload failed:", proofUploadError);
+      return new Response(
+        JSON.stringify({
+          error: "Unable to upload payment proof right now. Please try again.",
+          code: "PROOF_UPLOAD_FAILED",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { data: proofUrlData } = supabase.storage
+      .from("payment-proofs")
+      .getPublicUrl(paymentProofFileName);
+
+    const paymentProofUrl = proofUrlData.publicUrl;
+    console.log("Payment proof uploaded successfully:", paymentProofFileName);
 
     // Insert main registrant
     const { data: registration, error: insertError } = await supabase
@@ -415,7 +483,8 @@ serve(async (req: Request): Promise<Response> => {
         tshirt_size: data.tshirtSize,
         gender: data.gender,
         registration_fee: data.registrationFee,
-        payment_status: "pending",
+        payment_proof_url: paymentProofUrl,
+        payment_status: "submitted",
         registration_status: "pending",
       })
       .select()
@@ -423,6 +492,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (insertError) {
       console.error("Error inserting registration:", insertError);
+      await supabase.storage.from("payment-proofs").remove([paymentProofFileName]);
       
       // Check for duplicate email
       if (insertError.code === "23505") {
@@ -502,7 +572,8 @@ serve(async (req: Request): Promise<Response> => {
             tshirt_size: attendee.tshirtSize,
             gender: attendee.gender,
             registration_fee: attendee.registrationFee,
-            payment_status: "pending",
+            payment_proof_url: paymentProofUrl,
+            payment_status: "submitted",
             registration_status: "pending",
           })
           .select()
@@ -593,9 +664,9 @@ serve(async (req: Request): Promise<Response> => {
       }
     );
   } catch (error: unknown) {
-    console.error("Error in verify-captcha-register");
+    console.error("Error in verify-captcha-register", error);
     return new Response(
-      JSON.stringify({ error: "An unexpected error occurred. Please try again." }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "An unexpected error occurred. Please try again." }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
