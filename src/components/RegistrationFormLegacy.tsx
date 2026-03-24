@@ -22,7 +22,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
-import { encodeBlobToBase64 } from "@/lib/paymentProofPayload";
+import { encodeBlobToBase64, preparePaymentProof } from "@/lib/paymentProofPayload";
 
 import PaymentDetailsForm from "./PaymentDetailsForm";
 import RegistrationSuccess from "./RegistrationSuccess";
@@ -88,14 +88,20 @@ const RegistrationFormLegacy = () => {
         return;
       }
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
-        setPaymentProofBlob({ blob, name: file.name, type: file.type || 'application/octet-stream' });
-        setPaymentProofFile(file);
-        toast.success("Payment proof attached", { description: file.name });
+        const preparedProof = await preparePaymentProof(file);
+        const preparedFile = new File([preparedProof.blob], preparedProof.name, { type: preparedProof.type });
+        setPaymentProofBlob({ blob: preparedProof.blob, name: preparedProof.name, type: preparedProof.type });
+        setPaymentProofFile(preparedFile);
+        toast.success("Payment proof attached", {
+          description: preparedProof.wasOptimized
+            ? `${preparedProof.name} optimized for reliable upload`
+            : preparedProof.name,
+        });
       } catch (err) {
         console.error("Failed to read file into memory:", err);
-        toast.error("Failed to read file", { description: "Please try selecting the file again." });
+        toast.error("Failed to prepare file", {
+          description: err instanceof Error ? err.message : "Please try selecting the file again.",
+        });
       }
     }
   };
@@ -120,79 +126,6 @@ const RegistrationFormLegacy = () => {
   const watchedRegistrant = useWatch({ control: form.control }) as RegistrantData;
   const registrantFee = calculateFee(watchedRegistrant?.stayType ?? "on-campus");
   const totalFee = calculateTotalFee(watchedRegistrant, additionalAttendees);
-
-  const uploadProofToStorage = async (fileData: Blob | File, fileName: string, contentType: string): Promise<string | null> => {
-    const maxRetries = 3;
-    let lastError = '';
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Upload attempt ${attempt}/${maxRetries} for ${fileName} (${fileData.size} bytes, ${contentType})`);
-        const { error: uploadError } = await supabase.storage
-          .from('payment-proofs')
-          .upload(fileName, fileData, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType,
-          });
-
-        if (uploadError) {
-          lastError = uploadError.message;
-          console.error(`Storage upload error (attempt ${attempt}):`, uploadError.message, uploadError);
-          if (attempt === maxRetries) break;
-          await new Promise(r => setTimeout(r, 1000 * attempt));
-          continue;
-        }
-        console.log(`Upload succeeded on attempt ${attempt}: ${fileName}`);
-        return fileName;
-      } catch (err: any) {
-        lastError = err?.message || 'Network error';
-        console.error(`Upload exception (attempt ${attempt}):`, err);
-        if (attempt === maxRetries) break;
-        await new Promise(r => setTimeout(r, 1000 * attempt));
-      }
-    }
-    toast.error("Failed to upload payment proof", {
-      description: lastError || "Storage could not accept the file. Please retry.",
-    });
-    return null;
-  };
-
-  // --- Link uploaded proof to registration(s) in DB ---
-  const linkProofToRegistrations = async (
-    fileName: string,
-    applicationIds: string[]
-  ): Promise<boolean> => {
-    const { data: { publicUrl } } = supabase.storage
-      .from('payment-proofs')
-      .getPublicUrl(fileName);
-
-    const updatePayload = {
-      payment_proof_url: publicUrl,
-      payment_status: "submitted" as const,
-      updated_at: new Date().toISOString(),
-    };
-
-    let anyFailed = false;
-    for (const appId of applicationIds) {
-      let lastError: unknown = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const { error } = await supabase
-          .from("registrations")
-          .update(updatePayload)
-          .eq("application_id", appId);
-
-        if (!error) { lastError = null; break; }
-        lastError = error;
-        await new Promise((r) => setTimeout(r, 400 * attempt));
-      }
-      if (lastError) {
-        console.error(`Failed to link proof to ${appId} after retries:`, lastError);
-        anyFailed = true;
-      }
-    }
-    return !anyFailed;
-  };
 
   const onSubmit = async (data: RegistrantData) => {
     setIsSubmitting(true);
@@ -232,25 +165,24 @@ const RegistrationFormLegacy = () => {
         uploadType = proofBlob.type;
       } else {
         try {
-          const arrayBuffer = await proofFile!.arrayBuffer();
-          const blob = new Blob([arrayBuffer], { type: proofFile!.type || 'application/octet-stream' });
+          const preparedProof = await preparePaymentProof(proofFile!);
 
-          uploadData = blob;
-          uploadName = proofFile!.name;
-          uploadType = proofFile!.type || 'application/octet-stream';
+          uploadData = preparedProof.blob;
+          uploadName = preparedProof.name;
+          uploadType = preparedProof.type;
 
           if (hasMultipleApplicants) {
             const refreshedBulkBlobs = new Map(bulkPaymentBlobs);
             refreshedBulkBlobs.set("combined", {
-              blob,
-              name: proofFile!.name,
+              blob: preparedProof.blob,
+              name: preparedProof.name,
               type: uploadType,
             });
             setBulkPaymentBlobs(refreshedBulkBlobs);
           } else {
             setPaymentProofBlob({
-              blob,
-              name: proofFile!.name,
+              blob: preparedProof.blob,
+              name: preparedProof.name,
               type: uploadType,
             });
           }
@@ -270,6 +202,14 @@ const RegistrationFormLegacy = () => {
         type: uploadType,
         size: uploadData.size,
       };
+
+      if (paymentProof.base64.length > 2_600_000) {
+        toast.error("Payment proof is still too large", {
+          description: "Please upload a smaller image or PDF and try again.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
       toast.info("Submitting registration...");
 
@@ -348,9 +288,9 @@ const RegistrationFormLegacy = () => {
         description: `Primary Application ID: ${result.applicationId}`,
       });
     } catch (error: unknown) {
-      console.error("Registration failed");
+      console.error("Registration failed", error);
       toast.error("Registration failed", {
-        description: "Unable to complete registration. Please try again later.",
+        description: error instanceof Error ? error.message : "Unable to complete registration. Please try again later.",
       });
     } finally {
       setIsSubmitting(false);

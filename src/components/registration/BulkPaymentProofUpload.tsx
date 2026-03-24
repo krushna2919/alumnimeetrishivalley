@@ -4,6 +4,7 @@ import { Upload, FileText, X, User, CheckCircle, AlertCircle, IndianRupee, Users
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { AttendeeData, RegistrantData, calculateFee } from "./types";
+import { preparePaymentProof } from "@/lib/paymentProofPayload";
 
 interface Applicant {
   id: string;
@@ -77,24 +78,32 @@ const BulkPaymentProofUpload = ({
     }
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const blob = new Blob([arrayBuffer], { type: file.type || "application/octet-stream" });
+      const preparedProof = await preparePaymentProof(file);
+      const preparedFile = new File([preparedProof.blob], preparedProof.name, { type: preparedProof.type });
 
       const newProofs = new Map<string, File>();
-      newProofs.set("combined", file);
+      newProofs.set("combined", preparedFile);
       onPaymentProofsChange(newProofs);
 
       const newBlobs = new Map<string, { blob: Blob; name: string; type: string }>();
       newBlobs.set("combined", {
-        blob,
-        name: file.name,
-        type: file.type || "application/octet-stream",
+        blob: preparedProof.blob,
+        name: preparedProof.name,
+        type: preparedProof.type,
       });
       onPaymentProofBlobsChange(newBlobs);
+
+      toast.success("Payment proof attached successfully", {
+        description: preparedProof.wasOptimized
+          ? `${preparedProof.name} optimized for reliable upload`
+          : undefined,
+      });
     } catch (error) {
       console.error("Failed to persist combined payment proof in memory:", error);
-      toast.error("Failed to read file", {
-        description: "Please select the payment proof again before submitting.",
+      toast.error("Failed to prepare file", {
+        description: error instanceof Error
+          ? error.message
+          : "Please select the payment proof again before submitting.",
       });
       return;
     }
@@ -108,7 +117,6 @@ const BulkPaymentProofUpload = ({
       setPreview(null);
     }
 
-    toast.success("Payment proof attached successfully");
   };
 
   const removeFile = () => {
