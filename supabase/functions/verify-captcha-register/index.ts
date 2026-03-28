@@ -91,6 +91,32 @@ interface RegistrationInfo {
   registrationFee: number;
 }
 
+function normalizeGender(input: string): "M" | "F" | null {
+  const normalized = input.trim().toLowerCase();
+
+  if (["m", "male"].includes(normalized)) return "M";
+  if (["f", "female"].includes(normalized)) return "F";
+
+  return null;
+}
+
+function normalizeTshirtSize(input: string): string | null {
+  const normalized = input.trim().toUpperCase();
+
+  const sizeMap: Record<string, string> = {
+    S: 'S (Chest: 36")',
+    'S (CHEST: 36")': 'S (Chest: 36")',
+    M: 'M (Chest: 38-40")',
+    'M (CHEST: 38-40")': 'M (Chest: 38-40")',
+    L: 'L (Chest: 42")',
+    'L (CHEST: 42")': 'L (Chest: 42")',
+    XL: 'XL (Chest: 44")',
+    'XL (CHEST: 44")': 'XL (Chest: 44")',
+  };
+
+  return sizeMap[normalized] ?? null;
+}
+
 function base64ToBytes(input: string): Uint8Array {
   const normalized = input.includes(",") ? input.split(",").pop() ?? "" : input;
   const binary = atob(normalized);
@@ -359,6 +385,23 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    const normalizedPrimaryGender = normalizeGender(data.gender);
+    const normalizedPrimaryTshirtSize = normalizeTshirtSize(data.tshirtSize);
+
+    if (!normalizedPrimaryGender) {
+      return new Response(
+        JSON.stringify({ error: "Please select a valid gender.", code: "INVALID_GENDER" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!normalizedPrimaryTshirtSize) {
+      return new Response(
+        JSON.stringify({ error: "Please select a valid T-shirt size.", code: "INVALID_TSHIRT_SIZE" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Validate attendee emails and phones
     if (data.additionalAttendees && data.additionalAttendees.length > 0) {
       for (let i = 0; i < data.additionalAttendees.length; i++) {
@@ -372,6 +415,23 @@ serve(async (req: Request): Promise<Response> => {
         if (att.secondaryEmail && att.secondaryEmail.trim() !== "" && !emailRegex.test(att.secondaryEmail)) {
           return new Response(
             JSON.stringify({ error: `Attendee ${i + 1} (${att.name}): Invalid secondary email.`, code: "INVALID_EMAIL" }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        const attendeeGender = normalizeGender(att.gender);
+        const attendeeTshirtSize = normalizeTshirtSize(att.tshirtSize);
+
+        if (!attendeeGender) {
+          return new Response(
+            JSON.stringify({ error: `Attendee ${i + 1} (${att.name}): Invalid gender.`, code: "INVALID_GENDER" }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        if (!attendeeTshirtSize) {
+          return new Response(
+            JSON.stringify({ error: `Attendee ${i + 1} (${att.name}): Invalid T-shirt size.`, code: "INVALID_TSHIRT_SIZE" }),
             { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
@@ -480,8 +540,8 @@ serve(async (req: Request): Promise<Response> => {
         postal_code: data.postalCode,
         country: data.country || "India",
         stay_type: data.stayType,
-        tshirt_size: data.tshirtSize,
-        gender: data.gender,
+        tshirt_size: normalizedPrimaryTshirtSize,
+        gender: normalizedPrimaryGender,
         registration_fee: data.registrationFee,
         payment_proof_url: paymentProofUrl,
         payment_status: "submitted",
@@ -537,6 +597,18 @@ serve(async (req: Request): Promise<Response> => {
       console.log("Processing additional attendees...");
       
       for (const attendee of data.additionalAttendees) {
+        const attendeeGender = normalizeGender(attendee.gender);
+        const attendeeTshirtSize = normalizeTshirtSize(attendee.tshirtSize);
+
+        if (!attendeeGender || !attendeeTshirtSize) {
+          console.error("Skipping attendee due to invalid normalized values", {
+            attendeeName: attendee.name,
+            attendeeGender: attendee.gender,
+            attendeeTshirtSize: attendee.tshirtSize,
+          });
+          continue;
+        }
+
         // Generate unique application ID for each attendee
         const { data: attendeeAppId, error: attendeeAppIdError } = await supabase.rpc("generate_application_id");
         
@@ -569,8 +641,8 @@ serve(async (req: Request): Promise<Response> => {
             postal_code: data.postalCode,
             country: data.country || "India",
             stay_type: attendee.stayType,
-            tshirt_size: attendee.tshirtSize,
-            gender: attendee.gender,
+            tshirt_size: attendeeTshirtSize,
+            gender: attendeeGender,
             registration_fee: attendee.registrationFee,
             payment_proof_url: paymentProofUrl,
             payment_status: "submitted",
