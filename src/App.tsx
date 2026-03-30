@@ -81,7 +81,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/register1930-1980" element={<Index forceLegacy />} />
             <Route path="/invite/:token" element={<InviteRegistration />} />
-            <Route path="/install" element={<InstallApp />} />
+            
             <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* Admin Authentication */}

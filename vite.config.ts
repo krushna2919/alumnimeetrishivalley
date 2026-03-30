@@ -13,55 +13,6 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "pwa-192x192.png", "pwa-512x512.png"],
-      manifest: {
-        name: "Alumni Meet Admin",
-        short_name: "Alumni Admin",
-        description: "Admin panel for Centenary Alumni Meet 2026",
-        theme_color: "#1e3a5f",
-        background_color: "#ffffff",
-        display: "standalone",
-        orientation: "portrait",
-        scope: "/",
-        start_url: "/admin/",
-        icons: [
-          {
-            src: "pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable",
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        // Force new service worker to take control immediately
-        skipWaiting: true,
-        clientsClaim: true,
-        // Clean up old caches
-        cleanupOutdatedCaches: true,
-        // Ensure installed app routes (React Router) always resolve to the SPA shell
-        navigateFallback: "/index.html",
-        navigateFallbackAllowlist: [/^\/$/, /^\/admin(\/.*)?$/, /^\/install(\/.*)?$/],
-        navigateFallbackDenylist: [/^\/api/],
-        // Never cache API/Supabase requests in the service worker —
-        // POST requests (like registration submissions) are incompatible
-        // with workbox caching and cause "Failed to fetch" on mobile.
-        runtimeCaching: [],
-      },
-    }),
   ].filter(Boolean),
   resolve: {
     alias: {
