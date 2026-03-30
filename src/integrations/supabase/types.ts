@@ -140,6 +140,54 @@ export type Database = {
           },
         ]
       }
+      client_error_logs: {
+        Row: {
+          console_logs: Json | null
+          created_at: string
+          error_type: string
+          id: string
+          message: string | null
+          metadata: Json | null
+          page_url: string | null
+          request_method: string | null
+          request_url: string | null
+          response_status: number | null
+          session_id: string | null
+          stack: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          console_logs?: Json | null
+          created_at?: string
+          error_type: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          page_url?: string | null
+          request_method?: string | null
+          request_url?: string | null
+          response_status?: number | null
+          session_id?: string | null
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          console_logs?: Json | null
+          created_at?: string
+          error_type?: string
+          id?: string
+          message?: string | null
+          metadata?: Json | null
+          page_url?: string | null
+          request_method?: string | null
+          request_url?: string | null
+          response_status?: number | null
+          session_id?: string | null
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       email_otps: {
         Row: {
           created_at: string

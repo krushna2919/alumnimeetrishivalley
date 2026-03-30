@@ -37,7 +37,8 @@ import {
   Activity,
   ChevronLeft,
   ChevronRight,
-  MapPinOff
+  MapPinOff,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
@@ -88,6 +89,7 @@ const getNavItems = (userRole: string | null) => {
   // Only superadmin can access Activity Dashboard
   if (userRole === 'superadmin') {
     items.push({ href: '/admin/activity', label: 'Activity Logs', icon: Activity });
+    items.push({ href: '/admin/error-logs', label: 'Error Logs', icon: AlertCircle });
   }
   
   // Admin and superadmin can access Settings

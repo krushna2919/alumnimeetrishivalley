@@ -37,6 +37,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminHostelManagement from "./pages/admin/AdminHostelManagement";
 import AdminAccountsReview from "./pages/admin/AdminAccountsReview";
 import AdminActivityDashboard from "./pages/admin/AdminActivityDashboard";
+import AdminErrorLogs from "./pages/admin/AdminErrorLogs";
 
 import ResetPassword from "./pages/ResetPassword";
 import InviteRegistration from "./pages/InviteRegistration";
@@ -95,6 +96,7 @@ const App = () => (
             <Route path="/admin/hostels" element={<AdminHostelManagement />} />
             <Route path="/admin/accounts-review" element={<AdminAccountsReview />} />
             <Route path="/admin/activity" element={<AdminActivityDashboard />} />
+            <Route path="/admin/error-logs" element={<AdminErrorLogs />} />
             
             {/* 404 Catch-all - Must be last */}
             <Route path="*" element={<NotFound />} />
