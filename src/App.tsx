@@ -37,6 +37,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminHostelManagement from "./pages/admin/AdminHostelManagement";
 import AdminAccountsReview from "./pages/admin/AdminAccountsReview";
 import AdminActivityDashboard from "./pages/admin/AdminActivityDashboard";
+import AdminErrorLogs from "./pages/admin/AdminErrorLogs";
 
 import ResetPassword from "./pages/ResetPassword";
 import InviteRegistration from "./pages/InviteRegistration";
