@@ -14,8 +14,8 @@
  * 
  * Route Structure:
  * - "/" : Public registration form for alumni
- * - "/install" : PWA installation instructions page
  * - "/admin/*" : Protected admin routes (requires authentication)
+ * - "*" : Catch-all 404 page for unknown routes
  * - "*" : Catch-all 404 page for unknown routes
  */
 
@@ -37,7 +37,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminHostelManagement from "./pages/admin/AdminHostelManagement";
 import AdminAccountsReview from "./pages/admin/AdminAccountsReview";
 import AdminActivityDashboard from "./pages/admin/AdminActivityDashboard";
-import InstallApp from "./pages/InstallApp";
+
 import ResetPassword from "./pages/ResetPassword";
 import InviteRegistration from "./pages/InviteRegistration";
 
@@ -81,7 +81,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/register1930-1980" element={<Index forceLegacy />} />
             <Route path="/invite/:token" element={<InviteRegistration />} />
-            <Route path="/install" element={<InstallApp />} />
+            
             <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* Admin Authentication */}
