@@ -56,19 +56,10 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: "/index.html",
         navigateFallbackAllowlist: [/^\/$/, /^\/admin(\/.*)?$/, /^\/install(\/.*)?$/],
         navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-cache",
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 1 day
-              },
-            },
-          },
-        ],
+        // Never cache API/Supabase requests in the service worker —
+        // POST requests (like registration submissions) are incompatible
+        // with workbox caching and cause "Failed to fetch" on mobile.
+        runtimeCaching: [],
       },
     }),
   ].filter(Boolean),
