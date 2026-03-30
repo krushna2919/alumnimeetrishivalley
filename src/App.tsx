@@ -14,8 +14,8 @@
  * 
  * Route Structure:
  * - "/" : Public registration form for alumni
- * - "/install" : PWA installation instructions page
  * - "/admin/*" : Protected admin routes (requires authentication)
+ * - "*" : Catch-all 404 page for unknown routes
  * - "*" : Catch-all 404 page for unknown routes
  */
 
