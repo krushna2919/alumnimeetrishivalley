@@ -823,7 +823,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                   />
                   ) : (
                     <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-6">
-                      <p className="font-semibold text-foreground text-lg">Registration Fee</p>
+                      <p className="font-semibold text-foreground text-lg">
+                        Registration Fee — {showOnCampusOption && !showOutsideOption ? "On-Campus Stay" : "Outside Stay"}
+                      </p>
                       <p className="text-2xl font-bold text-primary mt-1">
                         ₹{calculateFee(showOnCampusOption && !showOutsideOption ? "on-campus" : "outside").toLocaleString('en-IN')}
                       </p>
