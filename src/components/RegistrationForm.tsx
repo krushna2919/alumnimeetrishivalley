@@ -50,9 +50,10 @@ interface RegistrationFormProps {
   inviteEmail?: string;
   yearFromOverride?: number;
   yearToOverride?: number;
+  forceOutsideOnly?: boolean;
 }
 
-const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride }: RegistrationFormProps) => {
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride, forceOutsideOnly = false }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
@@ -125,7 +126,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
 
-  const showOnCampusOption = batchConfig?.showStayOption ?? true;
+  const showOnCampusOption = forceOutsideOnly ? false : (batchConfig?.showStayOption ?? true);
   const showOutsideOption = batchConfig?.showOutsideOption ?? true;
   // Show radio choice only when both options are enabled
   const showStayChoice = showOnCampusOption && showOutsideOption;
