@@ -64,7 +64,12 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
-  const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
+  const { config: batchConfig, yearOptions: dbYearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
+
+  // Apply year overrides if provided
+  const yearOptions = (yearFromOverride && yearToOverride)
+    ? Array.from({ length: yearToOverride - yearFromOverride + 1 }, (_, i) => yearToOverride - i)
+    : dbYearOptions;
 
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

@@ -68,7 +68,7 @@ const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride }: { forc
       <PaymentInfo />
       
       {/* Registration form - show legacy or standard based on hash */}
-      {showLegacyForm ? <RegistrationFormLegacy /> : <RegistrationForm />}
+      {showLegacyForm ? <RegistrationFormLegacy /> : <RegistrationForm yearFromOverride={yearFromOverride} yearToOverride={yearToOverride} />}
       
       {/* Footer with contact info and event details */}
       <Footer />
