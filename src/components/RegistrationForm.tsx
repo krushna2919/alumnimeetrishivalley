@@ -126,7 +126,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
 
-  const showOnCampusOption = batchConfig?.showStayOption ?? true;
+  const showOnCampusOption = forceOutsideOnly ? false : (batchConfig?.showStayOption ?? true);
   const showOutsideOption = batchConfig?.showOutsideOption ?? true;
   // Show radio choice only when both options are enabled
   const showStayChoice = showOnCampusOption && showOutsideOption;
