@@ -48,9 +48,11 @@ interface RegistrationFormProps {
   singleAttendeeOnly?: boolean;
   inviteToken?: string;
   inviteEmail?: string;
+  yearFromOverride?: number;
+  yearToOverride?: number;
 }
 
-const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail }: RegistrationFormProps) => {
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
