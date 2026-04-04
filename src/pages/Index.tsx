@@ -33,7 +33,7 @@ import Footer from "@/components/Footer";
  * 
  * @returns The complete landing page layout
  */
-const Index = ({ forceLegacy = false }: { forceLegacy?: boolean }) => {
+const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride }: { forceLegacy?: boolean; yearFromOverride?: number; yearToOverride?: number }) => {
   const [showLegacyForm, setShowLegacyForm] = useState(forceLegacy);
 
   useEffect(() => {
