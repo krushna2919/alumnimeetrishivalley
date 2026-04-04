@@ -48,9 +48,11 @@ interface RegistrationFormProps {
   singleAttendeeOnly?: boolean;
   inviteToken?: string;
   inviteEmail?: string;
+  yearFromOverride?: number;
+  yearToOverride?: number;
 }
 
-const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail }: RegistrationFormProps) => {
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
@@ -62,7 +64,12 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
-  const { config: batchConfig, yearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
+  const { config: batchConfig, yearOptions: dbYearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
+
+  // Apply year overrides if provided
+  const yearOptions = (yearFromOverride && yearToOverride)
+    ? Array.from({ length: yearToOverride - yearFromOverride + 1 }, (_, i) => yearToOverride - i)
+    : dbYearOptions;
 
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -430,7 +437,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
           {batchConfig && (
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-                <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
+                <strong>Note:</strong> Currently accepting batches from {yearFromOverride ?? batchConfig.yearFrom} to {yearToOverride ?? batchConfig.yearTo} only.
               </span>
             </div>
           )}

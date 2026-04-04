@@ -33,7 +33,7 @@ import Footer from "@/components/Footer";
  * 
  * @returns The complete landing page layout
  */
-const Index = ({ forceLegacy = false }: { forceLegacy?: boolean }) => {
+const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride }: { forceLegacy?: boolean; yearFromOverride?: number; yearToOverride?: number }) => {
   const [showLegacyForm, setShowLegacyForm] = useState(forceLegacy);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ const Index = ({ forceLegacy = false }: { forceLegacy?: boolean }) => {
       <PaymentInfo />
       
       {/* Registration form - show legacy or standard based on hash */}
-      {showLegacyForm ? <RegistrationFormLegacy /> : <RegistrationForm />}
+      {showLegacyForm ? <RegistrationFormLegacy /> : <RegistrationForm yearFromOverride={yearFromOverride} yearToOverride={yearToOverride} />}
       
       {/* Footer with contact info and event details */}
       <Footer />
