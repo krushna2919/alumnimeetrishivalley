@@ -437,7 +437,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
           {batchConfig && (
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <span className="inline-block bg-accent/20 text-accent-foreground px-4 py-2 rounded-lg border border-accent/30">
-                <strong>Note:</strong> Currently accepting batches from {batchConfig.yearFrom} to {batchConfig.yearTo} only.
+                <strong>Note:</strong> Currently accepting batches from {yearFromOverride ?? batchConfig.yearFrom} to {yearToOverride ?? batchConfig.yearTo} only.
               </span>
             </div>
           )}
