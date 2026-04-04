@@ -50,9 +50,10 @@ interface RegistrationFormProps {
   inviteEmail?: string;
   yearFromOverride?: number;
   yearToOverride?: number;
+  forceOutsideOnly?: boolean;
 }
 
-const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride }: RegistrationFormProps) => {
+const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail, yearFromOverride, yearToOverride, forceOutsideOnly = false }: RegistrationFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [viewState, setViewState] = useState<ViewState>("form");
