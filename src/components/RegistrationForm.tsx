@@ -139,8 +139,8 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       : null;
     if (forced) {
       form.setValue("stayType", forced);
-      const attendees = form.getValues("attendees");
-      attendees.forEach((_, idx) => {
+      const attendees = form.getValues("attendees") ?? [];
+      attendees.forEach((_, idx: number) => {
         form.setValue(`attendees.${idx}.stayType`, forced);
       });
     }
