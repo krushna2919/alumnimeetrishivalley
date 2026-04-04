@@ -80,8 +80,8 @@ const App = () => (
           {/* Application Routes */}
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/register1930-1980" element={<Index forceLegacy />} />
+            <Route path="/" element={<RegistrationsClosed />} />
+            <Route path="/register1930-1980" element={<RegistrationsClosed />} />
             <Route path="/invite/:token" element={<InviteRegistration />} />
             
             <Route path="/reset-password" element={<ResetPassword />} />
