@@ -21,7 +21,7 @@ const AdminSettings = () => {
         <div className="max-w-3xl space-y-8">
           <ScheduledPeriodsManager />
 
-          {isSuperadmin && (
+          {isAdminOrSuperadmin && (
             <>
               <div className="border-t border-border pt-8">
                 <h2 className="font-serif text-xl font-semibold text-foreground mb-4">Private Registration Invites</h2>
