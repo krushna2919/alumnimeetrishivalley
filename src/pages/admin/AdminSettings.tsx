@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 const AdminSettings = () => {
   const { userRole } = useAuth();
   const isSuperadmin = userRole === 'superadmin';
+  const isAdminOrSuperadmin = userRole === 'superadmin' || userRole === 'admin';
 
   return (
     <AdminLayout>
