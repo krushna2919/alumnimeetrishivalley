@@ -296,8 +296,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
 
       if (error) {
         console.error("Registration submit failed:", error);
-        const description = /failed to fetch/i.test(error.message)
-          ? "Unable to reach the registration service right now. Please retry in a few moments."
+        const isFetchError = /failed to (fetch|send)/i.test(error.message);
+        const description = isFetchError
+          ? "Unable to reach the registration service. Please check your internet connection and try again."
           : error.message || "Unable to complete registration. Please try again later.";
         toast.error("Registration failed", {
           description,
