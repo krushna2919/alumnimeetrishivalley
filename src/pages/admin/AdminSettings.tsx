@@ -4,8 +4,8 @@ import InviteManager from '@/components/admin/InviteManager';
 import { useAuth } from '@/hooks/useAuth';
 
 const AdminSettings = () => {
-  const { role } = useAuth();
-  const isSuperadmin = role === 'superadmin';
+  const { userRole } = useAuth();
+  const isSuperadmin = userRole === 'superadmin';
 
   return (
     <AdminLayout>
