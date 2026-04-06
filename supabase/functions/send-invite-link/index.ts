@@ -73,7 +73,7 @@ serve(async (req: Request) => {
     }
 
     // Build the registration link
-    const siteUrl = "https://alumnimeetrishivalley.lovable.app";
+    const siteUrl = "https://alumnimeetrishivalley.org";
     const registrationLink = `${siteUrl}/invite/${invite.token}`;
     const expiresAt = new Date(invite.expires_at);
     const expiresFormatted = expiresAt.toLocaleString("en-IN", {
