@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 const AdminSettings = () => {
   const { userRole } = useAuth();
   const isSuperadmin = userRole === 'superadmin';
+  const isAdminOrSuperadmin = userRole === 'superadmin' || userRole === 'admin';
 
   return (
     <AdminLayout>
@@ -20,7 +21,7 @@ const AdminSettings = () => {
         <div className="max-w-3xl space-y-8">
           <ScheduledPeriodsManager />
 
-          {isSuperadmin && (
+          {isAdminOrSuperadmin && (
             <>
               <div className="border-t border-border pt-8">
                 <h2 className="font-serif text-xl font-semibold text-foreground mb-4">Private Registration Invites</h2>
