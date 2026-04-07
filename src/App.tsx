@@ -80,7 +80,7 @@ const App = () => (
           {/* Application Routes */}
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<RegistrationsClosed />} />
+            <Route path="/" element={<Index yearFromOverride={2017} yearToOverride={2020} />} />
             <Route path="/register1930-1980" element={<Index forceLegacy />} />
             <Route path="/register1981-1990" element={<Index yearFromOverride={1981} yearToOverride={1990} forceOutsideOnly />} />
             <Route path="/invite/:token" element={<InviteRegistration />} />
