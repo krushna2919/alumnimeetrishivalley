@@ -19,12 +19,18 @@ interface Invite {
   used_at: string | null;
   created_at: string;
   extended_count: number;
+  year_from: number | null;
+  year_to: number | null;
+  force_outside_only: boolean;
 }
 
 const InviteManager = () => {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [email, setEmail] = useState("");
+  const [yearFrom, setYearFrom] = useState<string>("2017");
+  const [yearTo, setYearTo] = useState<string>("2020");
+  const [forceOutsideOnly, setForceOutsideOnly] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [extendingId, setExtendingId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -68,7 +74,13 @@ const InviteManager = () => {
       // Create the invite record
       const { data: invite, error: insertError } = await supabase
         .from("registration_invites" as any)
-        .insert({ email: email.trim(), created_by: user.id } as any)
+        .insert({
+          email: email.trim(),
+          created_by: user.id,
+          year_from: parseInt(yearFrom) || null,
+          year_to: parseInt(yearTo) || null,
+          force_outside_only: forceOutsideOnly,
+        } as any)
         .select()
         .single();
 
@@ -188,7 +200,7 @@ const InviteManager = () => {
             Send a private registration link to an email address. The link expires in 24 hours and is for a single registrant only.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-1">
               <Label htmlFor="invite-email" className="sr-only">Email address</Label>
@@ -201,7 +213,39 @@ const InviteManager = () => {
                 onKeyDown={(e) => e.key === "Enter" && sendInvite()}
               />
             </div>
-            <Button onClick={sendInvite} disabled={isSending || !email.trim()}>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="invite-year-from" className="text-xs text-muted-foreground">Batch From</Label>
+              <Input
+                id="invite-year-from"
+                type="number"
+                className="w-24"
+                value={yearFrom}
+                onChange={(e) => setYearFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="invite-year-to" className="text-xs text-muted-foreground">Batch To</Label>
+              <Input
+                id="invite-year-to"
+                type="number"
+                className="w-24"
+                value={yearTo}
+                onChange={(e) => setYearTo(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2 pb-2">
+              <input
+                type="checkbox"
+                id="invite-outside-only"
+                checked={forceOutsideOnly}
+                onChange={(e) => setForceOutsideOnly(e.target.checked)}
+                className="rounded border-input"
+              />
+              <Label htmlFor="invite-outside-only" className="text-xs text-muted-foreground cursor-pointer">Outside stay only</Label>
+            </div>
+            <Button onClick={sendInvite} disabled={isSending || !email.trim()} className="ml-auto">
               {isSending ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
               ) : (
@@ -232,6 +276,12 @@ const InviteManager = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-foreground truncate">{invite.email}</span>
                         <Badge variant={status.variant}>{status.label}</Badge>
+                        {invite.year_from && invite.year_to && (
+                          <Badge variant="outline">{invite.year_from}–{invite.year_to}</Badge>
+                        )}
+                        {invite.force_outside_only && (
+                          <Badge variant="outline">Outside only</Badge>
+                        )}
                         {invite.extended_count > 0 && (
                           <Badge variant="outline">Extended ×{invite.extended_count}</Badge>
                         )}
