@@ -13,6 +13,9 @@ interface InviteData {
   token: string;
   expires_at: string;
   used: boolean;
+  year_from: number | null;
+  year_to: number | null;
+  force_outside_only: boolean;
 }
 
 const InviteRegistration = () => {
@@ -31,7 +34,7 @@ const InviteRegistration = () => {
 
       const { data, error: fetchError } = await supabase
         .from("registration_invites" as any)
-        .select("id, email, token, expires_at, used")
+        .select("id, email, token, expires_at, used, year_from, year_to, force_outside_only")
         .eq("token", token)
         .single();
 
@@ -113,6 +116,9 @@ const InviteRegistration = () => {
         singleAttendeeOnly
         inviteToken={token}
         inviteEmail={invite.email}
+        yearFromOverride={invite.year_from ?? undefined}
+        yearToOverride={invite.year_to ?? undefined}
+        forceOutsideOnly={invite.force_outside_only}
       />
 
       <Footer />

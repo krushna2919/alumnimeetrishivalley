@@ -341,10 +341,13 @@ export type Database = {
           email: string
           expires_at: string
           extended_count: number
+          force_outside_only: boolean
           id: string
           token: string
           used: boolean
           used_at: string | null
+          year_from: number | null
+          year_to: number | null
         }
         Insert: {
           created_at?: string
@@ -352,10 +355,13 @@ export type Database = {
           email: string
           expires_at?: string
           extended_count?: number
+          force_outside_only?: boolean
           id?: string
           token?: string
           used?: boolean
           used_at?: string | null
+          year_from?: number | null
+          year_to?: number | null
         }
         Update: {
           created_at?: string
@@ -363,10 +369,13 @@ export type Database = {
           email?: string
           expires_at?: string
           extended_count?: number
+          force_outside_only?: boolean
           id?: string
           token?: string
           used?: boolean
           used_at?: string | null
+          year_from?: number | null
+          year_to?: number | null
         }
         Relationships: []
       }
