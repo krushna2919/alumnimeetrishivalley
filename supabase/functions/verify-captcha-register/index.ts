@@ -37,6 +37,7 @@ interface RegistrationRequest {
     type: string;
     size?: number;
   };
+  inviteToken?: string;
   // Main registrant info
   name: string;
   email: string;
@@ -442,6 +443,53 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // --- SERVER-SIDE: Validate invite token if provided ---
+    if (data.inviteToken) {
+      const { data: invite, error: inviteError } = await supabase
+        .from("registration_invites")
+        .select("id, used, expires_at")
+        .eq("token", data.inviteToken)
+        .single();
+
+      if (inviteError || !invite) {
+        return new Response(
+          JSON.stringify({ error: "Invalid invite link.", code: "INVALID_INVITE" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      if (invite.used) {
+        return new Response(
+          JSON.stringify({ error: "This invite link has already been used for a registration.", code: "INVITE_USED" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      if (new Date(invite.expires_at) < new Date()) {
+        return new Response(
+          JSON.stringify({ error: "This invite link has expired.", code: "INVITE_EXPIRED" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Mark invite as used atomically
+      const { error: markError } = await supabase
+        .from("registration_invites")
+        .update({ used: true, used_at: new Date().toISOString() })
+        .eq("id", invite.id)
+        .eq("used", false); // optimistic lock
+
+      if (markError) {
+        console.error("Failed to mark invite as used:", markError);
+        return new Response(
+          JSON.stringify({ error: "This invite link has already been used.", code: "INVITE_USED" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      console.log("Invite token validated and marked as used:", data.inviteToken);
+    }
 
     // --- SERVER-SIDE: Validate and upload payment proof ---
     if (!data.paymentProof?.base64 || !data.paymentProof?.name || !data.paymentProof?.type) {

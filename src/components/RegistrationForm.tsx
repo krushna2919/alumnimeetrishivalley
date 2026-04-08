@@ -273,6 +273,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
         body: {
           botValidation,
           paymentProof,
+          inviteToken: inviteToken || undefined,
           name: data.name,
           email: data.email,
           phone: data.phone,
@@ -321,12 +322,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
       setCurrentApplication(result.registration);
       setRegistrationResult(regResult);
 
-      if (inviteToken) {
-        await supabase
-          .from("registration_invites" as any)
-          .update({ used: true, used_at: new Date().toISOString() } as any)
-          .eq("token", inviteToken);
-      }
+      // Invite is now marked as used server-side in the edge function
 
       setViewState("success");
       resetFormLoadTime();
