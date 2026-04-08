@@ -50,9 +50,11 @@ export const attendeeSchema = z.object({
   secondaryEmail: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   /** Phone/WhatsApp number - must contain only digits, optional + prefix, 10-15 chars */
   phone: z.string()
-    .min(10, "Phone number must be at least 10 digits")
-    .max(15, "Phone number must be at most 15 digits")
-    .regex(/^\+?[0-9]{10,15}$/, "Please enter a valid phone number (digits only, optional + prefix)"),
+    .transform(val => val.replace(/\s+/g, ''))
+    .pipe(z.string()
+      .min(10, "Phone number must be at least 10 digits")
+      .max(16, "Phone number must be at most 15 digits")
+      .regex(/^\+?[0-9]{10,15}$/, "Please enter a valid phone number (digits only, optional + prefix)")),
   /** Current occupation */
   occupation: z.string().min(2, "Please enter your occupation").max(100),
   /** Board type: ISC, ICSE, or Other */
@@ -99,9 +101,11 @@ export const registrantSchema = z.object({
   email: z.string().email("Please enter a valid email address").max(255),
   /** Phone/WhatsApp number - must contain only digits, optional + prefix, 10-15 chars */
   phone: z.string()
-    .min(10, "Phone number must be at least 10 digits")
-    .max(15, "Phone number must be at most 15 digits")
-    .regex(/^\+?[0-9]{10,15}$/, "Please enter a valid phone number (digits only, optional + prefix)"),
+    .transform(val => val.replace(/\s+/g, ''))
+    .pipe(z.string()
+      .min(10, "Phone number must be at least 10 digits")
+      .max(16, "Phone number must be at most 15 digits")
+      .regex(/^\+?[0-9]{10,15}$/, "Please enter a valid phone number (digits only, optional + prefix)")),
   /** Current occupation */
   occupation: z.string().min(2, "Please enter your occupation").max(100),
   /** Board type: ISC, ICSE, or Other */
