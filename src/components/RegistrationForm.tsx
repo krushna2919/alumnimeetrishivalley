@@ -67,10 +67,30 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions: dbYearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
 
-  // Apply year overrides if provided
-  const yearOptions = (yearFromOverride && yearToOverride)
-    ? Array.from({ length: yearToOverride - yearFromOverride + 1 }, (_, i) => yearToOverride - i)
-    : dbYearOptions;
+  // Apply year overrides and board-type-specific year ranges
+  const getYearRange = () => {
+    if (yearFromOverride && yearToOverride) {
+      // ICSE board restricts to 2017-2018 only
+      if (boardType === "ICSE") {
+        const icseFrom = Math.max(yearFromOverride, 2017);
+        const icseTo = Math.min(yearToOverride, 2018);
+        if (icseTo >= icseFrom) {
+          return Array.from({ length: icseTo - icseFrom + 1 }, (_, i) => icseTo - i);
+        }
+      }
+      return Array.from({ length: yearToOverride - yearFromOverride + 1 }, (_, i) => yearToOverride - i);
+    }
+    return dbYearOptions;
+  };
+  const yearOptions = getYearRange();
+
+  // Reset yearOfPassing when board type changes and selected year is no longer valid
+  useEffect(() => {
+    const currentYear = form.getValues("yearOfPassing");
+    if (currentYear && !yearOptions.includes(parseInt(currentYear))) {
+      form.setValue("yearOfPassing", "");
+    }
+  }, [boardType, yearOptions]);
 
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
