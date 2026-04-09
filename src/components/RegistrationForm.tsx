@@ -122,6 +122,30 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const stayType = useWatch({ control: form.control, name: "stayType" });
   const boardType = useWatch({ control: form.control, name: "boardType" });
 
+  // Apply year overrides and board-type-specific year ranges
+  const yearOptions = (() => {
+    if (yearFromOverride && yearToOverride) {
+      if (boardType === "ICSE") {
+        const icseFrom = Math.max(yearFromOverride, 2017);
+        const icseTo = Math.min(yearToOverride, 2018);
+        if (icseTo >= icseFrom) {
+          return Array.from({ length: icseTo - icseFrom + 1 }, (_, i) => icseTo - i);
+        }
+      }
+      return Array.from({ length: yearToOverride - yearFromOverride + 1 }, (_, i) => yearToOverride - i);
+    }
+    return dbYearOptions;
+  })();
+
+  // Reset yearOfPassing when board type changes and selected year is no longer valid
+  useEffect(() => {
+    const currentYear = form.getValues("yearOfPassing");
+    if (currentYear && !yearOptions.includes(parseInt(currentYear))) {
+      form.setValue("yearOfPassing", "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardType]);
+
   const showOnCampusOption = forceOutsideOnly ? false : (batchConfig?.showStayOption ?? true);
   const showOutsideOption = batchConfig?.showOutsideOption ?? true;
   // Show radio choice only when both options are enabled
