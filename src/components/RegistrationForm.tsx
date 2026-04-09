@@ -590,43 +590,12 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
                                   <span className="font-medium text-foreground">ICSE</span>
                                 </label>
                                 
-                                <label className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                  field.value === "Other" 
-                                    ? "border-primary bg-primary/5" 
-                                    : "border-border hover:border-primary/50"
-                                }`}>
-                                  <RadioGroupItem value="Other" />
-                                  <span className="font-medium text-foreground">Other</span>
-                                </label>
                               </RadioGroup>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      
-                      {/* Custom Board Name Input - shown when "Other" is selected */}
-                      {boardType === "Other" && (
-                        <div className="mt-4">
-                          <FormField
-                            control={form.control}
-                            name="customBoardType"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-foreground">Board Name</FormLabel>
-                                <FormControl>
-                                  <Input 
-                                    placeholder="Enter your board name" 
-                                    {...field} 
-                                    className="bg-background" 
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      )}
                     </div>
 
                     {/* Year of Passing */}

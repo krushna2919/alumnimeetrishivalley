@@ -229,41 +229,12 @@ const AttendeeCard = ({ index, form, onRemove, canRemove, yearOptions, primaryEm
                     <span className="font-medium text-foreground text-sm">ICSE</span>
                   </label>
                   
-                  <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all ${
-                    field.value === "Other" 
-                      ? "border-primary bg-primary/5" 
-                      : "border-border hover:border-primary/50"
-                  }`}>
-                    <RadioGroupItem value="Other" />
-                    <span className="font-medium text-foreground text-sm">Other</span>
-                  </label>
                 </RadioGroup>
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
-        {/* Custom Board Name Input - shown when "Other" is selected */}
-        {boardType === "Other" && (
-          <FormField
-            control={form.control}
-            name={`attendees.${index}.customBoardType`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Board Name</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Enter board name" 
-                    {...field} 
-                    className="bg-background" 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
 
         {/* Year of Passing */}
         <FormField
