@@ -40,7 +40,7 @@ const TSHIRT_SIZES = [
 ] as const;
 const GENDER_OPTIONS = ['M', 'F'] as const;
 const STAY_TYPES = ['on-campus', 'outside'] as const;
-const BOARD_TYPES = ['ISC', 'ICSE', 'Other'] as const;
+const BOARD_TYPES = ['ISC', 'ICSE'] as const;
 
 const EditRegistrationDialog = ({
   registration,

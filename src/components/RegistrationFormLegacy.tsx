@@ -537,29 +537,12 @@ const RegistrationFormLegacy = () => {
                               <SelectContent>
                                 <SelectItem value="ISC">ISC</SelectItem>
                                 <SelectItem value="ICSE">ICSE</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-
-                      {boardType === "Other" && (
-                        <FormField
-                          control={form.control}
-                          name="customBoardType"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Board Name *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter your board name" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
 
                       <FormField
                         control={form.control}
