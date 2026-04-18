@@ -112,7 +112,7 @@ const InviteManager = () => {
   const extendInvite = async (invite: Invite) => {
     setExtendingId(invite.id);
     try {
-      const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const newExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase
         .from("registration_invites" as any)
         .update({
@@ -128,7 +128,7 @@ const InviteManager = () => {
         body: { email: invite.email, inviteId: invite.id },
       });
 
-      toast({ title: "Extended", description: `Invite extended by 24 hours and email resent to ${invite.email}` });
+      toast({ title: "Extended", description: `Invite extended by 48 hours and email resent to ${invite.email}` });
       fetchInvites();
     } catch (err) {
       console.error("Error extending invite:", err);
@@ -197,7 +197,7 @@ const InviteManager = () => {
             Send Registration Invite
           </CardTitle>
           <CardDescription>
-            Send a private registration link to an email address. The link expires in 24 hours and is for a single registrant only.
+            Send a private registration link to an email address. The link expires in 48 hours and is for a single registrant only.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -306,7 +306,7 @@ const InviteManager = () => {
                           {extendingId === invite.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <><Clock className="mr-1 h-3 w-3" /> Extend 24h</>
+                            <><Clock className="mr-1 h-3 w-3" /> Extend 48h</>
                           )}
                         </Button>
                       )}
