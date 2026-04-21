@@ -22,6 +22,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
+import { useIdleAutoRefresh } from "@/hooks/useIdleAutoRefresh";
 import { encodeBlobToBase64, preparePaymentProof } from "@/lib/paymentProofPayload";
 
 import PaymentDetailsForm from "./PaymentDetailsForm";

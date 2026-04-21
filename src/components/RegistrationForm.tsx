@@ -12,6 +12,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Calendar, Building, Home, Loader2
 
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
+import { useIdleAutoRefresh } from "@/hooks/useIdleAutoRefresh";
 import { useBatchConfiguration } from "@/hooks/useBatchConfiguration";
 import { encodeBlobToBase64, preparePaymentProof } from "@/lib/paymentProofPayload";
 import ApplicationLookup from "./ApplicationLookup";
@@ -66,6 +67,9 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
   const [retryProofFile, setRetryProofFile] = useState<File | null>(null);
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
   const { config: batchConfig, yearOptions: dbYearOptions, isLoading: isLoadingConfig, error: configError, isWithinRegistrationPeriod } = useBatchConfiguration();
+
+  // Warn after 5 min of idle, auto-refresh after 10 min. Stops once user reaches success view.
+  useIdleAutoRefresh({ enabled: viewState !== "success" });
 
 
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
