@@ -134,8 +134,11 @@ const RegistrationFormLegacy = () => {
       const botValidation = getValidationData();
 
       if (isLikelyBot()) {
-        toast.error("Verification failed", {
-          description: "Please wait a moment and try again.",
+        resetFormLoadTime();
+        toast.error("Almost there — please click Submit once more", {
+          description:
+            "For security, we need a brief pause between loading the form and submitting. Just click 'Submit Registration' again to continue.",
+          duration: 8000,
         });
         setIsSubmitting(false);
         return;
