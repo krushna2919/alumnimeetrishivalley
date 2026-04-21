@@ -22,6 +22,7 @@ import { User, Mail, Phone, Briefcase, MapPin, Building, Home, Loader2, Upload, 
 
 import { supabase } from "@/integrations/supabase/client";
 import { useHoneypot } from "@/hooks/useHoneypot";
+import { useIdleAutoRefresh } from "@/hooks/useIdleAutoRefresh";
 import { encodeBlobToBase64, preparePaymentProof } from "@/lib/paymentProofPayload";
 
 import PaymentDetailsForm from "./PaymentDetailsForm";
@@ -74,6 +75,9 @@ const RegistrationFormLegacy = () => {
   const [bulkPaymentProofs, setBulkPaymentProofs] = useState<Map<string, File>>(new Map());
   const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
+
+  // Warn after 5 min of idle, auto-refresh after 10 min. Stops once user reaches success view.
+  useIdleAutoRefresh({ enabled: viewState !== "success" });
 
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
