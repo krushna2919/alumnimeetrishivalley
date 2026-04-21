@@ -76,6 +76,9 @@ const RegistrationFormLegacy = () => {
   const [bulkPaymentBlobs, setBulkPaymentBlobs] = useState<Map<string, { blob: Blob; name: string; type: string }>>(new Map());
   const { getValidationData, isLikelyBot, resetFormLoadTime, setHoneypotValue } = useHoneypot();
 
+  // Warn after 5 min of idle, auto-refresh after 10 min. Stops once user reaches success view.
+  useIdleAutoRefresh({ enabled: viewState !== "success" });
+
   const handlePaymentProofChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
