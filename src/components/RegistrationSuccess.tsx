@@ -64,7 +64,8 @@ const RegistrationSuccess = ({
   application, 
   additionalRegistrations = [], 
   totalFee,
-  onNewRegistration 
+  onNewRegistration,
+  viaInvite = false,
 }: RegistrationSuccessProps) => {
   
   /**
