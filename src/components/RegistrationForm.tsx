@@ -1150,6 +1150,7 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
               additionalRegistrations={registrationResult?.additionalRegistrations}
               totalFee={registrationResult?.totalFee}
               onNewRegistration={handleNewRegistration}
+              viaInvite={Boolean(inviteToken)}
             />
           )}
 
