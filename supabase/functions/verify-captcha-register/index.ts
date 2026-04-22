@@ -67,12 +67,10 @@ function validateBotProtection(validation: BotValidation): { success: boolean; r
     return { success: false, reason: "honeypot" };
   }
 
-  // Check if form was submitted too quickly (less than 3 seconds)
+  // Timing check removed: caused false positives for legitimate users with browser
+  // autofill or those who submit quickly. The honeypot field alone is sufficient —
+  // it catches automated bots without adding friction for real users.
   const timeDiff = validation.submitTime - validation.formLoadTime;
-  if (timeDiff < 3000) {
-    console.warn("Bot detected: form submitted too quickly", { timeDiff });
-    return { success: false, reason: "too_fast" };
-  }
 
   // Check for unreasonably long time (more than 1 hour - might be stale/automated)
   if (timeDiff > 3600000) {
