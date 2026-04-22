@@ -105,10 +105,10 @@ const RegistrationSuccess = ({
       </p>
 
       {/* Primary Application ID Card - Prominent display */}
-      <div className="bg-primary/10 rounded-xl p-6 border-2 border-primary/30 mb-4 inline-block">
+      <div className={`rounded-xl p-6 border-2 mb-4 inline-block ${viaInvite ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600' : 'bg-primary/10 border-primary/30'}`}>
         <p className="text-sm text-muted-foreground mb-2">Primary Application ID</p>
         <div className="flex items-center justify-center gap-3">
-          <span className="font-mono text-2xl font-bold text-primary">
+          <span className={`font-mono text-2xl font-bold ${viaInvite ? 'text-yellow-700 dark:text-yellow-300' : 'text-primary'}`}>
             {application.applicationId}
           </span>
           {/* Copy button */}
@@ -116,7 +116,7 @@ const RegistrationSuccess = ({
             variant="ghost"
             size="sm"
             onClick={() => copyToClipboard(application.applicationId)}
-            className="hover:bg-primary/20"
+            className={viaInvite ? 'hover:bg-yellow-200/60 dark:hover:bg-yellow-900/50' : 'hover:bg-primary/20'}
           >
             <Copy className="w-4 h-4" />
           </Button>
