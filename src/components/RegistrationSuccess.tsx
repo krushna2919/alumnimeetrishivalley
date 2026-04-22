@@ -45,6 +45,8 @@ interface RegistrationSuccessProps {
   totalFee?: number;
   /** Callback to reset the form for a new registration */
   onNewRegistration: () => void;
+  /** Whether registration was completed via a private invite link */
+  viaInvite?: boolean;
 }
 
 /**
@@ -62,7 +64,8 @@ const RegistrationSuccess = ({
   application, 
   additionalRegistrations = [], 
   totalFee,
-  onNewRegistration 
+  onNewRegistration,
+  viaInvite = false,
 }: RegistrationSuccessProps) => {
   
   /**
@@ -102,10 +105,10 @@ const RegistrationSuccess = ({
       </p>
 
       {/* Primary Application ID Card - Prominent display */}
-      <div className="bg-primary/10 rounded-xl p-6 border-2 border-primary/30 mb-4 inline-block">
+      <div className={`rounded-xl p-6 border-2 mb-4 inline-block ${viaInvite ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600' : 'bg-primary/10 border-primary/30'}`}>
         <p className="text-sm text-muted-foreground mb-2">Primary Application ID</p>
         <div className="flex items-center justify-center gap-3">
-          <span className="font-mono text-2xl font-bold text-primary">
+          <span className={`font-mono text-2xl font-bold ${viaInvite ? 'text-yellow-700 dark:text-yellow-300' : 'text-primary'}`}>
             {application.applicationId}
           </span>
           {/* Copy button */}
@@ -113,7 +116,7 @@ const RegistrationSuccess = ({
             variant="ghost"
             size="sm"
             onClick={() => copyToClipboard(application.applicationId)}
-            className="hover:bg-primary/20"
+            className={viaInvite ? 'hover:bg-yellow-200/60 dark:hover:bg-yellow-900/50' : 'hover:bg-primary/20'}
           >
             <Copy className="w-4 h-4" />
           </Button>
@@ -130,10 +133,10 @@ const RegistrationSuccess = ({
           </div>
           <div className="grid gap-2 max-w-md mx-auto">
             {additionalRegistrations.map((reg) => (
-              <div key={reg.applicationId} className="bg-secondary/50 rounded-lg p-3 flex items-center justify-between">
+              <div key={reg.applicationId} className={`rounded-lg p-3 flex items-center justify-between ${viaInvite ? 'bg-yellow-100/70 dark:bg-yellow-900/20' : 'bg-secondary/50'}`}>
                 <div className="text-left">
                   <p className="text-sm font-medium text-foreground">{reg.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{reg.applicationId}</p>
+                  <p className={`font-mono text-xs ${viaInvite ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : 'text-muted-foreground'}`}>{reg.applicationId}</p>
                 </div>
                 {/* Copy button for each additional registration */}
                 <Button
