@@ -45,6 +45,8 @@ interface RegistrationSuccessProps {
   totalFee?: number;
   /** Callback to reset the form for a new registration */
   onNewRegistration: () => void;
+  /** Whether registration was completed via a private invite link */
+  viaInvite?: boolean;
 }
 
 /**
