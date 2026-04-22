@@ -133,10 +133,10 @@ const RegistrationSuccess = ({
           </div>
           <div className="grid gap-2 max-w-md mx-auto">
             {additionalRegistrations.map((reg) => (
-              <div key={reg.applicationId} className="bg-secondary/50 rounded-lg p-3 flex items-center justify-between">
+              <div key={reg.applicationId} className={`rounded-lg p-3 flex items-center justify-between ${viaInvite ? 'bg-yellow-100/70 dark:bg-yellow-900/20' : 'bg-secondary/50'}`}>
                 <div className="text-left">
                   <p className="text-sm font-medium text-foreground">{reg.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{reg.applicationId}</p>
+                  <p className={`font-mono text-xs ${viaInvite ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : 'text-muted-foreground'}`}>{reg.applicationId}</p>
                 </div>
                 {/* Copy button for each additional registration */}
                 <Button
