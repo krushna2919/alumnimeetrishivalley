@@ -105,16 +105,14 @@ export const useHoneypot = () => {
    * @returns True if the submission appears to be from a bot
    */
   const isLikelyBot = useCallback(() => {
-    const timeDiff = Date.now() - formLoadTimeRef.current;
-    
-    // If form filled in less than 3 seconds, likely a bot
-    const tooFast = timeDiff < 3000;
-    
-    // If honeypot field has value, it's definitely a bot
-    // (CSS-hidden fields are invisible to users but bots fill everything)
-    const honeypotFilled = honeypotFieldRef.current.length > 0;
-    
-    return tooFast || honeypotFilled;
+    // The ONLY reliable bot signal is the honeypot field being filled.
+    // Hidden via CSS — invisible to humans, but bots fill every input.
+    //
+    // Note: We previously also flagged "submitted in under 3 seconds" as bot-like,
+    // but this caused false positives for legitimate users (especially with browser
+    // autofill or those who pre-fill while reading). Server-side rate limiting
+    // and the honeypot alone provide sufficient protection.
+    return honeypotFieldRef.current.length > 0;
   }, []);
 
   return {
