@@ -29,6 +29,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 // Page Components
 import RegistrationsClosed from "./pages/RegistrationsClosed";
 import Index from "./pages/Index";
+import PublicLanding from "./pages/PublicLanding";
 import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -80,7 +81,7 @@ const App = () => (
           {/* Application Routes */}
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<Index yearFromOverride={2017} yearToOverride={2020} forceOutsideOnly />} />
+            <Route path="/" element={<PublicLanding yearFromOverride={2017} yearToOverride={2020} forceOutsideOnly />} />
             <Route path="/invite/:token" element={<InviteRegistration />} />
             
             <Route path="/reset-password" element={<ResetPassword />} />
