@@ -46,6 +46,7 @@ const isPublicRegistrationClosed = () => new Date() >= PUBLIC_REGISTRATION_CUTOF
  */
 const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride, forceOutsideOnly = false }: { forceLegacy?: boolean; yearFromOverride?: number; yearToOverride?: number; forceOutsideOnly?: boolean }) => {
   const [showLegacyForm, setShowLegacyForm] = useState(forceLegacy);
+  const [closed, setClosed] = useState(isPublicRegistrationClosed());
 
   useEffect(() => {
     if (forceLegacy) {
@@ -66,6 +67,21 @@ const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride, forceOut
     window.addEventListener("hashchange", checkHash);
     return () => window.removeEventListener("hashchange", checkHash);
   }, [forceLegacy]);
+
+  // Poll once per minute so the cutoff flips automatically without a refresh
+  useEffect(() => {
+    if (closed) return;
+    const interval = setInterval(() => {
+      if (isPublicRegistrationClosed()) setClosed(true);
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [closed]);
+
+  // After 24 Apr 2026 00:01 IST, public registration is closed.
+  // Invite-link registrations continue to work via /invite/:token.
+  if (closed) {
+    return <RegistrationsClosed />;
+  }
 
   return (
     <main className="min-h-screen">
