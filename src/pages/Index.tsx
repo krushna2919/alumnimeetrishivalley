@@ -24,6 +24,17 @@ import RegistrationFormLegacy from "@/components/RegistrationFormLegacy";
 import PaymentInfo from "@/components/PaymentInfo";
 import ImportantNotes from "@/components/ImportantNotes";
 import Footer from "@/components/Footer";
+import RegistrationsClosed from "./RegistrationsClosed";
+
+/**
+ * Hard cutoff for public registration: 24 Apr 2026 at 00:01 IST.
+ * IST is UTC+5:30, so the equivalent UTC moment is 23 Apr 2026 18:31 UTC.
+ * After this moment, the public landing page shows the "Registrations Closed"
+ * banner. Invite-link registrations (/invite/:token) remain fully functional.
+ */
+const PUBLIC_REGISTRATION_CUTOFF_UTC = new Date("2026-04-23T18:31:00Z");
+
+const isPublicRegistrationClosed = () => new Date() >= PUBLIC_REGISTRATION_CUTOFF_UTC;
 
 /**
  * Index Component
