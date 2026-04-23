@@ -24,6 +24,17 @@ import RegistrationFormLegacy from "@/components/RegistrationFormLegacy";
 import PaymentInfo from "@/components/PaymentInfo";
 import ImportantNotes from "@/components/ImportantNotes";
 import Footer from "@/components/Footer";
+import RegistrationsClosed from "./RegistrationsClosed";
+
+/**
+ * Hard cutoff for public registration: 24 Apr 2026 at 00:01 IST.
+ * IST is UTC+5:30, so the equivalent UTC moment is 23 Apr 2026 18:31 UTC.
+ * After this moment, the public landing page shows the "Registrations Closed"
+ * banner. Invite-link registrations (/invite/:token) remain fully functional.
+ */
+const PUBLIC_REGISTRATION_CUTOFF_UTC = new Date("2026-04-23T18:31:00Z");
+
+const isPublicRegistrationClosed = () => new Date() >= PUBLIC_REGISTRATION_CUTOFF_UTC;
 
 /**
  * Index Component
@@ -35,6 +46,7 @@ import Footer from "@/components/Footer";
  */
 const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride, forceOutsideOnly = false }: { forceLegacy?: boolean; yearFromOverride?: number; yearToOverride?: number; forceOutsideOnly?: boolean }) => {
   const [showLegacyForm, setShowLegacyForm] = useState(forceLegacy);
+  const [closed, setClosed] = useState(isPublicRegistrationClosed());
 
   useEffect(() => {
     if (forceLegacy) {
@@ -55,6 +67,21 @@ const Index = ({ forceLegacy = false, yearFromOverride, yearToOverride, forceOut
     window.addEventListener("hashchange", checkHash);
     return () => window.removeEventListener("hashchange", checkHash);
   }, [forceLegacy]);
+
+  // Poll once per minute so the cutoff flips automatically without a refresh
+  useEffect(() => {
+    if (closed) return;
+    const interval = setInterval(() => {
+      if (isPublicRegistrationClosed()) setClosed(true);
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [closed]);
+
+  // After 24 Apr 2026 00:01 IST, public registration is closed.
+  // Invite-link registrations continue to work via /invite/:token.
+  if (closed) {
+    return <RegistrationsClosed />;
+  }
 
   return (
     <main className="min-h-screen">
