@@ -16,7 +16,7 @@
  */
 
 import { motion } from "framer-motion";
-import { CheckCircle, Copy, Users } from "lucide-react";
+import { CheckCircle, Copy, Users, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { RegistrationData } from "./registration/types";
@@ -93,15 +93,29 @@ const RegistrationSuccess = ({
         <CheckCircle className="w-10 h-10 text-green-600" />
       </div>
 
+      {/* Invite-only badge — visible only for registrations completed via a private invite link */}
+      {viaInvite && (
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 border border-yellow-400 dark:border-yellow-600 mb-4">
+          <KeyRound className="w-4 h-4 text-yellow-700 dark:text-yellow-300" />
+          <span className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 uppercase tracking-wide">
+            Private Invite Registration
+          </span>
+        </div>
+      )}
+
       {/* Success Message - Dynamic based on number of registrants */}
       <h3 className="font-serif text-2xl font-bold text-foreground mb-2">
         {totalPeople > 1 ? `${totalPeople} Registrations Submitted!` : "Registration Submitted Successfully!"}
       </h3>
       
       <p className="text-muted-foreground mb-6">
-        {totalPeople > 1 
-          ? "All registrations have been recorded. Please save the Application IDs below."
-          : "Your registration has been recorded. Please save your Application ID below."}
+        {viaInvite
+          ? (totalPeople > 1
+              ? "These registrations were completed via a private invite link. Please save the Application IDs below."
+              : "This registration was completed via a private invite link. Please save your Application ID below.")
+          : (totalPeople > 1
+              ? "All registrations have been recorded. Please save the Application IDs below."
+              : "Your registration has been recorded. Please save your Application ID below.")}
       </p>
 
       {/* Primary Application ID Card - Prominent display */}
