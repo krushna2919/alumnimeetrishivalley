@@ -135,18 +135,10 @@ const RegistrationFormLegacy = () => {
     setIsSubmitting(true);
 
     try {
+      // Honeypot data is forwarded to the server for verification.
+      // We don't block client-side: browser autofill can fill hidden
+      // fields and trap legitimate users. Server is the source of truth.
       const botValidation = getValidationData();
-
-      if (isLikelyBot()) {
-        resetFormLoadTime();
-        toast.error("Almost there — please click Submit once more", {
-          description:
-            "For security, we need a brief pause between loading the form and submitting. Just click 'Submit Registration' again to continue.",
-          duration: 8000,
-        });
-        setIsSubmitting(false);
-        return;
-      }
 
       // --- STEP 1: Prepare proof payload in memory ---
       const proofBlob = hasMultipleApplicants
