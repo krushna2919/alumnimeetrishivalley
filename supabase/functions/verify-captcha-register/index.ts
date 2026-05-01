@@ -61,10 +61,11 @@ interface RegistrationRequest {
 }
 
 function validateBotProtection(validation: BotValidation): { success: boolean; reason?: string } {
-  // Check if honeypot field was filled (bots fill all fields)
-  if (validation.honeypot && validation.honeypot.length > 0) {
-    console.warn("Bot detected: honeypot field was filled");
-    return { success: false, reason: "honeypot" };
+  // Honeypot check disabled: browser autofill / password managers were filling
+  // the hidden field for legitimate users, causing "Edge Function returned a non-2xx
+  // status code" errors. We log occurrences for monitoring but no longer block.
+  if (validation?.honeypot && validation.honeypot.length > 0) {
+    console.warn("Honeypot field was filled (likely browser autofill, not blocking)");
   }
 
   // Timing check removed: caused false positives for legitimate users with browser
