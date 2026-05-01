@@ -71,7 +71,7 @@ function validateBotProtection(validation: BotValidation): { success: boolean; r
   // Timing check removed: caused false positives for legitimate users with browser
   // autofill or those who submit quickly. The honeypot field alone is sufficient —
   // it catches automated bots without adding friction for real users.
-  const timeDiff = validation.submitTime - validation.formLoadTime;
+  const timeDiff = (validation?.submitTime ?? 0) - (validation?.formLoadTime ?? 0);
 
   // Check for unreasonably long time (more than 1 hour - might be stale/automated)
   if (timeDiff > 3600000) {
