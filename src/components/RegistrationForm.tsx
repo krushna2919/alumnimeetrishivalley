@@ -192,19 +192,12 @@ const RegistrationForm = ({ singleAttendeeOnly = false, inviteToken, inviteEmail
     setIsSubmitting(true);
 
     try {
+      // Honeypot validation data is sent to the server for verification.
+      // We intentionally do NOT block the user client-side here, because
+      // browser autofill extensions can populate hidden fields and trap
+      // legitimate users in a confusing retry loop. The server is the
+      // authoritative bot-check layer.
       const botValidation = getValidationData();
-
-      if (isLikelyBot()) {
-        // Reset the timing window so the next click succeeds without page reload
-        resetFormLoadTime();
-        toast.error("Almost there — please click Submit once more", {
-          description:
-            "For security, we need a brief pause between loading the form and submitting. Just click 'Submit Registration' again to continue.",
-          duration: 8000,
-        });
-        setIsSubmitting(false);
-        return;
-      }
 
       // --- STEP 1: Prepare proof payload in memory ---
       const proofBlob = hasMultipleApplicants
