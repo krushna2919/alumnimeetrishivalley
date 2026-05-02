@@ -84,6 +84,7 @@ import { resolveLatestPaymentProofUrlFromStorage } from '@/lib/paymentProofResol
 // ... keep existing code (rest of file)
 
 type Registration = Tables<'registrations'>;
+type RegistrationInvite = Pick<Tables<'registration_invites'>, 'email' | 'token' | 'used'>;
 
 // Hostel options fetched from database
 
@@ -620,11 +621,59 @@ const AdminRegistrations = () => {
 
       if (error) throw error;
       const rows = (data || []) as Registration[];
-      setRegistrations(rows);
+
+      // Some older invite registrations predate the stored via_invite flag. Derive the
+      // marker from used invite records so the admin view reflects historical data too.
+      const { data: inviteData, error: inviteError } = await supabase
+        .from('registration_invites')
+        .select('email, token, used')
+        .eq('used', true);
+
+      if (inviteError) {
+        console.warn('Unable to derive invite registrations from invite history:', inviteError);
+      }
+
+      const inviteTokenByEmail = new Map<string, string | null>();
+      ((inviteData || []) as RegistrationInvite[]).forEach((invite) => {
+        const email = String(invite.email || '').trim().toLowerCase();
+        if (email) inviteTokenByEmail.set(email, invite.token || null);
+      });
+
+      const rowsWithPrimaryInviteFlags = rows.map((registration) => {
+        const email = registration.email.trim().toLowerCase();
+        const inviteToken = inviteTokenByEmail.get(email);
+        if (!inviteTokenByEmail.has(email)) return registration;
+
+        return {
+          ...registration,
+          via_invite: true,
+          invite_token: registration.invite_token || inviteToken,
+        };
+      });
+
+      const inviteTokenByParentApplicationId = new Map<string, string | null>();
+      rowsWithPrimaryInviteFlags.forEach((registration) => {
+        if (registration.via_invite) {
+          inviteTokenByParentApplicationId.set(registration.application_id, registration.invite_token || null);
+        }
+      });
+
+      const rowsWithInviteFlags = rowsWithPrimaryInviteFlags.map((registration) => {
+        if (!registration.parent_application_id || registration.via_invite) return registration;
+        if (!inviteTokenByParentApplicationId.has(registration.parent_application_id)) return registration;
+
+        return {
+          ...registration,
+          via_invite: true,
+          invite_token: registration.invite_token || inviteTokenByParentApplicationId.get(registration.parent_application_id) || null,
+        };
+      });
+
+      setRegistrations(rowsWithInviteFlags);
 
       // Ensure admins can always see payment proofs even if a registration was created
       // but the client-side DB link failed right after upload.
-      void backfillMissingPaymentProofUrls(rows);
+      void backfillMissingPaymentProofUrls(rowsWithInviteFlags);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
