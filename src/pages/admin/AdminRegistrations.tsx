@@ -1640,11 +1640,19 @@ const AdminRegistrations = () => {
                                         )}
                                       </TableCell>
                                       <TableCell className="font-mono text-sm">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                           {index > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                                          {registration.application_id}
+                                          <span className={registration.via_invite ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : ''}>
+                                            {registration.application_id}
+                                          </span>
                                           {index === 0 && (
                                             <Badge variant="outline" className="text-xs">Primary</Badge>
+                                          )}
+                                          {registration.via_invite && (
+                                            <Badge className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-400 hover:bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-200 dark:border-yellow-600 gap-1">
+                                              <KeyRound className="h-3 w-3" />
+                                              Invite
+                                            </Badge>
                                           )}
                                         </div>
                                       </TableCell>
@@ -1699,7 +1707,17 @@ const AdminRegistrations = () => {
                                     )}
                                   </TableCell>
                                   <TableCell className="font-mono text-sm">
-                                    {registration.application_id}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={registration.via_invite ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : ''}>
+                                        {registration.application_id}
+                                      </span>
+                                      {registration.via_invite && (
+                                        <Badge className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-400 hover:bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-200 dark:border-yellow-600 gap-1">
+                                          <KeyRound className="h-3 w-3" />
+                                          Invite
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell className="font-medium">{registration.name}</TableCell>
                                   <TableCell>{registration.email}</TableCell>
@@ -1753,11 +1771,19 @@ const AdminRegistrations = () => {
                             )}
                           </TableCell>
                           <TableCell className="font-mono text-sm">
-                            <div className="flex items-center gap-2">
-                              {registration.application_id}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={registration.via_invite ? 'text-yellow-700 dark:text-yellow-300 font-semibold' : ''}>
+                                {registration.application_id}
+                              </span>
                               {registration.parent_application_id && (
                                 <Badge variant="outline" className="text-xs">
                                   → {registration.parent_application_id}
+                                </Badge>
+                              )}
+                              {registration.via_invite && (
+                                <Badge className="text-xs bg-yellow-100 text-yellow-800 border border-yellow-400 hover:bg-yellow-100 dark:bg-yellow-900/40 dark:text-yellow-200 dark:border-yellow-600 gap-1">
+                                  <KeyRound className="h-3 w-3" />
+                                  Invite
                                 </Badge>
                               )}
                             </div>
