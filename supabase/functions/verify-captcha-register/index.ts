@@ -593,6 +593,8 @@ serve(async (req: Request): Promise<Response> => {
         payment_proof_url: paymentProofUrl,
         payment_status: "submitted",
         registration_status: "pending",
+        via_invite: data.inviteToken ? true : false,
+        invite_token: data.inviteToken || null,
       })
       .select()
       .single();
@@ -694,6 +696,8 @@ serve(async (req: Request): Promise<Response> => {
             payment_proof_url: paymentProofUrl,
             payment_status: "submitted",
             registration_status: "pending",
+            via_invite: data.inviteToken ? true : false,
+            invite_token: data.inviteToken || null,
           })
           .select()
           .single();
