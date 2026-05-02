@@ -62,6 +62,7 @@ import {
   Pencil,
   Edit3,
   Download,
+  KeyRound,
 } from 'lucide-react';
 import EditRegistrationDialog from '@/components/admin/EditRegistrationDialog';
 import EnableEditModeDialog from '@/components/admin/EnableEditModeDialog';
