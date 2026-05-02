@@ -405,6 +405,7 @@ export type Database = {
           gender: string
           hostel_name: string | null
           id: string
+          invite_token: string | null
           name: string
           occupation: string
           parent_application_id: string | null
@@ -424,6 +425,7 @@ export type Database = {
           stay_type: string
           tshirt_size: string
           updated_at: string
+          via_invite: boolean
           year_of_passing: number
         }
         Insert: {
@@ -451,6 +453,7 @@ export type Database = {
           gender: string
           hostel_name?: string | null
           id?: string
+          invite_token?: string | null
           name: string
           occupation: string
           parent_application_id?: string | null
@@ -470,6 +473,7 @@ export type Database = {
           stay_type: string
           tshirt_size: string
           updated_at?: string
+          via_invite?: boolean
           year_of_passing: number
         }
         Update: {
@@ -497,6 +501,7 @@ export type Database = {
           gender?: string
           hostel_name?: string | null
           id?: string
+          invite_token?: string | null
           name?: string
           occupation?: string
           parent_application_id?: string | null
@@ -516,6 +521,7 @@ export type Database = {
           stay_type?: string
           tshirt_size?: string
           updated_at?: string
+          via_invite?: boolean
           year_of_passing?: number
         }
         Relationships: [
