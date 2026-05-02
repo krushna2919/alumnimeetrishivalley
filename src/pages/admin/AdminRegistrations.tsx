@@ -84,6 +84,7 @@ import { resolveLatestPaymentProofUrlFromStorage } from '@/lib/paymentProofResol
 // ... keep existing code (rest of file)
 
 type Registration = Tables<'registrations'>;
+type RegistrationInvite = Pick<Tables<'registration_invites'>, 'email' | 'token' | 'used'>;
 
 // Hostel options fetched from database
 
@@ -624,7 +625,7 @@ const AdminRegistrations = () => {
       // Some older invite registrations predate the stored via_invite flag. Derive the
       // marker from used invite records so the admin view reflects historical data too.
       const { data: inviteData, error: inviteError } = await supabase
-        .from('registration_invites' as any)
+        .from('registration_invites')
         .select('email, token, used')
         .eq('used', true);
 
@@ -633,7 +634,7 @@ const AdminRegistrations = () => {
       }
 
       const inviteTokenByEmail = new Map<string, string | null>();
-      (inviteData || []).forEach((invite: any) => {
+      ((inviteData || []) as RegistrationInvite[]).forEach((invite) => {
         const email = String(invite.email || '').trim().toLowerCase();
         if (email) inviteTokenByEmail.set(email, invite.token || null);
       });
