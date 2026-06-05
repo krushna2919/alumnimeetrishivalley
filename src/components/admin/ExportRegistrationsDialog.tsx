@@ -416,11 +416,10 @@ const ExportRegistrationsDialog = ({
       };
 
       const wb = XLSX.utils.book_new();
-      // cellFormula must be true so formulas survive the write.
-      (wb as { Workbook?: Record<string, unknown> }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
+      (wb as unknown as { Workbook: { CalcPr: { fullCalcOnLoad: boolean } } }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
 
-      XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`, { cellFormula: true });
+      XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (err) {
       console.error('Excel export failed:', err);
     } finally {
