@@ -72,6 +72,34 @@ interface ExportRegistrationsDialogProps {
   activeFilters?: string[];
 }
 
+/** Available Excel formulas the user can choose to embed at the top of the sheet. */
+type FormulaKey =
+  | 'countVisible'
+  | 'sumFeeVisible'
+  | 'avgFeeVisible'
+  | 'countApproved'
+  | 'countPending'
+  | 'countRejected'
+  | 'countPaid'
+  | 'countUnpaid'
+  | 'sumApprovedFee'
+  | 'sumPaidFee';
+
+const FORMULA_OPTIONS: { key: FormulaKey; label: string; needs: ('fee' | 'status' | 'payment')[] }[] = [
+  { key: 'countVisible',    label: 'Count of visible (filtered) rows',           needs: [] },
+  { key: 'sumFeeVisible',   label: 'Sum of Registration Fee (visible rows)',     needs: ['fee'] },
+  { key: 'avgFeeVisible',   label: 'Average Registration Fee (visible rows)',    needs: ['fee'] },
+  { key: 'countApproved',   label: 'Count where Registration Status = approved', needs: ['status'] },
+  { key: 'countPending',    label: 'Count where Registration Status = pending',  needs: ['status'] },
+  { key: 'countRejected',   label: 'Count where Registration Status = rejected', needs: ['status'] },
+  { key: 'countPaid',       label: 'Count where Payment Status = paid',          needs: ['payment'] },
+  { key: 'countUnpaid',     label: 'Count where Payment Status = unpaid',        needs: ['payment'] },
+  { key: 'sumApprovedFee',  label: 'Sum of Fee for Approved rows',               needs: ['fee', 'status'] },
+  { key: 'sumPaidFee',      label: 'Sum of Fee for Paid rows',                   needs: ['fee', 'payment'] },
+];
+
+const DEFAULT_FORMULAS: FormulaKey[] = ['countVisible', 'sumFeeVisible', 'countApproved', 'countPaid'];
+
 const ExportRegistrationsDialog = ({
   open,
   onOpenChange,
@@ -85,6 +113,15 @@ const ExportRegistrationsDialog = ({
   // When true (default if filters are active), export only the rows matching
   // the page filters. When false, export the full unfiltered set.
   const [matchPageFilters, setMatchPageFilters] = useState(true);
+  const [selectedFormulas, setSelectedFormulas] = useState<Set<FormulaKey>>(new Set(DEFAULT_FORMULAS));
+
+  const toggleFormula = (key: FormulaKey) => {
+    setSelectedFormulas(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const fullSet = allRegistrations ?? registrations;
   const effectiveRows = matchPageFilters ? registrations : fullSet;
