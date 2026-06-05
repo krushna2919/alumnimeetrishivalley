@@ -283,22 +283,29 @@ const ExportRegistrationsDialog = ({
         [
           'Visible Records:',
           `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`,
-          '', 'Total Records:', rows.length,
+          '',
+          matchPageFilters && activeFilters.length > 0 ? 'Filtered Records:' : 'Total Records:',
+          rows.length,
         ],
         feeCol
           ? ['Visible Fee Total:', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`, '', '', '']
           : ['', '', '', '', ''],
         statusCol && paymentCol
           ? [
-              'Approved (all):',
+              'Approved (in export):',
               `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`,
               '',
-              'Paid (all):',
+              'Paid (in export):',
               `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`,
             ]
           : ['', '', '', '', ''],
         [],
       ];
+
+      if (filterLines.length > 0) {
+        summary.push(['Active page filters applied to this export:']);
+        filterLines.forEach(f => summary.push([`  • ${f}`]));
+      }
 
       const padded = summary.map(r => {
         const out = [...r];
