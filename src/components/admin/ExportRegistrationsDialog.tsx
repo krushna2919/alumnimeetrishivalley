@@ -119,7 +119,7 @@ const ExportRegistrationsDialog = ({
   const getExportData = () => {
     const fields = EXPORTABLE_FIELDS.filter(f => selectedFields.has(f.key));
     const headers = fields.map(f => f.label);
-    const rows = registrations.map(reg =>
+    const rows = effectiveRows.map(reg =>
       fields.map(f => formatValue(f.key, reg[f.key]))
     );
     return { fields, headers, rows };
