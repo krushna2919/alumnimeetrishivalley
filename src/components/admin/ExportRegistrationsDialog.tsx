@@ -426,9 +426,35 @@ const ExportRegistrationsDialog = ({
         <DialogHeader>
           <DialogTitle>Export Registrations</DialogTitle>
           <DialogDescription>
-            Select fields to include and choose export format. Exporting {registrations.length} record(s).
+            Select fields to include and choose export format. Exporting {effectiveRows.length} record(s)
+            {matchPageFilters && hasActiveFilters ? ' (filtered)' : ''}.
           </DialogDescription>
         </DialogHeader>
+
+        {hasActiveFilters && (
+          <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={matchPageFilters}
+                onCheckedChange={(v) => setMatchPageFilters(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium">Match current page filters</span>
+                <span className="block text-xs text-muted-foreground">
+                  {matchPageFilters
+                    ? `Exporting ${registrations.length} filtered of ${fullSet.length} total.`
+                    : `Exporting all ${fullSet.length} records (ignoring page filters).`}
+                </span>
+              </span>
+            </label>
+            {matchPageFilters && activeFilters.length > 0 && (
+              <ul className="text-xs text-muted-foreground list-disc pl-6 space-y-0.5">
+                {activeFilters.map((f) => <li key={f}>{f}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-2">
           <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
