@@ -538,7 +538,7 @@ const ExportRegistrationsDialog = ({
           </span>
         </div>
 
-        <ScrollArea className="h-[320px] border rounded-md p-3">
+        <ScrollArea className="h-[240px] border rounded-md p-3">
           {Object.entries(groups).map(([group, fields]) => (
             <div key={group} className="mb-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</p>
