@@ -62,12 +62,32 @@ const DEFAULT_SELECTED: (keyof Registration)[] = [
 interface ExportRegistrationsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Already-filtered registrations matching the user's current page filters. */
   registrations: Registration[];
+  /** Full unfiltered set; if omitted, falls back to `registrations`. */
+  allRegistrations?: Registration[];
+  /** Whether the user has any active filter on the registrations page. */
+  hasActiveFilters?: boolean;
+  /** Human-readable list of active filters to embed in the export. */
+  activeFilters?: string[];
 }
 
-const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: ExportRegistrationsDialogProps) => {
+const ExportRegistrationsDialog = ({
+  open,
+  onOpenChange,
+  registrations,
+  allRegistrations,
+  hasActiveFilters = false,
+  activeFilters = [],
+}: ExportRegistrationsDialogProps) => {
   const [selectedFields, setSelectedFields] = useState<Set<keyof Registration>>(new Set(DEFAULT_SELECTED));
   const [isExporting, setIsExporting] = useState(false);
+  // When true (default if filters are active), export only the rows matching
+  // the page filters. When false, export the full unfiltered set.
+  const [matchPageFilters, setMatchPageFilters] = useState(true);
+
+  const fullSet = allRegistrations ?? registrations;
+  const effectiveRows = matchPageFilters ? registrations : fullSet;
 
   const toggleField = (key: keyof Registration) => {
     setSelectedFields(prev => {
