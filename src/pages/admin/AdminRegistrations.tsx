@@ -1629,8 +1629,18 @@ const AdminRegistrations = () => {
 
               {/* Active filters summary */}
               {hasActiveFilters() && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                   <span>Showing {filteredRegistrations.length} of {registrations.length} registrations</span>
+                  <Button
+                    onClick={quickExportFilteredToExcel}
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    title="Export filtered rows to Excel"
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600" />
+                    Export filtered ({filteredRegistrations.length})
+                  </Button>
                 </div>
               )}
             </div>
