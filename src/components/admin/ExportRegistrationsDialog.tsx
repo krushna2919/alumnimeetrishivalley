@@ -292,7 +292,38 @@ const ExportRegistrationsDialog = ({
       const XLSX = await import('xlsx');
       const { headers, rows } = getExportData();
 
-      // Locate columns by label so formulas reference the right ones.
+      // ----- Main "Registrations" sheet -----
+      // Plain layout: header row 1, data starting row 2. This matches Excel's
+      // expectation for AutoFilter dropdowns to behave like a fresh sheet
+      // (no merged blocks / offset above the table).
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const lastCol = XLSX.utils.encode_col(Math.max(headers.length - 1, 0));
+      const lastRow = rows.length + 1; // header + data rows
+      ws['!ref'] = `A1:${lastCol}${lastRow}`;
+
+      // Column widths sized to header + sample data.
+      ws['!cols'] = headers.map((h, i) => ({
+        wch: Math.max(h.length, ...rows.map(r => (r[i] || '').length).slice(0, 100)) + 2,
+      }));
+
+      // AutoFilter dropdowns on the header row, covering all data rows.
+      ws['!autofilter'] = { ref: `A1:${lastCol}${lastRow}` };
+
+      // Freeze the header row so it stays visible while scrolling/filtering.
+      ws['!freeze'] = {
+        xSplit: 0,
+        ySplit: 1,
+        topLeftCell: 'A2',
+        activePane: 'bottomLeft',
+      };
+
+      const wb = XLSX.utils.book_new();
+      (wb as unknown as { Workbook: { CalcPr: { fullCalcOnLoad: boolean } } }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
+      XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+
+      // ----- Optional "Summary" sheet with live formulas -----
+      // Kept on a separate sheet so the main table mirrors the reference
+      // file exactly (row 1 = headers, AutoFilter from A1).
       const colLetter = (label: string) => {
         const idx = headers.indexOf(label);
         return idx >= 0 ? XLSX.utils.encode_col(idx) : null;
@@ -301,123 +332,65 @@ const ExportRegistrationsDialog = ({
       const statusCol = colLetter('Registration Status');
       const paymentCol = colLetter('Payment Status');
       const appIdCol = colLetter('Application ID') ?? 'A';
-
-      // Filter formulas down to ones whose required columns are present.
-      const haveCols = {
-        fee: !!feeCol, status: !!statusCol, payment: !!paymentCol,
-      };
+      const haveCols = { fee: !!feeCol, status: !!statusCol, payment: !!paymentCol };
       const activeFormulas = FORMULA_OPTIONS.filter(
         f => selectedFormulas.has(f.key) && f.needs.every(n => haveCols[n])
       );
-
       const filterLines = matchPageFilters && activeFilters.length > 0 ? activeFilters : [];
-      // Layout:
-      //   row 1: title
-      //   row 2: meta (generated / record count)
-      //   row 3..3+N-1: one formula per row (label | formula)
-      //   blank row
-      //   optional active-filter lines
-      //   blank row
-      //   header row, then data
-      const titleRows = 2;
-      const formulaRows = activeFormulas.length;
-      const filterBlock = filterLines.length > 0 ? filterLines.length + 1 : 0;
-      const blanksAfterFormulas = formulaRows > 0 ? 1 : 0;
-      const blanksAfterFilters = filterBlock > 0 ? 1 : 0;
-      const HEADER_ROW = titleRows + formulaRows + blanksAfterFormulas + filterBlock + blanksAfterFilters + 1;
-      const DATA_START_ROW = HEADER_ROW + 1;
-      const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
-      const lastCol = XLSX.utils.encode_col(Math.max(headers.length - 1, 1));
 
-      // Build the formula expression for a given key (without leading '=').
-      const buildFormula = (key: FormulaKey): string => {
-        const r1 = DATA_START_ROW, r2 = DATA_END_ROW;
-        switch (key) {
-          case 'countVisible':   return `SUBTOTAL(103,${appIdCol}${r1}:${appIdCol}${r2})`;
-          case 'sumFeeVisible':  return `SUBTOTAL(109,${feeCol}${r1}:${feeCol}${r2})`;
-          case 'avgFeeVisible':  return `SUBTOTAL(101,${feeCol}${r1}:${feeCol}${r2})`;
-          case 'countApproved':  return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"approved")`;
-          case 'countPending':   return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"pending")`;
-          case 'countRejected':  return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"rejected")`;
-          case 'countPaid':      return `COUNTIF(${paymentCol}${r1}:${paymentCol}${r2},"paid")`;
-          case 'countUnpaid':    return `COUNTIF(${paymentCol}${r1}:${paymentCol}${r2},"unpaid")`;
-          case 'sumApprovedFee': return `SUMIF(${statusCol}${r1}:${statusCol}${r2},"approved",${feeCol}${r1}:${feeCol}${r2})`;
-          case 'sumPaidFee':     return `SUMIF(${paymentCol}${r1}:${paymentCol}${r2},"paid",${feeCol}${r1}:${feeCol}${r2})`;
+      if (activeFormulas.length > 0 || filterLines.length > 0) {
+        const r1 = 2;        // data start row in Registrations sheet
+        const r2 = lastRow;  // data end row in Registrations sheet
+        const buildFormula = (key: FormulaKey): string => {
+          switch (key) {
+            case 'countVisible':   return `SUBTOTAL(103,Registrations!${appIdCol}${r1}:${appIdCol}${r2})`;
+            case 'sumFeeVisible':  return `SUBTOTAL(109,Registrations!${feeCol}${r1}:${feeCol}${r2})`;
+            case 'avgFeeVisible':  return `SUBTOTAL(101,Registrations!${feeCol}${r1}:${feeCol}${r2})`;
+            case 'countApproved':  return `COUNTIF(Registrations!${statusCol}${r1}:${statusCol}${r2},"approved")`;
+            case 'countPending':   return `COUNTIF(Registrations!${statusCol}${r1}:${statusCol}${r2},"pending")`;
+            case 'countRejected':  return `COUNTIF(Registrations!${statusCol}${r1}:${statusCol}${r2},"rejected")`;
+            case 'countPaid':      return `COUNTIF(Registrations!${paymentCol}${r1}:${paymentCol}${r2},"paid")`;
+            case 'countUnpaid':    return `COUNTIF(Registrations!${paymentCol}${r1}:${paymentCol}${r2},"unpaid")`;
+            case 'sumApprovedFee': return `SUMIF(Registrations!${statusCol}${r1}:${statusCol}${r2},"approved",Registrations!${feeCol}${r1}:${feeCol}${r2})`;
+            case 'sumPaidFee':     return `SUMIF(Registrations!${paymentCol}${r1}:${paymentCol}${r2},"paid",Registrations!${feeCol}${r1}:${feeCol}${r2})`;
+          }
+        };
+
+        const summary = XLSX.utils.aoa_to_sheet([
+          ['Registrations Export — Summary'],
+          [`Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}`],
+          [`Records: ${rows.length}    Fields: ${headers.length}${matchPageFilters && hasActiveFilters ? '    (Filtered view)' : ''}`],
+          [],
+        ]);
+        const setCell = (addr: string, opts: { v?: string | number; f?: string }) => {
+          const cell: Record<string, unknown> = {};
+          if (opts.f) { cell.t = 'n'; cell.f = opts.f; cell.v = 0; }
+          else if (typeof opts.v === 'number') { cell.t = 'n'; cell.v = opts.v; }
+          else { cell.t = 's'; cell.v = opts.v ?? ''; }
+          summary[addr] = cell;
+        };
+
+        let row = 5;
+        if (activeFormulas.length > 0) {
+          setCell(`A${row}`, { v: 'Metric' });
+          setCell(`B${row}`, { v: 'Value' });
+          row++;
+          activeFormulas.forEach(f => {
+            setCell(`A${row}`, { v: f.label });
+            setCell(`B${row}`, { f: buildFormula(f.key) });
+            row++;
+          });
+          row++;
         }
-      };
-
-      // Build the worksheet starting from values (data block) then patch in
-      // title/meta/formula cells using cell objects so formulas are written
-      // properly (cell.f), not as literal strings.
-      const wsData: (string | number)[][] = [];
-      // Pre-fill placeholder rows so the header/data start at the right offset.
-      for (let i = 0; i < HEADER_ROW - 1; i++) wsData.push([]);
-      wsData.push(headers);
-      rows.forEach(r => wsData.push(r));
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-      // Helper to write a cell at an address with proper type/formula.
-      const setCell = (addr: string, opts: { v?: string | number; f?: string; bold?: boolean }) => {
-        const cell: Record<string, unknown> = {};
-        if (opts.f) {
-          cell.t = 'n';
-          cell.f = opts.f;
-          // Excel will compute on open; provide 0 so the cell isn't blank in
-          // viewers that don't evaluate formulas.
-          cell.v = 0;
-        } else if (typeof opts.v === 'number') {
-          cell.t = 'n';
-          cell.v = opts.v;
-        } else {
-          cell.t = 's';
-          cell.v = opts.v ?? '';
+        if (filterLines.length > 0) {
+          setCell(`A${row}`, { v: 'Active page filters applied to this export:' });
+          row++;
+          filterLines.forEach(line => { setCell(`A${row}`, { v: `  • ${line}` }); row++; });
         }
-        ws[addr] = cell;
-      };
-
-      // Title + meta
-      setCell('A1', { v: 'Registrations Export' });
-      setCell('A2', {
-        v: `Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}  |  Records: ${rows.length}  |  Fields: ${headers.length}${matchPageFilters && hasActiveFilters ? '  |  Filtered view' : ''}`,
-      });
-
-      // Formula rows: label in col A, computed value in col B
-      activeFormulas.forEach((f, i) => {
-        const r = titleRows + 1 + i;
-        setCell(`A${r}`, { v: f.label });
-        setCell(`B${r}`, { f: buildFormula(f.key) });
-      });
-
-      // Active filter listing
-      if (filterBlock > 0) {
-        const start = titleRows + formulaRows + blanksAfterFormulas + 1;
-        setCell(`A${start}`, { v: 'Active page filters applied to this export:' });
-        filterLines.forEach((line, i) => setCell(`A${start + 1 + i}`, { v: `  • ${line}` }));
+        summary['!ref'] = `A1:B${Math.max(row - 1, 4)}`;
+        summary['!cols'] = [{ wch: 48 }, { wch: 24 }];
+        XLSX.utils.book_append_sheet(wb, summary, 'Summary');
       }
-
-      // Update the worksheet range so the new cells in unfilled rows are picked
-      // up when the file is written.
-      ws['!ref'] = `A1:${lastCol}${DATA_END_ROW}`;
-
-      // Column widths sized to header + sample data.
-      ws['!cols'] = headers.map((h, i) => ({
-        wch: Math.max(h.length, ...rows.map(r => (r[i] || '').length).slice(0, 100)) + 2,
-      }));
-
-      // AutoFilter dropdowns on the header row.
-      ws['!autofilter'] = { ref: `A${HEADER_ROW}:${lastCol}${DATA_END_ROW}` };
-
-      // Freeze panes through the header row.
-      ws['!freeze'] = {
-        xSplit: 0,
-        ySplit: HEADER_ROW,
-        topLeftCell: `A${DATA_START_ROW}`,
-        activePane: 'bottomLeft',
-      };
-
-      const wb = XLSX.utils.book_new();
-      (wb as unknown as { Workbook: { CalcPr: { fullCalcOnLoad: boolean } } }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
-      XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
 
       XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (err) {
