@@ -498,6 +498,38 @@ const ExportRegistrationsDialog = ({
           </div>
         )}
 
+        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Excel formulas to include in the header</p>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                onClick={() => setSelectedFormulas(new Set(FORMULA_OPTIONS.map(f => f.key)))}>
+                All
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                onClick={() => setSelectedFormulas(new Set())}>
+                None
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Selected formulas are written as live cells at the top of the Excel sheet.
+            Counts/sums marked "visible" auto-update as you use the column filter dropdowns.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 max-h-40 overflow-y-auto pr-1">
+            {FORMULA_OPTIONS.map(opt => (
+              <label key={opt.key} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                <Checkbox
+                  checked={selectedFormulas.has(opt.key)}
+                  onCheckedChange={() => toggleFormula(opt.key)}
+                  className="mt-0.5"
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2 mb-2">
           <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
           <Button variant="outline" size="sm" onClick={deselectAll}>Deselect All</Button>
