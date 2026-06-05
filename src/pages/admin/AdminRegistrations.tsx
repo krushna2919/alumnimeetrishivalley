@@ -2681,6 +2681,19 @@ const AdminRegistrations = () => {
         open={isExportDialogOpen}
         onOpenChange={setIsExportDialogOpen}
         registrations={filteredRegistrations}
+        allRegistrations={registrations}
+        hasActiveFilters={hasActiveFilters()}
+        activeFilters={[
+          searchQuery && `Search: "${searchQuery}"`,
+          statusFilter !== 'all' && `Registration Status: ${statusFilter}`,
+          paymentStatusFilter !== 'all' && `Payment Status: ${paymentStatusFilter}`,
+          stayTypeFilter !== 'all' && `Stay Type: ${stayTypeFilter}`,
+          genderFilter !== 'all' && `Gender: ${genderFilter}`,
+          boardTypeFilter !== 'all' && `Board: ${boardTypeFilter}`,
+          hostelFilter !== 'all' && `Hostel: ${hostelFilter}`,
+          yearFromFilter && `Year from: ${yearFromFilter}`,
+          yearToFilter && `Year to: ${yearToFilter}`,
+        ].filter(Boolean) as string[]}
       />
 
       {/* Enable Edit Mode Dialog (Superadmin only) */}
