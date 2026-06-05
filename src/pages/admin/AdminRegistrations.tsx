@@ -779,6 +779,63 @@ const AdminRegistrations = () => {
   };
 
   /**
+   * Quick export: download the currently filtered registrations as an .xlsx file
+   * using a sensible default set of columns. No dialog, one-click.
+   */
+  const quickExportFilteredToExcel = async () => {
+    try {
+      const rowsData = filteredRegistrations;
+      if (rowsData.length === 0) {
+        toast({ title: 'Nothing to export', description: 'No registrations match the current filters.', variant: 'destructive' });
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const cols: { key: keyof Registration; label: string }[] = [
+        { key: 'application_id', label: 'Application ID' },
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'gender', label: 'Gender' },
+        { key: 'year_of_passing', label: 'Year of Passing' },
+        { key: 'board_type', label: 'Board Type' },
+        { key: 'stay_type', label: 'Stay Type' },
+        { key: 'hostel_name', label: 'Hostel' },
+        { key: 'registration_fee', label: 'Registration Fee' },
+        { key: 'registration_status', label: 'Registration Status' },
+        { key: 'payment_status', label: 'Payment Status' },
+        { key: 'payment_reference', label: 'Payment Reference' },
+        { key: 'payment_date', label: 'Payment Date' },
+        { key: 'city', label: 'City' },
+        { key: 'state', label: 'State' },
+        { key: 'country', label: 'Country' },
+        { key: 'created_at', label: 'Registered On' },
+      ];
+      const headers = cols.map(c => c.label);
+      const aoa = [headers, ...rowsData.map(r => cols.map(c => {
+        const v = (r as any)[c.key];
+        if (v == null) return '';
+        if (c.key === 'created_at' || c.key === 'payment_date') {
+          try { return format(new Date(v as string), 'yyyy-MM-dd HH:mm'); } catch { return String(v); }
+        }
+        return v;
+      }))];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const lastCol = XLSX.utils.encode_col(headers.length - 1);
+      const lastRow = aoa.length;
+      ws['!ref'] = `A1:${lastCol}${lastRow}`;
+      ws['!autofilter'] = { ref: `A1:${lastCol}${lastRow}` };
+      (ws as any)['!freeze'] = { ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+      XLSX.writeFile(wb, `registrations-filtered-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx`);
+      toast({ title: 'Export ready', description: `Exported ${rowsData.length} filtered registration(s).` });
+    } catch (err) {
+      console.error('Quick export failed', err);
+      toast({ title: 'Export failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
+    }
+  };
+
+  /**
    * Groups registrations by parent_application_id and returns them sorted by date.
    * Returns an array of items that can be either a group (with members) or a standalone registration.
    * All items are sorted by the created_at date of the primary/standalone registration (descending).
