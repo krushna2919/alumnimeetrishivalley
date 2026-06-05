@@ -72,6 +72,34 @@ interface ExportRegistrationsDialogProps {
   activeFilters?: string[];
 }
 
+/** Available Excel formulas the user can choose to embed at the top of the sheet. */
+type FormulaKey =
+  | 'countVisible'
+  | 'sumFeeVisible'
+  | 'avgFeeVisible'
+  | 'countApproved'
+  | 'countPending'
+  | 'countRejected'
+  | 'countPaid'
+  | 'countUnpaid'
+  | 'sumApprovedFee'
+  | 'sumPaidFee';
+
+const FORMULA_OPTIONS: { key: FormulaKey; label: string; needs: ('fee' | 'status' | 'payment')[] }[] = [
+  { key: 'countVisible',    label: 'Count of visible (filtered) rows',           needs: [] },
+  { key: 'sumFeeVisible',   label: 'Sum of Registration Fee (visible rows)',     needs: ['fee'] },
+  { key: 'avgFeeVisible',   label: 'Average Registration Fee (visible rows)',    needs: ['fee'] },
+  { key: 'countApproved',   label: 'Count where Registration Status = approved', needs: ['status'] },
+  { key: 'countPending',    label: 'Count where Registration Status = pending',  needs: ['status'] },
+  { key: 'countRejected',   label: 'Count where Registration Status = rejected', needs: ['status'] },
+  { key: 'countPaid',       label: 'Count where Payment Status = paid',          needs: ['payment'] },
+  { key: 'countUnpaid',     label: 'Count where Payment Status = unpaid',        needs: ['payment'] },
+  { key: 'sumApprovedFee',  label: 'Sum of Fee for Approved rows',               needs: ['fee', 'status'] },
+  { key: 'sumPaidFee',      label: 'Sum of Fee for Paid rows',                   needs: ['fee', 'payment'] },
+];
+
+const DEFAULT_FORMULAS: FormulaKey[] = ['countVisible', 'sumFeeVisible', 'countApproved', 'countPaid'];
+
 const ExportRegistrationsDialog = ({
   open,
   onOpenChange,
@@ -85,6 +113,15 @@ const ExportRegistrationsDialog = ({
   // When true (default if filters are active), export only the rows matching
   // the page filters. When false, export the full unfiltered set.
   const [matchPageFilters, setMatchPageFilters] = useState(true);
+  const [selectedFormulas, setSelectedFormulas] = useState<Set<FormulaKey>>(new Set(DEFAULT_FORMULAS));
+
+  const toggleFormula = (key: FormulaKey) => {
+    setSelectedFormulas(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   const fullSet = allRegistrations ?? registrations;
   const effectiveRows = matchPageFilters ? registrations : fullSet;
@@ -255,19 +292,7 @@ const ExportRegistrationsDialog = ({
       const XLSX = await import('xlsx');
       const { headers, rows } = getExportData();
 
-      // Reserve top rows for a live summary panel that uses SUBTOTAL so values
-      // automatically recompute as the user applies AutoFilter dropdowns. When
-      // the user opted to match page filters, we also list those filters so the
-      // exported sheet is self-describing.
-      const filterLines = matchPageFilters && activeFilters.length > 0 ? activeFilters : [];
-      const SUMMARY_ROWS = 4 + (filterLines.length > 0 ? filterLines.length + 1 : 0);
-      const HEADER_ROW = SUMMARY_ROWS + 1;
-      const DATA_START_ROW = HEADER_ROW + 1;
-      const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
-      const lastCol = XLSX.utils.encode_col(headers.length - 1);
-      const dataRange = `A${DATA_START_ROW}:${lastCol}${DATA_END_ROW}`;
-
-      // Locate columns by label so summary formulas reference the right ones.
+      // Locate columns by label so formulas reference the right ones.
       const colLetter = (label: string) => {
         const idx = headers.indexOf(label);
         return idx >= 0 ? XLSX.utils.encode_col(idx) : null;
@@ -277,65 +302,112 @@ const ExportRegistrationsDialog = ({
       const paymentCol = colLetter('Payment Status');
       const appIdCol = colLetter('Application ID') ?? 'A';
 
-      // Build summary rows. SUBTOTAL ignores rows hidden by AutoFilter:
-      // 103 = COUNTA, 109 = SUM. COUNTIFS gives unconditional category counts.
-      const summary: (string | number)[][] = [
-        [
-          'Visible Records:',
-          `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`,
-          '',
-          matchPageFilters && activeFilters.length > 0 ? 'Filtered Records:' : 'Total Records:',
-          rows.length,
-        ],
-        feeCol
-          ? ['Visible Fee Total:', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`, '', '', '']
-          : ['', '', '', '', ''],
-        statusCol && paymentCol
-          ? [
-              'Approved (in export):',
-              `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`,
-              '',
-              'Paid (in export):',
-              `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`,
-            ]
-          : ['', '', '', '', ''],
-        [],
-      ];
+      // Filter formulas down to ones whose required columns are present.
+      const haveCols = {
+        fee: !!feeCol, status: !!statusCol, payment: !!paymentCol,
+      };
+      const activeFormulas = FORMULA_OPTIONS.filter(
+        f => selectedFormulas.has(f.key) && f.needs.every(n => haveCols[n])
+      );
 
-      if (filterLines.length > 0) {
-        summary.push(['Active page filters applied to this export:']);
-        filterLines.forEach(f => summary.push([`  • ${f}`]));
-      }
+      const filterLines = matchPageFilters && activeFilters.length > 0 ? activeFilters : [];
+      // Layout:
+      //   row 1: title
+      //   row 2: meta (generated / record count)
+      //   row 3..3+N-1: one formula per row (label | formula)
+      //   blank row
+      //   optional active-filter lines
+      //   blank row
+      //   header row, then data
+      const titleRows = 2;
+      const formulaRows = activeFormulas.length;
+      const filterBlock = filterLines.length > 0 ? filterLines.length + 1 : 0;
+      const blanksAfterFormulas = formulaRows > 0 ? 1 : 0;
+      const blanksAfterFilters = filterBlock > 0 ? 1 : 0;
+      const HEADER_ROW = titleRows + formulaRows + blanksAfterFormulas + filterBlock + blanksAfterFilters + 1;
+      const DATA_START_ROW = HEADER_ROW + 1;
+      const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
+      const lastCol = XLSX.utils.encode_col(Math.max(headers.length - 1, 1));
 
-      const padded = summary.map(r => {
-        const out = [...r];
-        while (out.length < headers.length) out.push('');
-        return out;
-      });
+      // Build the formula expression for a given key (without leading '=').
+      const buildFormula = (key: FormulaKey): string => {
+        const r1 = DATA_START_ROW, r2 = DATA_END_ROW;
+        switch (key) {
+          case 'countVisible':   return `SUBTOTAL(103,${appIdCol}${r1}:${appIdCol}${r2})`;
+          case 'sumFeeVisible':  return `SUBTOTAL(109,${feeCol}${r1}:${feeCol}${r2})`;
+          case 'avgFeeVisible':  return `SUBTOTAL(101,${feeCol}${r1}:${feeCol}${r2})`;
+          case 'countApproved':  return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"approved")`;
+          case 'countPending':   return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"pending")`;
+          case 'countRejected':  return `COUNTIF(${statusCol}${r1}:${statusCol}${r2},"rejected")`;
+          case 'countPaid':      return `COUNTIF(${paymentCol}${r1}:${paymentCol}${r2},"paid")`;
+          case 'countUnpaid':    return `COUNTIF(${paymentCol}${r1}:${paymentCol}${r2},"unpaid")`;
+          case 'sumApprovedFee': return `SUMIF(${statusCol}${r1}:${statusCol}${r2},"approved",${feeCol}${r1}:${feeCol}${r2})`;
+          case 'sumPaidFee':     return `SUMIF(${paymentCol}${r1}:${paymentCol}${r2},"paid",${feeCol}${r1}:${feeCol}${r2})`;
+        }
+      };
 
-      const wsData = [...padded, headers, ...rows];
+      // Build the worksheet starting from values (data block) then patch in
+      // title/meta/formula cells using cell objects so formulas are written
+      // properly (cell.f), not as literal strings.
+      const wsData: (string | number)[][] = [];
+      // Pre-fill placeholder rows so the header/data start at the right offset.
+      for (let i = 0; i < HEADER_ROW - 1; i++) wsData.push([]);
+      wsData.push(headers);
+      rows.forEach(r => wsData.push(r));
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // Convert strings beginning with "=" into actual formula cells so the
-      // spreadsheet evaluates them instead of displaying literal text.
-      Object.keys(ws).forEach(addr => {
-        if (addr.startsWith('!')) return;
-        const cell = ws[addr];
-        if (cell && typeof cell.v === 'string' && cell.v.startsWith('=')) {
-          cell.f = cell.v.slice(1);
-          delete cell.v;
+      // Helper to write a cell at an address with proper type/formula.
+      const setCell = (addr: string, opts: { v?: string | number; f?: string; bold?: boolean }) => {
+        const cell: Record<string, unknown> = {};
+        if (opts.f) {
           cell.t = 'n';
+          cell.f = opts.f;
+          // Excel will compute on open; provide 0 so the cell isn't blank in
+          // viewers that don't evaluate formulas.
+          cell.v = 0;
+        } else if (typeof opts.v === 'number') {
+          cell.t = 'n';
+          cell.v = opts.v;
+        } else {
+          cell.t = 's';
+          cell.v = opts.v ?? '';
         }
+        ws[addr] = cell;
+      };
+
+      // Title + meta
+      setCell('A1', { v: 'Registrations Export' });
+      setCell('A2', {
+        v: `Generated: ${format(new Date(), 'dd MMM yyyy, hh:mm a')}  |  Records: ${rows.length}  |  Fields: ${headers.length}${matchPageFilters && hasActiveFilters ? '  |  Filtered view' : ''}`,
       });
 
+      // Formula rows: label in col A, computed value in col B
+      activeFormulas.forEach((f, i) => {
+        const r = titleRows + 1 + i;
+        setCell(`A${r}`, { v: f.label });
+        setCell(`B${r}`, { f: buildFormula(f.key) });
+      });
+
+      // Active filter listing
+      if (filterBlock > 0) {
+        const start = titleRows + formulaRows + blanksAfterFormulas + 1;
+        setCell(`A${start}`, { v: 'Active page filters applied to this export:' });
+        filterLines.forEach((line, i) => setCell(`A${start + 1 + i}`, { v: `  • ${line}` }));
+      }
+
+      // Update the worksheet range so the new cells in unfilled rows are picked
+      // up when the file is written.
+      ws['!ref'] = `A1:${lastCol}${DATA_END_ROW}`;
+
+      // Column widths sized to header + sample data.
       ws['!cols'] = headers.map((h, i) => ({
         wch: Math.max(h.length, ...rows.map(r => (r[i] || '').length).slice(0, 100)) + 2,
       }));
 
-      // AutoFilter dropdowns on the header row let users filter natively.
+      // AutoFilter dropdowns on the header row.
       ws['!autofilter'] = { ref: `A${HEADER_ROW}:${lastCol}${DATA_END_ROW}` };
 
-      // Freeze summary + header rows so they stay pinned while scrolling.
+      // Freeze panes through the header row.
       ws['!freeze'] = {
         xSplit: 0,
         ySplit: HEADER_ROW,
@@ -344,38 +416,8 @@ const ExportRegistrationsDialog = ({
       };
 
       const wb = XLSX.utils.book_new();
+      (wb as unknown as { Workbook: { CalcPr: { fullCalcOnLoad: boolean } } }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
-
-      // Companion sheet with copy-paste filter formulas users can reuse.
-      const helpRows: (string | number)[][] = [
-        ['Filter & Formula Guide'],
-        [],
-        [`Filter dropdowns are enabled on row ${HEADER_ROW} of the Registrations sheet.`],
-        ['Click any column header arrow to filter. The summary cells above update automatically via SUBTOTAL.'],
-        [],
-        ['Purpose', 'Formula (paste into any empty cell)'],
-        ['Count visible rows', `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`],
-        ...(feeCol ? [['Sum visible fees', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`]] : []),
-        ...(feeCol ? [['Average visible fee', `=SUBTOTAL(101,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`]] : []),
-        ...(statusCol ? [['Count approved', `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`]] : []),
-        ...(statusCol ? [['Count pending', `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"pending")`]] : []),
-        ...(paymentCol ? [['Count paid', `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`]] : []),
-        ...(paymentCol ? [['Count unpaid', `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"unpaid")`]] : []),
-        [],
-        ['SUBTOTAL codes 101-111 ignore rows hidden by AutoFilter.'],
-        [`Excel 365 / Google Sheets: use =FILTER(${dataRange}, <condition>) for dynamic results.`],
-      ];
-      const helpWs = XLSX.utils.aoa_to_sheet(helpRows);
-      Object.keys(helpWs).forEach(addr => {
-        if (addr.startsWith('!')) return;
-        const cell = helpWs[addr];
-        if (cell && typeof cell.v === 'string' && cell.v.startsWith('=')) {
-          // Keep these as visible text so users can read & copy them.
-          cell.t = 's';
-        }
-      });
-      helpWs['!cols'] = [{ wch: 30 }, { wch: 80 }];
-      XLSX.utils.book_append_sheet(wb, helpWs, 'Filter Guide');
 
       XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (err) {
@@ -422,7 +464,7 @@ const ExportRegistrationsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh]">
+      <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export Registrations</DialogTitle>
           <DialogDescription>
@@ -456,6 +498,38 @@ const ExportRegistrationsDialog = ({
           </div>
         )}
 
+        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Excel formulas to include in the header</p>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                onClick={() => setSelectedFormulas(new Set(FORMULA_OPTIONS.map(f => f.key)))}>
+                All
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs"
+                onClick={() => setSelectedFormulas(new Set())}>
+                None
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Selected formulas are written as live cells at the top of the Excel sheet.
+            Counts/sums marked "visible" auto-update as you use the column filter dropdowns.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 max-h-40 overflow-y-auto pr-1">
+            {FORMULA_OPTIONS.map(opt => (
+              <label key={opt.key} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                <Checkbox
+                  checked={selectedFormulas.has(opt.key)}
+                  onCheckedChange={() => toggleFormula(opt.key)}
+                  className="mt-0.5"
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2 mb-2">
           <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
           <Button variant="outline" size="sm" onClick={deselectAll}>Deselect All</Button>
@@ -464,7 +538,7 @@ const ExportRegistrationsDialog = ({
           </span>
         </div>
 
-        <ScrollArea className="h-[320px] border rounded-md p-3">
+        <ScrollArea className="h-[240px] border rounded-md p-3">
           {Object.entries(groups).map(([group, fields]) => (
             <div key={group} className="mb-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{group}</p>
