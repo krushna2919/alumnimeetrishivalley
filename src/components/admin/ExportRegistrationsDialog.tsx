@@ -235,24 +235,118 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
       const XLSX = await import('xlsx');
       const { headers, rows } = getExportData();
 
-      const wsData = [headers, ...rows];
+      // Reserve top rows for a live summary panel that uses SUBTOTAL so values
+      // automatically recompute as the user applies AutoFilter dropdowns.
+      const SUMMARY_ROWS = 4; // rows 1-4 reserved
+      const HEADER_ROW = SUMMARY_ROWS + 1; // row 5 = column headers
+      const DATA_START_ROW = HEADER_ROW + 1; // row 6 = first data row
+      const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
+      const lastCol = XLSX.utils.encode_col(headers.length - 1);
+      const dataRange = `A${DATA_START_ROW}:${lastCol}${DATA_END_ROW}`;
+
+      // Locate columns by label so summary formulas reference the right ones.
+      const colLetter = (label: string) => {
+        const idx = headers.indexOf(label);
+        return idx >= 0 ? XLSX.utils.encode_col(idx) : null;
+      };
+      const feeCol = colLetter('Registration Fee');
+      const statusCol = colLetter('Registration Status');
+      const paymentCol = colLetter('Payment Status');
+      const appIdCol = colLetter('Application ID') ?? 'A';
+
+      // Build summary rows. SUBTOTAL ignores rows hidden by AutoFilter:
+      // 103 = COUNTA, 109 = SUM. COUNTIFS gives unconditional category counts.
+      const summary: (string | number)[][] = [
+        [
+          'Visible Records:',
+          `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`,
+          '', 'Total Records:', rows.length,
+        ],
+        feeCol
+          ? ['Visible Fee Total:', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`, '', '', '']
+          : ['', '', '', '', ''],
+        statusCol && paymentCol
+          ? [
+              'Approved (all):',
+              `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`,
+              '',
+              'Paid (all):',
+              `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`,
+            ]
+          : ['', '', '', '', ''],
+        [],
+      ];
+
+      const padded = summary.map(r => {
+        const out = [...r];
+        while (out.length < headers.length) out.push('');
+        return out;
+      });
+
+      const wsData = [...padded, headers, ...rows];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // Auto-size columns based on content width
+      // Convert strings beginning with "=" into actual formula cells so the
+      // spreadsheet evaluates them instead of displaying literal text.
+      Object.keys(ws).forEach(addr => {
+        if (addr.startsWith('!')) return;
+        const cell = ws[addr];
+        if (cell && typeof cell.v === 'string' && cell.v.startsWith('=')) {
+          cell.f = cell.v.slice(1);
+          delete cell.v;
+          cell.t = 'n';
+        }
+      });
+
       ws['!cols'] = headers.map((h, i) => ({
         wch: Math.max(h.length, ...rows.map(r => (r[i] || '').length).slice(0, 100)) + 2,
       }));
 
-      // Enable auto-filter on all columns so users can sort & filter in Excel/Sheets
-      const lastCol = XLSX.utils.encode_col(headers.length - 1);
-      const lastRow = rows.length + 1; // +1 for header row
-      ws['!autofilter'] = { ref: `A1:${lastCol}${lastRow}` };
+      // AutoFilter dropdowns on the header row let users filter natively.
+      ws['!autofilter'] = { ref: `A${HEADER_ROW}:${lastCol}${DATA_END_ROW}` };
 
-      // Freeze the header row so it stays visible while scrolling
-      ws['!freeze'] = { xSplit: 0, ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
+      // Freeze summary + header rows so they stay pinned while scrolling.
+      ws['!freeze'] = {
+        xSplit: 0,
+        ySplit: HEADER_ROW,
+        topLeftCell: `A${DATA_START_ROW}`,
+        activePane: 'bottomLeft',
+      };
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+
+      // Companion sheet with copy-paste filter formulas users can reuse.
+      const helpRows: (string | number)[][] = [
+        ['Filter & Formula Guide'],
+        [],
+        [`Filter dropdowns are enabled on row ${HEADER_ROW} of the Registrations sheet.`],
+        ['Click any column header arrow to filter. The summary cells above update automatically via SUBTOTAL.'],
+        [],
+        ['Purpose', 'Formula (paste into any empty cell)'],
+        ['Count visible rows', `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`],
+        ...(feeCol ? [['Sum visible fees', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`]] : []),
+        ...(feeCol ? [['Average visible fee', `=SUBTOTAL(101,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`]] : []),
+        ...(statusCol ? [['Count approved', `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`]] : []),
+        ...(statusCol ? [['Count pending', `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"pending")`]] : []),
+        ...(paymentCol ? [['Count paid', `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`]] : []),
+        ...(paymentCol ? [['Count unpaid', `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"unpaid")`]] : []),
+        [],
+        ['SUBTOTAL codes 101-111 ignore rows hidden by AutoFilter.'],
+        [`Excel 365 / Google Sheets: use =FILTER(${dataRange}, <condition>) for dynamic results.`],
+      ];
+      const helpWs = XLSX.utils.aoa_to_sheet(helpRows);
+      Object.keys(helpWs).forEach(addr => {
+        if (addr.startsWith('!')) return;
+        const cell = helpWs[addr];
+        if (cell && typeof cell.v === 'string' && cell.v.startsWith('=')) {
+          // Keep these as visible text so users can read & copy them.
+          cell.t = 's';
+        }
+      });
+      helpWs['!cols'] = [{ wch: 30 }, { wch: 80 }];
+      XLSX.utils.book_append_sheet(wb, helpWs, 'Filter Guide');
+
       XLSX.writeFile(wb, `registrations-export-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     } catch (err) {
       console.error('Excel export failed:', err);
