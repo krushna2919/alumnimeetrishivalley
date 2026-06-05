@@ -62,12 +62,32 @@ const DEFAULT_SELECTED: (keyof Registration)[] = [
 interface ExportRegistrationsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Already-filtered registrations matching the user's current page filters. */
   registrations: Registration[];
+  /** Full unfiltered set; if omitted, falls back to `registrations`. */
+  allRegistrations?: Registration[];
+  /** Whether the user has any active filter on the registrations page. */
+  hasActiveFilters?: boolean;
+  /** Human-readable list of active filters to embed in the export. */
+  activeFilters?: string[];
 }
 
-const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: ExportRegistrationsDialogProps) => {
+const ExportRegistrationsDialog = ({
+  open,
+  onOpenChange,
+  registrations,
+  allRegistrations,
+  hasActiveFilters = false,
+  activeFilters = [],
+}: ExportRegistrationsDialogProps) => {
   const [selectedFields, setSelectedFields] = useState<Set<keyof Registration>>(new Set(DEFAULT_SELECTED));
   const [isExporting, setIsExporting] = useState(false);
+  // When true (default if filters are active), export only the rows matching
+  // the page filters. When false, export the full unfiltered set.
+  const [matchPageFilters, setMatchPageFilters] = useState(true);
+
+  const fullSet = allRegistrations ?? registrations;
+  const effectiveRows = matchPageFilters ? registrations : fullSet;
 
   const toggleField = (key: keyof Registration) => {
     setSelectedFields(prev => {
@@ -99,7 +119,7 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
   const getExportData = () => {
     const fields = EXPORTABLE_FIELDS.filter(f => selectedFields.has(f.key));
     const headers = fields.map(f => f.label);
-    const rows = registrations.map(reg =>
+    const rows = effectiveRows.map(reg =>
       fields.map(f => formatValue(f.key, reg[f.key]))
     );
     return { fields, headers, rows };
@@ -236,10 +256,13 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
       const { headers, rows } = getExportData();
 
       // Reserve top rows for a live summary panel that uses SUBTOTAL so values
-      // automatically recompute as the user applies AutoFilter dropdowns.
-      const SUMMARY_ROWS = 4; // rows 1-4 reserved
-      const HEADER_ROW = SUMMARY_ROWS + 1; // row 5 = column headers
-      const DATA_START_ROW = HEADER_ROW + 1; // row 6 = first data row
+      // automatically recompute as the user applies AutoFilter dropdowns. When
+      // the user opted to match page filters, we also list those filters so the
+      // exported sheet is self-describing.
+      const filterLines = matchPageFilters && activeFilters.length > 0 ? activeFilters : [];
+      const SUMMARY_ROWS = 4 + (filterLines.length > 0 ? filterLines.length + 1 : 0);
+      const HEADER_ROW = SUMMARY_ROWS + 1;
+      const DATA_START_ROW = HEADER_ROW + 1;
       const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
       const lastCol = XLSX.utils.encode_col(headers.length - 1);
       const dataRange = `A${DATA_START_ROW}:${lastCol}${DATA_END_ROW}`;
@@ -260,22 +283,29 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
         [
           'Visible Records:',
           `=SUBTOTAL(103,${appIdCol}${DATA_START_ROW}:${appIdCol}${DATA_END_ROW})`,
-          '', 'Total Records:', rows.length,
+          '',
+          matchPageFilters && activeFilters.length > 0 ? 'Filtered Records:' : 'Total Records:',
+          rows.length,
         ],
         feeCol
           ? ['Visible Fee Total:', `=SUBTOTAL(109,${feeCol}${DATA_START_ROW}:${feeCol}${DATA_END_ROW})`, '', '', '']
           : ['', '', '', '', ''],
         statusCol && paymentCol
           ? [
-              'Approved (all):',
+              'Approved (in export):',
               `=COUNTIF(${statusCol}${DATA_START_ROW}:${statusCol}${DATA_END_ROW},"approved")`,
               '',
-              'Paid (all):',
+              'Paid (in export):',
               `=COUNTIF(${paymentCol}${DATA_START_ROW}:${paymentCol}${DATA_END_ROW},"paid")`,
             ]
           : ['', '', '', '', ''],
         [],
       ];
+
+      if (filterLines.length > 0) {
+        summary.push(['Active page filters applied to this export:']);
+        filterLines.forEach(f => summary.push([`  • ${f}`]));
+      }
 
       const padded = summary.map(r => {
         const out = [...r];
@@ -396,9 +426,35 @@ const ExportRegistrationsDialog = ({ open, onOpenChange, registrations }: Export
         <DialogHeader>
           <DialogTitle>Export Registrations</DialogTitle>
           <DialogDescription>
-            Select fields to include and choose export format. Exporting {registrations.length} record(s).
+            Select fields to include and choose export format. Exporting {effectiveRows.length} record(s)
+            {matchPageFilters && hasActiveFilters ? ' (filtered)' : ''}.
           </DialogDescription>
         </DialogHeader>
+
+        {hasActiveFilters && (
+          <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={matchPageFilters}
+                onCheckedChange={(v) => setMatchPageFilters(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium">Match current page filters</span>
+                <span className="block text-xs text-muted-foreground">
+                  {matchPageFilters
+                    ? `Exporting ${registrations.length} filtered of ${fullSet.length} total.`
+                    : `Exporting all ${fullSet.length} records (ignoring page filters).`}
+                </span>
+              </span>
+            </label>
+            {matchPageFilters && activeFilters.length > 0 && (
+              <ul className="text-xs text-muted-foreground list-disc pl-6 space-y-0.5">
+                {activeFilters.map((f) => <li key={f}>{f}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-2">
           <Button variant="outline" size="sm" onClick={selectAll}>Select All</Button>
