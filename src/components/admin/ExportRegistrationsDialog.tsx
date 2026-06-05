@@ -256,10 +256,13 @@ const ExportRegistrationsDialog = ({
       const { headers, rows } = getExportData();
 
       // Reserve top rows for a live summary panel that uses SUBTOTAL so values
-      // automatically recompute as the user applies AutoFilter dropdowns.
-      const SUMMARY_ROWS = 4; // rows 1-4 reserved
-      const HEADER_ROW = SUMMARY_ROWS + 1; // row 5 = column headers
-      const DATA_START_ROW = HEADER_ROW + 1; // row 6 = first data row
+      // automatically recompute as the user applies AutoFilter dropdowns. When
+      // the user opted to match page filters, we also list those filters so the
+      // exported sheet is self-describing.
+      const filterLines = matchPageFilters && activeFilters.length > 0 ? activeFilters : [];
+      const SUMMARY_ROWS = 4 + (filterLines.length > 0 ? filterLines.length + 1 : 0);
+      const HEADER_ROW = SUMMARY_ROWS + 1;
+      const DATA_START_ROW = HEADER_ROW + 1;
       const DATA_END_ROW = DATA_START_ROW + Math.max(rows.length, 1) - 1;
       const lastCol = XLSX.utils.encode_col(headers.length - 1);
       const dataRange = `A${DATA_START_ROW}:${lastCol}${DATA_END_ROW}`;
