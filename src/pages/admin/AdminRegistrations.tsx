@@ -1632,11 +1632,11 @@ const AdminRegistrations = () => {
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                   <span>Showing {filteredRegistrations.length} of {registrations.length} registrations</span>
                   <Button
-                    onClick={quickExportFilteredToExcel}
+                    onClick={() => setIsExportDialogOpen(true)}
                     variant="outline"
                     size="sm"
                     className="h-8"
-                    title="Export filtered rows to Excel"
+                    title="Choose fields and export filtered rows to Excel"
                   >
                     <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600" />
                     Export filtered ({filteredRegistrations.length})
