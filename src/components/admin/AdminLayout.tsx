@@ -38,7 +38,9 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPinOff,
-  AlertCircle
+  AlertCircle,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackDeviceSession } from '@/lib/activityLogger';
