@@ -827,6 +827,18 @@ const AdminRegistrations = () => {
       (ws as any)['!freeze'] = { ySplit: 1, topLeftCell: 'A2', activePane: 'bottomLeft' };
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+      // Add `_xlnm._FilterDatabase` defined name so Excel renders header
+      // dropdown arrows (autofilter alone is not always honored on open).
+      (wb as any).Workbook = {
+        Names: [
+          {
+            Name: '_xlnm._FilterDatabase',
+            Ref: `Registrations!$A$1:$${lastCol}$${lastRow}`,
+            Sheet: 0,
+            Hidden: true,
+          },
+        ],
+      };
       XLSX.writeFile(wb, `registrations-filtered-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx`);
       toast({ title: 'Export ready', description: `Exported ${rowsData.length} filtered registration(s).` });
     } catch (err) {
