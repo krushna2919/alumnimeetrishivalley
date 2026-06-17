@@ -417,6 +417,22 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               <>
                 <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-full text-muted-foreground hover:text-foreground"
+                      onClick={toggleDarkMode}
+                      aria-label="Toggle dark mode"
+                    >
+                      {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
                     <Button 
                       variant="ghost" 
                       size="icon"
