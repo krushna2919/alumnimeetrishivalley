@@ -55,8 +55,9 @@ const EXPORTABLE_FIELDS: { key: keyof Registration; label: string; group: string
 ];
 
 const DEFAULT_SELECTED: (keyof Registration)[] = [
-  'application_id', 'name', 'email', 'phone', 'gender', 'year_of_passing',
-  'stay_type', 'registration_fee', 'registration_status', 'payment_status', 'created_at',
+  'application_id', 'name', 'gender', 'email', 'phone',
+  'board_type', 'year_of_passing', 'occupation', 'stay_type', 'tshirt_size', 'registration_fee',
+  'address_line1', 'address_line2', 'city', 'district', 'state', 'postal_code', 'country',
 ];
 
 interface ExportRegistrationsDialogProps {
