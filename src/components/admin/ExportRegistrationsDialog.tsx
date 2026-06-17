@@ -319,8 +319,21 @@ const ExportRegistrationsDialog = ({
       };
 
       const wb = XLSX.utils.book_new();
-      (wb as unknown as { Workbook: { CalcPr: { fullCalcOnLoad: boolean } } }).Workbook = { CalcPr: { fullCalcOnLoad: true } };
       XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+      // Defined name `_xlnm._FilterDatabase` is what triggers Excel/LibreOffice
+      // to render the dropdown arrows on each header cell. Without it,
+      // ws['!autofilter'] alone is sometimes ignored by Excel on open.
+      (wb as any).Workbook = {
+        CalcPr: { fullCalcOnLoad: true },
+        Names: [
+          {
+            Name: '_xlnm._FilterDatabase',
+            Ref: `Registrations!$A$1:$${lastCol}$${lastRow}`,
+            Sheet: 0,
+            Hidden: true,
+          },
+        ],
+      };
 
       // ----- Optional "Summary" sheet with live formulas -----
       // Kept on a separate sheet so the main table mirrors the reference
