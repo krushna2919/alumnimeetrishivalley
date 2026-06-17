@@ -115,6 +115,25 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [showLocationAlert, setShowLocationAlert] = useState(false);
   const [locationAlertMessage, setLocationAlertMessage] = useState('');
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('admin-theme') === 'dark';
+  });
+
+  // Apply dark class to <html> only while admin layout is mounted; restore on unmount
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadDark = root.classList.contains('dark');
+    if (isDarkMode) root.classList.add('dark');
+    else root.classList.remove('dark');
+    localStorage.setItem('admin-theme', isDarkMode ? 'dark' : 'light');
+    return () => {
+      // Only strip dark class on unmount if we added it
+      if (!hadDark) root.classList.remove('dark');
+    };
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => setIsDarkMode((v) => !v);
   
   // Monitor location access for non-superadmin users when geofencing is enabled
   const checkLocationAccess = useCallback(async () => {
