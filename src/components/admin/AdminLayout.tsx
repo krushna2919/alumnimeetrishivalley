@@ -133,6 +133,16 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     };
   }, [isDarkMode]);
 
+  // Listen for theme changes triggered from elsewhere (e.g. Settings page)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ dark: boolean }>).detail;
+      if (detail && typeof detail.dark === 'boolean') setIsDarkMode(detail.dark);
+    };
+    window.addEventListener('admin-theme-change', handler as EventListener);
+    return () => window.removeEventListener('admin-theme-change', handler as EventListener);
+  }, []);
+
   const toggleDarkMode = () => setIsDarkMode((v) => !v);
   
   // Monitor location access for non-superadmin users when geofencing is enabled
