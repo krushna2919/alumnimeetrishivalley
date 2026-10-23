@@ -113,6 +113,34 @@ const ImportantNotes = () => {
           </p>
         </motion.div>
 
+        {/* Key Dates timeline - the three dates alumni need most, at a glance */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mb-12"
+        >
+          <h3 className="font-serif text-2xl font-semibold text-foreground text-center mb-6">Key Dates</h3>
+          <ol className="relative grid sm:grid-cols-3 gap-6">
+            {/* Connecting line behind the date markers (desktop only) */}
+            <div className="hidden sm:block absolute top-6 left-[16%] right-[16%] h-0.5 bg-primary/20" aria-hidden />
+            {[
+              { date: "31 Aug 2026", label: "Last date to register" },
+              { date: "30 Oct 2026", label: "Check-in by afternoon" },
+              { date: "1 Nov 2026", label: "Check-out by morning / afternoon" },
+            ].map((d, i) => (
+              <li key={d.date} className="relative flex flex-col items-center text-center">
+                <span className="z-10 w-12 h-12 rounded-full bg-primary text-primary-foreground font-bold flex items-center justify-center shadow-soft">
+                  {i + 1}
+                </span>
+                <p className="mt-3 font-serif text-xl font-semibold text-foreground">{d.date}</p>
+                <p className="text-sm text-muted-foreground">{d.label}</p>
+              </li>
+            ))}
+          </ol>
+        </motion.div>
+
         {/* Notes Grid - Responsive card layout */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {notes.map((note, index) => (
@@ -121,16 +149,26 @@ const ImportantNotes = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              // Staggered animation: each card appears 0.1s after the previous
               transition={{ duration: 0.6, delay: index * 0.1 }}
               className="gradient-card rounded-xl p-6 border border-border shadow-soft hover:shadow-card transition-shadow"
             >
-              {/* Icon container with primary color accent */}
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <note.icon className="w-6 h-6 text-primary" />
               </div>
               <h3 className="font-serif text-xl font-semibold text-foreground mb-2">{note.title}</h3>
-              <p className="text-muted-foreground leading-relaxed">{note.description}</p>
+              {/* T-shirt card shows sizes as easy-to-scan chips instead of a sentence */}
+              {note.title === "T-Shirt Sizing" ? (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {[["S", '36"'], ["M", '38-40"'], ["L", '42"'], ["XL", '44"']].map(([s, c]) => (
+                    <span key={s} className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm">
+                      <strong className="text-primary">{s}</strong>
+                      <span className="text-muted-foreground ml-1">{c}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground leading-relaxed">{note.description}</p>
+              )}
             </motion.div>
           ))}
         </div>
